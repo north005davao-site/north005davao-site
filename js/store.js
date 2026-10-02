@@ -103,7 +103,7 @@ function getGeoForAddress(address, index = 0) {
   };
 }
 
-// 1. Raw Tellers Data from User Request (78 Tellers)
+// 1. Raw Tellers Data (78 Active Primary Sales Representatives)
 const RAW_TELLERS = [
   { id: "DDN005-SR352", name: "Jehramea Marte", address: "Near Baranggay Hall, Salvacion, Sto. Tomas", booth: "DDN-352" },
   { id: "DDN005-SR754", name: "Belle Amor Quizo", address: "New Katipunan, Feeder Road 3, Sto. Tomas", booth: "DDN-754" },
@@ -182,18 +182,30 @@ const RAW_TELLERS = [
   { id: "DDN005-SR1751", name: "Shereel Alo Villabas", address: "P2 Katipunan, Panabo", booth: "DDN-1751" },
   { id: "DDN005-SR1783", name: "Marian Carrillo", address: "Purok 3 Tubod Carmen", booth: "DDN-1783" },
   { id: "DDN005-SR1784", name: "Aileen Paradero", address: "Purok Alambre San Isidro Tagum City", booth: "DDN-1784" },
-  { id: "DDN005-SR1823", name: "Precious Nica Torrefiel", address: "Purok 3A Upper Tubod Carmen", booth: "DDN-1823" },
-  { id: "DDN005-SR1799", name: "Charlyn Dela Vega", address: "Kape-Kape St., Prk 1-A Balagunan Sto. Tomas", booth: "DDN-1799" },
-  { id: "DDN005-SR1794", name: "Rhea Mei Adella Mangarin", address: "Purok Talisay Talomo Sto. Tomas", booth: "DDN-1794" },
-  { id: "DDN005-SR1825", name: "Carog Ann", address: "Purok 2 Crossing Pilar Southern Davao Panabo City", booth: "DDN-1825" },
-  { id: "DDN005-SR1797", name: "Jolina Albistros", address: "Orchid St. Salvacion Panabo City Davao Del Norte", booth: "DDN-1797" },
-  { id: "DDN005-SR1802", name: "Junalyn Royo Villaquer", address: "Purok 4, FD RD 1 Northgate Saypon Uno Tibal-og Sto. Tomas", booth: "DDN-1802" },
-  { id: "DDN005-SR1806", name: "Arturo Dela Peña", address: "Purok 6 A, Peda St San Francisco Panabo City", booth: "DDN-1806" },
-  { id: "DDN005-1782", name: "Mary Jane Fernandez", address: "Purok 6 Cebulano Carmen", booth: "DDN-1782" },
-  { id: "DDN005-SR1716", name: "Princess Solamillo", address: "Purok Narra, New Visayas, Sto. Tomas", booth: "DDN-1716" }
+  { id: "DDN005-SR1823", name: "Precious Nica Torrefiel", address: "Purok 3A Upper Tubod Carmen", booth: "DDN-1823" }
 ];
 
-// 2. Collectors Data (5 Collectors)
+// 2. Relievers Data (4 Active Buffer Relievers)
+const RAW_RELIEVERS = [
+  { id: "DDN005-REL001", name: "Charlyn Dela Vega", address: "Kape-Kape St., Prk 1-A Balagunan Sto. Tomas", booth: "DDN-1799", role: "Reliever", status: "Active" },
+  { id: "DDN005-REL002", name: "Rhea Mei Adella Mangarin", address: "Purok Talisay Talomo Sto. Tomas", booth: "DDN-1794", role: "Reliever", status: "Active" },
+  { id: "DDN005-REL003", name: "Carog Ann", address: "Purok 2 Crossing Pilar Southern Davao Panabo City", booth: "DDN-1825", role: "Reliever", status: "Active" },
+  { id: "DDN005-REL004", name: "Jolina Albistros", address: "Orchid St. Salvacion Panabo City Davao Del Norte", booth: "DDN-1797", role: "Reliever", status: "Active" }
+];
+
+// 3. Inactive Booths Data (2 Inactive Outlets)
+const RAW_INACTIVE_BOOTHS = [
+  { id: "DDN005-SR1802", name: "Junalyn Royo Villaquer", address: "Purok 4, FD RD 1 Northgate Saypon Uno Tibal-og Sto. Tomas", booth: "DDN-1802", role: "Sales Representative", status: "INACTIVE" },
+  { id: "DDN005-SR1806", name: "Arturo Dela Peña", address: "Purok 6 A, Peda St San Francisco Panabo City", booth: "DDN-1806", role: "Sales Representative", status: "INACTIVE" }
+];
+
+// 4. Terminated Tellers Data (2 Terminated Staff)
+const RAW_TERMINATED_TELLERS = [
+  { id: "DDN005-1782", name: "Mary Jane Fernandez", address: "Purok 6 Cebulano Carmen", booth: "DDN-1782", role: "Sales Representative", status: "TERMINATED" },
+  { id: "DDN005-SR1716", name: "Princess Solamillo", address: "Purok Narra, New Visayas, Sto. Tomas", booth: "DDN-1716", role: "Sales Representative", status: "TERMINATED" }
+];
+
+// 5. Collectors Data (5 Collectors)
 const RAW_COLLECTORS = [
   { id: "DDN005-SC001", name: "JOHN", area: "Sto Tomas", status: "Active", phone: "+63 917 111 0001", lat: 7.5303, lng: 125.6264 },
   { id: "DDN005-SC002", name: "MUHLEN", area: "Tagum / Kapalong / Talaingod", status: "Active", phone: "+63 917 111 0002", lat: 7.4475, lng: 125.8078 },
@@ -274,7 +286,7 @@ function buildDefaultStore() {
     });
   });
 
-  // Add Tellers
+  // Add 78 Primary Active Sales Representatives
   RAW_TELLERS.forEach((t, idx) => {
     const geo = getGeoForAddress(t.address, idx);
     const cleanBooth = (t.booth || '').trim();
@@ -314,6 +326,102 @@ function buildDefaultStore() {
       printerSerial: `PRT-${cleanBooth}`,
       assignedTellerId: t.id,
       assignedTellerName: t.name
+    });
+  });
+
+  // Add 4 Relievers
+  RAW_RELIEVERS.forEach((r, idx) => {
+    const geo = getGeoForAddress(r.address, 78 + idx);
+    const cleanBooth = (r.booth || '').trim();
+    const addrParsed = parseAddress(r.address);
+
+    employees.push({
+      id: r.id,
+      name: r.name,
+      gender: 'Female',
+      role: 'Reliever',
+      department: 'dept-tel',
+      area: r.address,
+      address: r.address,
+      purok: addrParsed.purok,
+      municipality: addrParsed.municipality,
+      lat: geo.lat,
+      lng: geo.lng,
+      boothCode: cleanBooth,
+      posSerial: `POS-${cleanBooth}`,
+      printerSerial: `PRT-${cleanBooth}`,
+      phone: `+63 9${Math.floor(100000000 + Math.random() * 900000000)}`,
+      status: 'Active',
+      etsStatus: 'Active'
+    });
+  });
+
+  // Add 2 Inactive Booths
+  RAW_INACTIVE_BOOTHS.forEach((ib, idx) => {
+    const geo = getGeoForAddress(ib.address, 82 + idx);
+    const cleanBooth = (ib.booth || '').trim();
+    const addrParsed = parseAddress(ib.address);
+
+    employees.push({
+      id: ib.id,
+      name: ib.name,
+      gender: 'Female',
+      role: 'TELLER',
+      department: 'dept-tel',
+      area: ib.address,
+      address: ib.address,
+      purok: addrParsed.purok,
+      municipality: addrParsed.municipality,
+      lat: geo.lat,
+      lng: geo.lng,
+      boothCode: cleanBooth,
+      posSerial: `POS-${cleanBooth}`,
+      printerSerial: `PRT-${cleanBooth}`,
+      phone: `+63 9${Math.floor(100000000 + Math.random() * 900000000)}`,
+      status: 'INACTIVE',
+      etsStatus: 'Offline'
+    });
+
+    booths.push({
+      id: cleanBooth,
+      name: `Station ${cleanBooth} (${ib.name})`,
+      area: ib.address,
+      purok: addrParsed.purok,
+      municipality: addrParsed.municipality,
+      lat: geo.lat,
+      lng: geo.lng,
+      status: 'INACTIVE',
+      posSerial: `POS-${cleanBooth}`,
+      printerSerial: `PRT-${cleanBooth}`,
+      assignedTellerId: ib.id,
+      assignedTellerName: ib.name
+    });
+  });
+
+  // Add 2 Terminated Tellers
+  RAW_TERMINATED_TELLERS.forEach((tt, idx) => {
+    const geo = getGeoForAddress(tt.address, 84 + idx);
+    const cleanBooth = (tt.booth || '').trim();
+    const addrParsed = parseAddress(tt.address);
+
+    employees.push({
+      id: tt.id,
+      name: tt.name,
+      gender: 'Female',
+      role: 'TELLER',
+      department: 'dept-tel',
+      area: tt.address,
+      address: tt.address,
+      purok: addrParsed.purok,
+      municipality: addrParsed.municipality,
+      lat: geo.lat,
+      lng: geo.lng,
+      boothCode: cleanBooth,
+      posSerial: `POS-${cleanBooth}`,
+      printerSerial: `PRT-${cleanBooth}`,
+      phone: `+63 9${Math.floor(100000000 + Math.random() * 900000000)}`,
+      status: 'TERMINATED',
+      etsStatus: 'Offline'
     });
   });
 
@@ -963,10 +1071,33 @@ class Store {
               }
               seenIds.add(id);
 
-              const sUp = (e.status || 'ACTIVE').toUpperCase();
-              if (sUp === 'TERMINATED') e.status = 'TERMINATED';
-              else if (sUp === 'INACTIVE') e.status = 'INACTIVE';
-              else e.status = 'ACTIVE';
+              // Authoritative normalization keys for DDN005 86-Staff Master Data breakdown:
+              // 78 Primary Active Sales Representatives
+              // 4 Buffer Relievers
+              // 2 Inactive Booths
+              // 2 Terminated Tellers
+              const normUpper = normName.toUpperCase();
+              const idUpper = (e.id || '').trim().toUpperCase();
+              const RELIEVER_KEYS = ['CHARLYN DELA VEGA', 'RHEA MEI ADELLA MANGARIN', 'CAROG ANN', 'JOLINA ALBISTROS', 'DDN005-SR1799', 'DDN005-SR1794', 'DDN005-SR1825', 'DDN005-SR1797', 'DDN005-REL001', 'DDN005-REL002', 'DDN005-REL003', 'DDN005-REL004'];
+              const INACTIVE_KEYS = ['JUNALYN ROYO VILLAQUER', 'ARTURO DELA PEÑA', 'ARTURO DELA PENA', 'DDN005-SR1802', 'DDN005-SR1806'];
+              const TERMINATED_KEYS = ['MARY JANE FERNANDEZ', 'PRINCESS SOLAMILLO', 'DDN005-1782', 'DDN005-SR1782', 'DDN005-SR1716'];
+
+              if (RELIEVER_KEYS.includes(normUpper) || RELIEVER_KEYS.includes(idUpper)) {
+                e.role = 'Reliever';
+                e.status = 'ACTIVE';
+                needsSave = true;
+              } else if (INACTIVE_KEYS.includes(normUpper) || INACTIVE_KEYS.includes(idUpper)) {
+                e.status = 'INACTIVE';
+                needsSave = true;
+              } else if (TERMINATED_KEYS.includes(normUpper) || TERMINATED_KEYS.includes(idUpper)) {
+                e.status = 'TERMINATED';
+                needsSave = true;
+              } else {
+                const sUp = (e.status || 'ACTIVE').toUpperCase();
+                if (sUp === 'TERMINATED') e.status = 'TERMINATED';
+                else if (sUp === 'INACTIVE') e.status = 'INACTIVE';
+                else e.status = 'ACTIVE';
+              }
 
               cleanEmployees.push(e);
             });
@@ -976,7 +1107,7 @@ class Store {
             }
           }
 
-          if (parsed.relievers && Array.isArray(parsed.relievers)) {
+          if (parsed.relievers && Array.isArray(parsed.relievers) && parsed.relievers.length > 0) {
             parsed.relievers.forEach(r => {
               const matchEmp = parsed.employees ? parsed.employees.find(e => e.name && e.name.trim().toLowerCase() === (r.name || '').trim().toLowerCase()) : null;
               if (matchEmp) {
@@ -997,6 +1128,19 @@ class Store {
                 r.status = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
               }
             });
+          } else {
+            const relEmployees = (parsed.employees || []).filter(e => (e.role || '').toUpperCase().includes('RELIEVER'));
+            if (relEmployees.length > 0) {
+              parsed.relievers = relEmployees.map(e => ({
+                id: e.id,
+                name: e.name,
+                role: 'Reliever',
+                boothCode: e.boothCode || '',
+                area: e.address || '',
+                status: e.status || 'Active'
+              }));
+              needsSave = true;
+            }
           }
           if (!parsed.ocrDocuments) {
             const fresh = buildDefaultStore();

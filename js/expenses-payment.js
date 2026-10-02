@@ -1370,6 +1370,34 @@ class ExpensesPaymentController {
     });
 
     eligible.sort((a, b) => a.name.localeCompare(b.name));
+
+    // STRICT ROLE ISOLATION: If logged-in user is a Collector, filter strictly to only their own account
+    if (window.authManager && typeof window.authManager.isCollector === 'function' && window.authManager.isCollector()) {
+      const cur = window.authManager.getCurrentUser();
+      if (cur) {
+        const curName = (cur.name || cur.username || '').toLowerCase().trim();
+        const curId = (cur.id || '').toLowerCase().trim();
+        const curMatch = eligible.find(c => 
+          (curId && c.id && c.id.toLowerCase() === curId) ||
+          (curName && c.name.toLowerCase().trim() === curName) ||
+          (curName && c.name.toLowerCase().includes(curName)) ||
+          (curName && curName.includes(c.name.toLowerCase()))
+        );
+        if (curMatch) {
+          return [curMatch];
+        } else {
+          return [{
+            id: cur.id || 'DDN005-SC004',
+            name: cur.name || 'MARK ANTHONY (MAC2)',
+            role: 'Collector',
+            boothCode: '',
+            area: cur.department || 'Panabo City',
+            status: 'Active'
+          }];
+        }
+      }
+    }
+
     return eligible;
   }
 
@@ -1511,10 +1539,15 @@ class ExpensesPaymentController {
     const container = document.getElementById('ep-collector-selector-container');
     if (!container) return;
 
+    const isCollectorUser = window.authManager && typeof window.authManager.isCollector === 'function' && window.authManager.isCollector();
+
     const eligibleList = this.getEligibleCollectors();
 
-    // Default selection if unset
-    if (!this.selectedCollector && eligibleList.length > 0) {
+    // Default selection if unset or if collector user
+    if (isCollectorUser && eligibleList.length > 0) {
+      this.selectedCollector = eligibleList[0].name;
+      this.selectedCollectorId = eligibleList[0].id;
+    } else if (!this.selectedCollector && eligibleList.length > 0) {
       this.selectedCollector = eligibleList[0].name;
       this.selectedCollectorId = eligibleList[0].id;
     }
@@ -1522,11 +1555,33 @@ class ExpensesPaymentController {
     const currentPerson = eligibleList.find(e => 
       (this.selectedCollectorId && e.id === this.selectedCollectorId) ||
       (this.selectedCollector && e.name.toLowerCase() === this.selectedCollector.toLowerCase())
-    );
+    ) || (eligibleList.length > 0 ? eligibleList[0] : null);
 
     const displayName = currentPerson ? currentPerson.name : (this.selectedCollector || 'Select Collector');
     const badgeText = currentPerson ? 'Collector' : 'Historical Record';
 
+    // If Collector is logged in, show ONLY their own locked card, completely blocking other collectors from view/search
+    if (isCollectorUser && currentPerson) {
+      container.innerHTML = `
+        <div class="ep-searchable-select" id="ep-collector-searchable-wrapper" style="cursor:default; border-color:var(--border-color); background:rgba(30,41,59,0.35);">
+          <div class="ep-searchable-trigger" id="ep-collector-searchable-trigger" style="cursor:default; pointer-events:none;">
+            <div class="ep-searchable-label" style="display:flex; align-items:center; gap:8px;">
+              <span style="font-weight:700; color:var(--text-main); font-size:13px;">${this.escapeHtml(currentPerson.name)}</span>
+              <span class="badge" style="font-size:11px; background:rgba(139,92,246,0.15); color:#a78bfa; font-weight:700;">Collector (Assigned)</span>
+              ${currentPerson.area ? `<span style="font-size:11px; color:var(--text-muted);">Route: <strong>${this.escapeHtml(currentPerson.area)}</strong></span>` : ''}
+              ${currentPerson.id ? `<span style="font-size:11px; color:var(--text-muted);">(${this.escapeHtml(currentPerson.id)})</span>` : ''}
+            </div>
+            <span style="font-size:11px; color:var(--accent-gold); font-weight:700;">🔒 LOCKED TO YOUR ACCOUNT</span>
+          </div>
+          <select id="ep-collector-selector" style="display:none;">
+            <option value="${this.escapeHtml(currentPerson.name)}" selected>${this.escapeHtml(currentPerson.name)}</option>
+          </select>
+        </div>
+      `;
+      return;
+    }
+
+    // Full Searchable Dropdown for Administrator / Supervisor
     container.innerHTML = `
       <div class="ep-searchable-select" id="ep-collector-searchable-wrapper">
         <div class="ep-searchable-trigger" id="ep-collector-searchable-trigger" tabindex="0">
