@@ -1,7 +1,7 @@
 {
-  "name": "omni-erp",
+  "name": "north005davao-site",
   "version": "1.0.0",
-  "description": "",
+  "description": "NORTH-005 Davao Operations & Management Suite",
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
