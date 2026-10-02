@@ -424,6 +424,12 @@
 
       users.push(newUser);
       this.saveUsers(users);
+
+      // Sync user to Supabase Cloud
+      if (window.supabaseSync && typeof window.supabaseSync.syncUserAccount === 'function') {
+        window.supabaseSync.syncUserAccount(newUser);
+      }
+
       this.logHistory(cleanUsername, 'Registered', `Account created (${pos} → ${role}, Status: ${status})`);
       return { success: true, user: newUser };
     }

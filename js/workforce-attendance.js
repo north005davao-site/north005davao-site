@@ -1053,6 +1053,21 @@
       };
 
       this.saveRecords();
+
+      // Broadcast to Supabase Cloud in background
+      if (window.supabaseSync && typeof window.supabaseSync.syncAttendanceRecord === 'function') {
+        window.supabaseSync.syncAttendanceRecord({
+          employeeId: empId,
+          date: dateVal,
+          status: finalStatus,
+          timeIn: formattedIn,
+          timeOut: formattedOut,
+          duration: duration,
+          notes: remarks,
+          imageProof: this.currentUploadedImage
+        });
+      }
+
       this.closeLogModal();
       this.render();
       if (typeof alert === 'function') alert('Duty shift log updated successfully.');
