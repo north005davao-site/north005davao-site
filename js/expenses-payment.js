@@ -673,7 +673,10 @@ class ExpensesPaymentController {
         c.classList.toggle('active', c.id === 'ep-tab-ca-tracker');
       });
 
-      // Hide top action buttons
+      // Hide top header view-actions (Upload image, review OCR)
+      const topActions = document.querySelector('#view-finance .view-actions');
+      if (topActions) topActions.style.display = 'none';
+
       const uploadBtn = document.getElementById('ep-btn-upload-receipt');
       if (uploadBtn) uploadBtn.style.display = 'none';
       const sampleBtn = document.getElementById('ep-btn-load-sample');
@@ -681,9 +684,15 @@ class ExpensesPaymentController {
       const ocrReviewBtn = document.getElementById('ep-btn-review-ocr');
       if (ocrReviewBtn) ocrReviewBtn.style.display = 'none';
 
-      // Hide payment record trigger buttons if any
+      // Hide payment record trigger buttons in CA tracker tab
+      const caPayBtn = document.getElementById('ep-btn-record-ca-payment');
+      if (caPayBtn) caPayBtn.style.display = 'none';
+      document.querySelectorAll('button[onclick*="openPaymentModal"]').forEach(el => el.style.display = 'none');
       document.querySelectorAll('.ep-record-payment-trigger').forEach(el => el.style.display = 'none');
     } else {
+      const topActions = document.querySelector('#view-finance .view-actions');
+      if (topActions) topActions.style.display = 'flex';
+
       document.querySelectorAll('.ep-tab-btn').forEach(b => {
         b.style.display = 'inline-flex';
       });
@@ -691,6 +700,9 @@ class ExpensesPaymentController {
       if (uploadBtn) uploadBtn.style.display = 'inline-flex';
       const sampleBtn = document.getElementById('ep-btn-load-sample');
       if (sampleBtn) sampleBtn.style.display = 'inline-flex';
+      const caPayBtn = document.getElementById('ep-btn-record-ca-payment');
+      if (caPayBtn) caPayBtn.style.display = '';
+      document.querySelectorAll('button[onclick*="openPaymentModal"]').forEach(el => el.style.display = '');
     }
 
     this.updateKpiCounters();

@@ -204,55 +204,8 @@
         } else if (u.role === 'Collector') {
           roleBadge = `<span class="badge" style="background:rgba(16,185,129,0.18);color:#6ee7b7;border:1px solid rgba(16,185,129,0.5);font-weight:700;padding:3px 8px;border-radius:4px;font-size:11px;">🚚 Collector</span>`;
         } else {
-          roleBadge = `<span class="badge badge-neutral" style="padding:3px 8px;font-size:11px;">${u.role}</span>`;
+          roleBadge = `<span class="badge badge-neutral" style="padding:3px 8px;font-size:11px;">${u.role || 'Staff'}</span>`;
         }
-
-        // Dropdown filters
-        if (this.roleFilter !== 'all' && u.role !== this.roleFilter) return false;
-        if (this.statusFilter !== 'all' && u.status !== this.statusFilter) return false;
-
-        // Search Query
-        if (this.searchQuery) {
-          const q = this.searchQuery.replace(/^@/, '');
-          const target = `${u.name} ${u.username} ${u.email} ${u.phone} ${u.position} ${u.role} ${u.status}`.toLowerCase();
-          if (!target.includes(q)) return false;
-        }
-        return true;
-      });
-
-      // Pagination Calculation
-      const totalRecords = filtered.length;
-      const totalPages = Math.max(1, Math.ceil(totalRecords / this.pageSize));
-      if (this.currentPage > totalPages) this.currentPage = totalPages;
-      if (this.currentPage < 1) this.currentPage = 1;
-
-      const startIndex = (this.currentPage - 1) * this.pageSize;
-      const endIndex = Math.min(startIndex + this.pageSize, totalRecords);
-      const paginated = filtered.slice(startIndex, endIndex);
-
-      // Render Pagination Bar
-      this.renderPagination(totalRecords, totalPages);
-
-      if (paginated.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="9" style="text-align: center; padding: 48px 20px; color: var(--text-muted);">
-              <div style="font-size: 32px; margin-bottom: 8px; opacity: 0.6;">👥</div>
-              <div style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 4px;">No User Accounts Found</div>
-              <div style="font-size: 12px;">No system accounts match your search filters or active tab. Try resetting filters.</div>
-            </td>
-          </tr>
-        `;
-        return;
-      }
-
-      tbody.innerHTML = paginated.map(u => {
-        const isSelf = currentUser && currentUser.username === u.username;
-        const initials = window.authManager ? window.authManager.getInitials(u.name) : '??';
-
-        const roleBadge = u.role === 'Administrator'
-          ? `<span class="badge" style="background:rgba(245,158,11,0.18);color:#fbbf24;border:1px solid rgba(245,158,11,0.5);font-weight:700;padding:3px 8px;border-radius:4px;font-size:11px;">👑 Administrator</span>`
-          : `<span class="badge" style="background:rgba(59,130,246,0.18);color:#93c5fd;border:1px solid rgba(59,130,246,0.5);font-weight:700;padding:3px 8px;border-radius:4px;font-size:11px;">👔 Supervisor</span>`;
 
         let statusBadge = '';
         if (u.status === 'Active') {
@@ -265,9 +218,17 @@
           statusBadge = `<span class="badge badge-neutral" style="padding:3px 8px;font-size:11px;">Inactive</span>`;
         }
 
+        const avatarBg = u.role === 'Administrator' 
+          ? 'linear-gradient(135deg, #f59e0b, #b45309)' 
+          : (u.role === 'Supervisor' 
+              ? 'linear-gradient(135deg, #3b82f6, #1d4ed8)' 
+              : (u.role === 'Collector' 
+                  ? 'linear-gradient(135deg, #10b981, #047857)' 
+                  : 'linear-gradient(135deg, #64748b, #334155)'));
+
         const avatarHtml = u.photo
           ? `<img src="${u.photo}" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:1.5px solid var(--accent-gold);" alt="${u.name}">`
-          : `<div style="width:34px;height:34px;border-radius:50%;background:${u.role === 'Administrator' ? 'linear-gradient(135deg, #f59e0b, #b45309)' : 'linear-gradient(135deg, #3b82f6, #1d4ed8)'};color:#fff;font-weight:800;font-size:11.5px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.3);">${initials}</div>`;
+          : `<div style="width:34px;height:34px;border-radius:50%;background:${avatarBg};color:#fff;font-weight:800;font-size:11.5px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.3);">${initials}</div>`;
 
         let actionBtns = '';
         if (isAdmin) {

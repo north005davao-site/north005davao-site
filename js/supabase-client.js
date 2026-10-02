@@ -141,6 +141,35 @@
         console.error('Failed to sync user account to Supabase:', err);
       }
     }
+
+    async fetchUsers() {
+      if (!this.client) return null;
+      try {
+        const { data, error } = await this.client
+          .from('system_users')
+          .select('*');
+        if (error) {
+          console.warn('Supabase fetchUsers notice:', error.message);
+          return null;
+        }
+        return data;
+      } catch (err) {
+        console.error('Failed to fetch users from Supabase:', err);
+        return null;
+      }
+    }
+
+    async deleteUserAccount(username) {
+      if (!this.client || !username) return;
+      try {
+        await this.client
+          .from('system_users')
+          .delete()
+          .eq('username', username);
+      } catch (err) {
+        console.warn('Supabase deleteUserAccount notice:', err);
+      }
+    }
   }
 
   window.supabaseSync = new SupabaseSyncManager();

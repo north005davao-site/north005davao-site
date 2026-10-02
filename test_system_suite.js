@@ -213,8 +213,8 @@ if (!collLogin.success || !auth.isCollector()) {
   throw new Error('Collector login failed');
 }
 
-const allowedCollectorViews = ['view-dashboard', 'view-tracking', 'view-pipelines', 'view-workforce-attendance', 'view-org-chart', 'view-eod', 'view-thermal-paper', 'view-inventory', 'view-employee-documents', 'view-expenses'];
-const blockedCollectorViews = ['view-employees', 'view-user-management', 'view-audit-discrepancy', 'view-settings', 'view-restdays'];
+const allowedCollectorViews = ['view-dashboard', 'view-tracking', 'view-pipelines', 'view-employees', 'view-expenses', 'view-finance'];
+const blockedCollectorViews = ['view-inventory', 'view-user-management', 'view-org-chart', 'view-employee-documents', 'view-thermal-paper', 'view-audit-discrepancy', 'view-settings'];
 
 allowedCollectorViews.forEach(v => {
   if (!auth.canAccessView(v)) throw new Error(`Collector should have access to ${v}`);
@@ -222,7 +222,7 @@ allowedCollectorViews.forEach(v => {
 blockedCollectorViews.forEach(v => {
   if (auth.canAccessView(v)) throw new Error(`Collector MUST NOT have access to ${v}`);
 });
-console.log('✓ Collector permissions strictly enforced by route guards');
+console.log('✓ Collector permissions strictly enforced by route guards (Dashboard, Tracking, Pipelines, Registry, Finance allowed; Inventory, User Mgmt, Org Chart, Docs, Thermal blocked)');
 
 console.log('\n--- 2b. Testing Workforce Attendance Bug Fix, OCR, Auto Duty Status & Persistence ---');
 require('./js/workforce-attendance.js');

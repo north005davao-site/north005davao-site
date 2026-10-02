@@ -1744,39 +1744,36 @@ function renderFleetTrackingList() {
   if (!container) return;
 
   const store = window.appStore;
-  const employees = store.getEmployees();
-  const relievers = store.data.relievers || [];
+  if (!store) return;
+  const employees = store.getEmployees() || [];
+  const relievers = (store.data && store.data.relievers) || [];
   const allStaff = [...employees, ...relievers.filter(r => !employees.some(e => e.id === r.id))];
 
-  // Master Registry is the SOURCE OF TRUTH:
-  // Strictly filter only employees with valid GPS Coordinates (Lat -90 to 90, Lng -180 to 180)
-  // If invalid, blank, null, or missing -> DO NOT SHOW in Fleet Activity Monitor!
-  const gpsEligibleStaff = allStaff.filter(emp => window.hasValidGpsCoordinates(emp));
-
-  let list = gpsEligibleStaff;
+  let list = allStaff;
   if (fleetSearchQuery) {
-    list = gpsEligibleStaff.filter(emp => {
-      const lat = Number(emp.lat !== undefined && emp.lat !== null && emp.lat !== '' ? emp.lat : emp.coordinates.lat);
-      const lng = Number(emp.lng !== undefined && emp.lng !== null && emp.lng !== '' ? emp.lng : emp.coordinates.lng);
-      const coordStr = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-      return (emp.name && emp.name.toLowerCase().includes(fleetSearchQuery)) ||
-             (emp.id && emp.id.toLowerCase().includes(fleetSearchQuery)) ||
-             (emp.boothCode && emp.boothCode.toLowerCase().includes(fleetSearchQuery)) ||
-             (emp.role && emp.role.toLowerCase().includes(fleetSearchQuery)) ||
-             (emp.address && emp.address.toLowerCase().includes(fleetSearchQuery)) ||
-             (emp.purok && emp.purok.toLowerCase().includes(fleetSearchQuery)) ||
-             (emp.municipality && emp.municipality.toLowerCase().includes(fleetSearchQuery)) ||
-             (emp.area && emp.area.toLowerCase().includes(fleetSearchQuery)) ||
-             (coordStr.includes(fleetSearchQuery)) ||
-             (emp.lat && emp.lat.toString().includes(fleetSearchQuery)) ||
-             (emp.lng && emp.lng.toString().includes(fleetSearchQuery));
+    const q = fleetSearchQuery.toLowerCase().trim();
+    list = allStaff.filter(emp => {
+      const gps = (typeof window.parseGpsCoordinates === 'function') 
+        ? window.parseGpsCoordinates(emp) 
+        : { isValid: false };
+      const coordStr = gps.isValid ? `${gps.lat.toFixed(6)}, ${gps.lng.toFixed(6)}` : '';
+      return (emp.name && emp.name.toLowerCase().includes(q)) ||
+             (emp.id && emp.id.toLowerCase().includes(q)) ||
+             (emp.boothCode && emp.boothCode.toLowerCase().includes(q)) ||
+             (emp.booth && emp.booth.toLowerCase().includes(q)) ||
+             (emp.role && emp.role.toLowerCase().includes(q)) ||
+             (emp.address && emp.address.toLowerCase().includes(q)) ||
+             (emp.purok && emp.purok.toLowerCase().includes(q)) ||
+             (emp.municipality && emp.municipality.toLowerCase().includes(q)) ||
+             (emp.area && emp.area.toLowerCase().includes(q)) ||
+             (coordStr && coordStr.includes(q));
     });
   }
 
   if (list.length === 0) {
     const emptyMsg = fleetSearchQuery 
-      ? `🔍 No GPS-enabled staff found matching "<strong>${fleetSearchQuery}</strong>"`
-      : `📍 No active staff with valid GPS coordinates in Master Registry.`;
+      ? `🔍 No staff records found matching "<strong>${fleetSearchQuery}</strong>"`
+      : `📍 No staff records found in Master Registry.`;
     container.innerHTML = `
       <div style="text-align: center; padding: 24px 12px; color: var(--text-muted); font-size: 12px;">
         ${emptyMsg}
@@ -1793,28 +1790,37 @@ function renderFleetTrackingList() {
     else if (roleUpper.includes('TEAM LEADER')) statusBg = '#ccfbf1; color: #0f766e;';
     else if (roleUpper.includes('RELIEVER') || roleUpper.includes('RELIVER')) statusBg = '#e2e8f0; color: #334155;';
 
-    // True Master Registry coordinates (never fake or fallback)
-    const latVal = Number(emp.lat !== undefined && emp.lat !== null && emp.lat !== '' ? emp.lat : emp.coordinates.lat);
-    const lngVal = Number(emp.lng !== undefined && emp.lng !== null && emp.lng !== '' ? emp.lng : emp.coordinates.lng);
-    const latStr = latVal.toFixed(6);
-    const lngStr = lngVal.toFixed(6);
+    const gps = (typeof window.parseGpsCoordinates === 'function')
+      ? window.parseGpsCoordinates(emp)
+      : { isValid: false };
 
-    let displayRole = emp.role;
+    let displayRole = emp.role || 'Staff';
     if (roleUpper === 'TELLER' || roleUpper === 'STATION TELLER') displayRole = 'Sales Representative';
     else if (roleUpper === 'RELIVER') displayRole = 'Reliever';
 
+    const boothDisplay = emp.boothCode || emp.booth || '-';
+    const muniDisplay = emp.municipality || emp.address || emp.area || '-';
+
+    const gpsStatusHtml = gps.isValid
+      ? `<span style="font-size: 10px; font-weight: 700; color: #10b981; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); padding: 1px 6px; border-radius: 3px;">GPS ACTIVE</span>`
+      : `<span style="font-size: 10px; font-weight: 700; color: #ef4444; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); padding: 1px 6px; border-radius: 3px;">GPS UNAVAILABLE</span>`;
+
+    const gpsCoordsHtml = gps.isValid
+      ? `<span style="font-size: 10.5px; font-family: monospace; color: var(--primary); font-weight: 700;">📍 ${gps.lat.toFixed(6)}, ${gps.lng.toFixed(6)}</span>`
+      : `<span style="font-size: 10.5px; color: var(--text-muted); font-style: italic;">No Coordinates</span>`;
+
     return `
-      <div style="padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-surface); border: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s;" onclick="window.focusEmployeeCoords(${latVal}, ${lngVal}, '${emp.id}')" title="Click to locate on STL BOOTH map">
+      <div style="padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-surface); border: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s;" onclick="window.focusStaffMember('${emp.id}')" title="Click to track ${emp.name}'s STL BOOTH">
         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
           <div style="font-size: 13px; font-weight: 700; color: var(--text-main);">${emp.name}</div>
           <span style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: ${statusBg}">${displayRole}</span>
         </div>
         <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
-          Outlet: <code>${emp.boothCode || '-'}</code> • ${emp.municipality || emp.address || emp.area || '-'}
+          Outlet: <code>${boothDisplay}</code> • ${muniDisplay}
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
-          <span style="font-size: 10.5px; font-family: monospace; color: var(--primary); font-weight: 700;">📍 ${latStr}, ${lngStr}</span>
-          <span style="font-size: 10px; font-weight: 700; color: #10b981; background: rgba(16, 185, 129, 0.12); padding: 1px 6px; border-radius: 3px;">GPS ACTIVE</span>
+          ${gpsCoordsHtml}
+          ${gpsStatusHtml}
         </div>
       </div>
     `;
@@ -1823,9 +1829,10 @@ function renderFleetTrackingList() {
 
 // Precision GPS Pin Calibration Modal Logic
 window.openPrecisionCalibrateModal = function(preselectedId = null) {
-  sfx.playClick();
+  if (window.sfx) sfx.playClick();
   const select = document.getElementById('calib-select-target');
   const store = window.appStore;
+  if (!store || !select) return;
   const employees = store.getEmployees();
   const relievers = store.data.relievers || [];
   const allStaff = [...employees, ...relievers.filter(r => !employees.some(e => e.id === r.id))];
@@ -1837,7 +1844,7 @@ window.openPrecisionCalibrateModal = function(preselectedId = null) {
     else if (rU === 'RELIVER') rName = 'Reliever';
     return `
       <option value="${e.id}" ${e.id === preselectedId ? 'selected' : ''}>
-        ${rName}: ${e.name} (${e.id}) - Outlet: ${e.boothCode || '-'}
+        ${rName}: ${e.name} (${e.id}) - Outlet: ${e.boothCode || e.booth || '-'}
       </option>
     `;
   }).join('');
@@ -1847,20 +1854,23 @@ window.openPrecisionCalibrateModal = function(preselectedId = null) {
   }
 
   window.onCalibTargetSelected();
-  document.getElementById('modal-precision-calibrate').classList.add('active');
+  const modal = document.getElementById('modal-precision-calibrate');
+  if (modal) modal.classList.add('active');
 };
 
 window.onCalibTargetSelected = function() {
   const targetId = document.getElementById('calib-select-target').value;
   const store = window.appStore;
+  if (!store) return;
   const emp = store.getEmployees().find(e => e.id === targetId) ||
               (store.data.relievers && store.data.relievers.find(r => r.id === targetId));
   if (!emp) return;
 
-  document.getElementById('calib-input-lat').value = emp.lat ? emp.lat.toFixed(6) : '7.530300';
-  document.getElementById('calib-input-lng').value = emp.lng ? emp.lng.toFixed(6) : '125.626400';
+  const gps = (typeof window.parseGpsCoordinates === 'function') ? window.parseGpsCoordinates(emp) : { isValid: false };
+  document.getElementById('calib-input-lat').value = gps.isValid ? gps.lat.toFixed(6) : '7.447500';
+  document.getElementById('calib-input-lng').value = gps.isValid ? gps.lng.toFixed(6) : '125.807800';
   document.getElementById('calib-address-preview').innerHTML = `
-    <strong>Registered Address:</strong> ${emp.address || emp.area || '-'} | <strong>Outlet / Booth Location:</strong> <code>${emp.boothCode || '-'}</code>
+    <strong>Registered Address:</strong> ${emp.address || emp.area || '-'} | <strong>Outlet / Booth Location:</strong> <code>${emp.boothCode || emp.booth || '-'}</code>
   `;
 };
 
@@ -1871,8 +1881,8 @@ window.savePrecisionCalibration = function() {
   const lat = parseFloat(latVal);
   const lng = parseFloat(lngVal);
 
-  if (isNaN(lat) || isNaN(lng)) {
-    alert('Please enter valid latitude and longitude numbers');
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    alert('Please enter valid latitude (-90 to 90) and longitude (-180 to 180) numbers.');
     return;
   }
 
@@ -1887,17 +1897,48 @@ window.savePrecisionCalibration = function() {
   }
   renderFleetTrackingList();
   renderEmployeesTable();
-  sfx.playChime();
+  if (window.sfx) sfx.playChime();
   window.closeModals();
 };
 
-window.focusEmployeeCoords = function(lat, lng, empId = null) {
-  sfx.playClick();
+window.focusStaffMember = function(empId) {
+  if (window.sfx) sfx.playClick();
+  const store = window.appStore;
+  if (!store) return;
+  const employees = store.getEmployees() || [];
+  const relievers = (store.data && store.data.relievers) || [];
+  const allStaff = [...employees, ...relievers.filter(r => !employees.some(e => e.id === r.id))];
+
+  const emp = allStaff.find(e => e.id === empId || e.name === empId);
+  if (!emp) return;
+
+  const gps = (typeof window.parseGpsCoordinates === 'function') 
+    ? window.parseGpsCoordinates(emp) 
+    : { isValid: false };
+
+  if (!gps.isValid) {
+    const boothName = emp.boothCode || emp.booth || 'Unassigned';
+    alert(`GPS UNAVAILABLE: ${emp.name} (Booth: ${boothName}) does not have valid GPS coordinates recorded in Master Registry.`);
+    return;
+  }
+
   if (window.etsMap) {
-    window.etsMap.focusCoordinates(lat, lng, 16);
-    if (empId && window.etsMap.allMarkerInstances[empId]) {
-      window.etsMap.allMarkerInstances[empId].openPopup();
+    window.etsMap.focusCoordinates(gps.lat, gps.lng, 16);
+    const boothCode = emp.boothCode || emp.booth;
+    const marker = (boothCode && window.etsMap.allMarkerInstances[boothCode]) ||
+                   window.etsMap.allMarkerInstances[emp.id] ||
+                   (emp.name && window.etsMap.allMarkerInstances[emp.name.toLowerCase().trim()]);
+    if (marker) {
+      marker.openPopup();
     }
+  }
+};
+
+window.focusEmployeeCoords = function(lat, lng, empId = null) {
+  if (empId) {
+    window.focusStaffMember(empId);
+  } else if (window.etsMap && !isNaN(lat) && !isNaN(lng)) {
+    window.etsMap.focusCoordinates(lat, lng, 16);
   }
 };
 

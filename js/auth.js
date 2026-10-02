@@ -111,6 +111,47 @@
       } catch (e) {
         localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
       }
+
+      // Background sync with Supabase cloud database
+      this.syncUsersWithSupabase();
+    }
+
+    async syncUsersWithSupabase() {
+      try {
+        if (window.supabaseSync && typeof window.supabaseSync.fetchUsers === 'function') {
+          const remoteUsers = await window.supabaseSync.fetchUsers();
+          if (Array.isArray(remoteUsers) && remoteUsers.length > 0) {
+            const currentList = this.getUsers();
+            let changed = false;
+            remoteUsers.forEach(ru => {
+              const idx = currentList.findIndex(u => u.username === ru.username || u.id === ru.id);
+              if (idx === -1) {
+                currentList.push({
+                  id: ru.id || ('USR-' + Math.random().toString(36).substr(2, 6).toUpperCase()),
+                  username: ru.username,
+                  name: ru.name || ru.username,
+                  email: ru.email || '',
+                  phone: ru.phone || '',
+                  position: ru.position || 'Operations Staff',
+                  role: ru.role || 'Staff',
+                  department: ru.department || 'General Operations',
+                  status: ru.status || 'Active',
+                  password: ru.password || 'User123!',
+                  photo: ru.photo || '',
+                  dateCreated: ru.created_at ? ru.created_at.split('T')[0] : '2026-09-01',
+                  lastLogin: ru.last_login || 'Never'
+                });
+                changed = true;
+              }
+            });
+            if (changed) {
+              this.saveUsers(currentList);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Could not sync users with Supabase:', err);
+      }
     }
 
     getUsers() {
@@ -212,20 +253,14 @@
 
       if (this.isCollector()) {
         // Collector Allowed Modules:
+        // Dashboard, ETS Live Tracking, Sales & Collection, Master Registry (view-only), and Finance (locked strictly to view-only CA tab)
         const allowedCollectorViews = [
           'view-dashboard',
           'view-tracking',
           'view-pipelines',
-          'view-workforce-attendance',
-          'view-org-chart',
-          'view-eod',
-          'view-ocr',
-          'view-import',
-          'view-thermal-paper',
-          'view-inventory',
-          'view-employee-documents',
-          'view-expenses',
-          'view-finance'
+          'view-employees',
+          'view-finance',
+          'view-expenses'
         ];
 
         return allowedCollectorViews.includes(viewId);
@@ -554,6 +589,7 @@
         setNavVisibility('view-pos-terminals', false);
         setNavVisibility('view-employees', false);
         setNavVisibility('view-expenses', false);
+        setNavVisibility('view-finance', false);
         setNavVisibility('view-inventory', false);
         setNavVisibility('view-user-management', false);
         setNavVisibility('view-workforce-attendance', true);
@@ -569,20 +605,46 @@
         if (activeViewId && activeViewId !== 'view-workforce-attendance' && typeof window.switchView === 'function') {
           window.switchView('view-workforce-attendance', false);
         }
-      } else {
+      } else if (isCollector) {
+        // Collector: Dashboard, Tracking, Pipelines, Master Registry (view-only), and Finance (locked to view-only CA tab)
         setNavVisibility('view-dashboard', true);
-        setNavVisibility('view-tracking', isAdmin || isSupervisor || isCollector);
-        setNavVisibility('view-pipelines', isAdmin || isSupervisor || isCollector);
+        setNavVisibility('view-tracking', true);
+        setNavVisibility('view-pipelines', true);
+        setNavVisibility('view-pos-terminals', false);
+        setNavVisibility('view-employees', true);
+        setNavVisibility('view-expenses', true);
+        setNavVisibility('view-finance', true);
+        setNavVisibility('view-inventory', false); // Blocked: Outlet Rentals & Load Allowance
+        setNavVisibility('view-user-management', false); // Blocked
+        setNavVisibility('view-workforce-attendance', false); // Blocked
+        setNavVisibility('view-org-chart', false); // Blocked
+        setNavVisibility('view-employee-documents', false); // Blocked
+        setNavVisibility('view-thermal-paper', false); // Blocked
+        setNavVisibility('view-audit-discrepancy', false);
+        setNavVisibility('view-settings', false);
+
+        // Auto-redirect to dashboard if currently viewing restricted module
+        const activePanel = document.querySelector('.view-panel.active');
+        const activeViewId = activePanel ? activePanel.id : '';
+        if (activeViewId && !this.canAccessView(activeViewId) && typeof window.switchView === 'function') {
+          window.switchView('view-dashboard', false);
+        }
+      } else {
+        // Administrator & Supervisor
+        setNavVisibility('view-dashboard', true);
+        setNavVisibility('view-tracking', true);
+        setNavVisibility('view-pipelines', true);
         setNavVisibility('view-pos-terminals', isAdmin || isSupervisor);
-        setNavVisibility('view-employees', isAdmin || isSupervisor);
-        setNavVisibility('view-expenses', true); // Finance (Collector has view-only CA tab)
-        setNavVisibility('view-inventory', isAdmin || isSupervisor || isCollector);
+        setNavVisibility('view-employees', true);
+        setNavVisibility('view-expenses', true);
+        setNavVisibility('view-finance', true);
+        setNavVisibility('view-inventory', true);
         setNavVisibility('view-user-management', isAdmin);
         setNavVisibility('view-workforce-attendance', true);
-        setNavVisibility('view-org-chart', isAdmin || isSupervisor || isCollector);
-        setNavVisibility('view-employee-documents', isAdmin || isSupervisor || isCollector);
+        setNavVisibility('view-org-chart', true);
+        setNavVisibility('view-employee-documents', true);
         setNavVisibility('view-thermal-paper', true);
-        setNavVisibility('view-audit-discrepancy', isAdmin || isSupervisor);
+        setNavVisibility('view-audit-discrepancy', true);
         setNavVisibility('view-settings', isAdmin);
       }
 
