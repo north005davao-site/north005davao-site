@@ -1111,7 +1111,7 @@ function renderEmployeesTable(customList = null) {
   const empBadge = document.getElementById('sidebar-emp-count');
   if (empBadge) empBadge.textContent = allStaffOperational.length;
 
-  let list = customList;
+  let list = customList ? customList.filter(e => !isLeadershipOrCollector(e)) : null;
   if (!list) {
     if (currentRegistryCategory === 'tellers') {
       list = tellers;
@@ -1325,12 +1325,24 @@ window.filterEmployees = function() {
     return;
   }
 
-  // Global Master Registry Search: search complete Master Registry dataset
-  // (Supervisors, Collectors, Operations Administrator, Tellers, Relievers, etc.)
+  // Master Registry Search: MUST strictly search the Master Registry personnel dataset only.
+  // Never include Operations Administrator, Supervisors, or Collectors.
   const employees = store.getEmployees() || [];
-  const relievers = store.data.relievers || [];
+  const relievers = (store.data && store.data.relievers) || [];
   const allStaff = [...employees, ...relievers.filter(r => !employees.some(e => e.id === r.id))];
-  const filtered = allStaff.filter(e => {
+  
+  // Strictly filter out leadership & collectors to guarantee Master Registry boundary
+  const masterRegistryStaff = allStaff.filter(e => {
+    if (!e) return false;
+    const r = (e.role || '').toUpperCase();
+    const d = (e.department || '').toLowerCase();
+    const isLeadershipOrCol = r.includes('ADMIN') || r.includes('SUPERVISOR') || r.includes('TEAM LEADER') || r.includes('COLLECTOR') ||
+                              d === 'dept-admin' || d === 'dept-sup' || d === 'dept-col' ||
+                              d.includes('admin') || d.includes('supervisor') || d.includes('collector');
+    return !isLeadershipOrCol;
+  });
+
+  const filtered = masterRegistryStaff.filter(e => {
     return (e.name && e.name.toLowerCase().includes(query)) ||
            (e.id && e.id.toLowerCase().includes(query)) ||
            (e.boothCode && e.boothCode.toLowerCase().includes(query)) ||
@@ -1749,10 +1761,21 @@ function renderFleetTrackingList() {
   const relievers = (store.data && store.data.relievers) || [];
   const allStaff = [...employees, ...relievers.filter(r => !employees.some(e => e.id === r.id))];
 
-  let list = allStaff;
+  // Fleet Activity Monitor: Only show booth-assigned Sales Representatives and Relievers.
+  // Admins, Supervisors, and Collectors have no STL Booth assignments and must not appear here.
+  const boothStaff = allStaff.filter(emp => {
+    const roleUpper = (emp.role || '').toUpperCase();
+    const deptLower = (emp.department || '').toLowerCase();
+    const isAdmin = roleUpper.includes('ADMIN') || deptLower === 'dept-admin' || deptLower.includes('admin');
+    const isSupervisor = roleUpper.includes('SUPERVISOR') || roleUpper.includes('TEAM LEADER') || deptLower === 'dept-sup';
+    const isCollector = roleUpper.includes('COLLECTOR') || deptLower === 'dept-col';
+    return !isAdmin && !isSupervisor && !isCollector;
+  });
+
+  let list = boothStaff;
   if (fleetSearchQuery) {
     const q = fleetSearchQuery.toLowerCase().trim();
-    list = allStaff.filter(emp => {
+    list = boothStaff.filter(emp => {
       const gps = (typeof window.parseGpsCoordinates === 'function') 
         ? window.parseGpsCoordinates(emp) 
         : { isValid: false };
@@ -1837,7 +1860,17 @@ window.openPrecisionCalibrateModal = function(preselectedId = null) {
   const relievers = store.data.relievers || [];
   const allStaff = [...employees, ...relievers.filter(r => !employees.some(e => e.id === r.id))];
 
-  select.innerHTML = allStaff.map(e => {
+  // Precision Calibration is exclusively for booth-stationed field staff (Sales Reps & Relievers)
+  const boothStaff = allStaff.filter(emp => {
+    const roleUpper = (emp.role || '').toUpperCase();
+    const deptLower = (emp.department || '').toLowerCase();
+    const isAdmin = roleUpper.includes('ADMIN') || deptLower === 'dept-admin' || deptLower.includes('admin');
+    const isSupervisor = roleUpper.includes('SUPERVISOR') || roleUpper.includes('TEAM LEADER') || deptLower === 'dept-sup';
+    const isCollector = roleUpper.includes('COLLECTOR') || deptLower === 'dept-col';
+    return !isAdmin && !isSupervisor && !isCollector;
+  });
+
+  select.innerHTML = boothStaff.map(e => {
     let rName = e.role;
     const rU = (e.role || '').toUpperCase();
     if (rU === 'TELLER' || rU === 'STATION TELLER') rName = 'Sales Representative';

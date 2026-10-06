@@ -241,27 +241,7 @@ function buildDefaultStore() {
     etsStatus: 'Active'
   });
 
-  // Add Supervisors
-  const supAddr = parseAddress('HQ Tagum City Command Center, Tagum City');
-  employees.push({
-    id: 'DDN005-SUP01',
-    name: 'JUNDY (Operations Supervisor)',
-    gender: 'Male',
-    role: 'SUPERVISOR',
-    department: 'dept-sup',
-    area: 'Davao Del Norte Sector Command',
-    address: 'HQ Tagum City Command Center, Tagum City',
-    purok: supAddr.purok,
-    municipality: supAddr.municipality,
-    lat: 7.4490,
-    lng: 125.8090,
-    boothCode: '-',
-    posSerial: 'SUP-TAB-001',
-    printerSerial: 'N/A',
-    phone: '+63 917 888 5555',
-    status: 'Active',
-    etsStatus: 'Active'
-  });
+  // Supervisors (None registered by default; added only when explicitly registered by Administrator)
 
   // Add Collectors (Booth Code is - per requirement; they have Area Assignment)
   RAW_COLLECTORS.forEach(c => {
@@ -439,12 +419,20 @@ function buildDefaultStore() {
     departments: [
       { id: 'dept-tel', name: 'Outlet & Booth Operations', role: 'Teller', head: 'Jehramea Marte', icon: 'store' },
       { id: 'dept-col', name: 'Field Collector Units', role: 'Collector', head: 'MARK ANTHONY (MAC2)', icon: 'bike' },
-      { id: 'dept-sup', name: 'Team Davao Supervisors', role: 'Supervisor', head: 'SIR JUNDY', icon: 'shield-check' },
+      { id: 'dept-sup', name: 'Team Davao Supervisors', role: 'Supervisor', head: '-', icon: 'shield-check' },
       { id: 'dept-admin', name: 'Administrator', role: 'Operations Administrator', head: 'Peter John Carrillo', icon: 'crown' }
     ],
     booths: booths,
     employees: employees,
-    relievers: [],
+    relievers: RAW_RELIEVERS.map(r => ({
+      id: r.id,
+      name: r.name,
+      role: 'Reliever',
+      boothCode: (r.booth || '').trim(),
+      area: r.address || '',
+      address: r.address || '',
+      status: 'Active'
+    })),
     inventory: [
       {
         id: '001',
@@ -943,7 +931,15 @@ class Store {
             }
           }
           if (parsed.employees && parsed.employees.length > 0) {
-            const cleanEmployees = parsed.employees.filter(e => !e.name || !e.name.includes('Buffer Reliever'));
+            // Purge Buffer Relievers, ghost DDN005-TEL-TURA, unauthorized JUNDY, and orphan BOOTH-DDN-1140 employees
+            const GHOST_IDS_TO_PURGE = new Set(['DDN005-TEL-TURA', 'BOOTH-DDN-1140', 'DDN005-SUP01']);
+            const cleanEmployees = parsed.employees.filter(e => {
+              if (!e) return false;
+              if (e.name && (e.name.includes('Buffer Reliever') || e.name.toUpperCase().includes('JUNDY'))) return false;
+              if (e.id && GHOST_IDS_TO_PURGE.has(e.id)) return false;
+              if (e.name === 'N/A' && (e.boothCode === 'DDN-1140' || e.booth === 'DDN-1140')) return false;
+              return true;
+            });
             if (cleanEmployees.length !== parsed.employees.length) {
               parsed.employees = cleanEmployees;
               needsSave = true;
@@ -1929,9 +1925,11 @@ class Store {
             modified = true;
             return;
           }
-          if (e.id === 'BOOTH-DDN-1140' || (e.name === 'N/A' && e.boothCode === 'DDN-1140')) {
+          // Purge known ghost records: DDN005-TEL-TURA (legacy injected terminated ghost),
+          // orphan BOOTH-DDN-1140 entries, and unauthorized JUNDY
+          if (e.id === 'BOOTH-DDN-1140' || e.id === 'DDN005-TEL-TURA' || e.id === 'DDN005-SUP01' || (e.name && e.name.toUpperCase().includes('JUNDY')) || (e.name === 'N/A' && (e.boothCode === 'DDN-1140' || e.booth === 'DDN-1140'))) {
             modified = true;
-            return; // Prune orphan booth row!
+            return; // Prune orphan/unauthorized row!
           }
 
           const dedupKey = normName ? `${normName}::${bCode || roleNorm}` : `id::${e.id}`;

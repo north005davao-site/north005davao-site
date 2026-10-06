@@ -671,7 +671,7 @@ class OcrEngine {
     ctx.fillText('1,500 - RENT FEE SABONGAN ST. TOMAS', 80, y); y += lineHeight;
     ctx.fillText('330 - POS LOAD 1 MONTH DDN-1716', 80, y); y += lineHeight;
     ctx.fillText('1,140 - SHORT TELLER - JENYVA H. TURA', 80, y); y += lineHeight;
-    ctx.fillText('1,970 - C.A. COLL. JOHN (APPROVED BY: SIR JUNDY)', 80, y); y += lineHeight;
+    ctx.fillText('1,970 - C.A. COLL. JOHN', 80, y); y += lineHeight;
     ctx.fillText('325 - HARDWARE / BOOTH REPAIR SUPPLIES', 80, y); y += lineHeight;
 
     // Contextual Underline 1: End of individual expense entries

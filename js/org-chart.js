@@ -95,16 +95,69 @@
 
     getHierarchyData() {
       const store = window.appStore;
-      if (!store || !store.getEmployees) {
-        return { admins: [], supervisors: [], collectors: [], allOrg: [] };
-      }
-
-      const allEmployees = store.getEmployees() || [];
+      const allEmployees = (store && store.getEmployees) ? (store.getEmployees() || []) : [];
 
       // Filter authoritative organizational hierarchy groups
-      const admins = allEmployees.filter(isAdministrator);
-      const supervisors = allEmployees.filter(isSupervisor);
-      const collectors = allEmployees.filter(isCollector);
+      let admins = allEmployees.filter(isAdministrator);
+      let supervisors = allEmployees.filter(isSupervisor);
+      let collectors = allEmployees.filter(isCollector);
+
+      // Check registered accounts in authManager as authoritative secondary source
+      if (window.authManager && typeof window.authManager.getUsers === 'function') {
+        const users = window.authManager.getUsers() || [];
+        users.forEach(u => {
+          if (!u || u.status === 'Pending') return;
+          const uRole = (u.role || '').toUpperCase();
+          const uPos = (u.position || '').toUpperCase();
+          const uDept = (u.department || '').toLowerCase();
+          
+          if (uRole.includes('ADMIN') || uPos.includes('ADMIN') || uDept.includes('admin')) {
+            if (!admins.some(a => (a.id && a.id === u.employeeId) || (a.name && a.name.toLowerCase() === u.name.toLowerCase()))) {
+              admins.push({
+                id: u.employeeId || u.id,
+                name: u.name,
+                role: 'OPERATIONS ADMINISTRATOR',
+                department: 'dept-admin',
+                phone: u.phone || 'N/A',
+                status: u.status || 'Active',
+                municipality: 'HQ Tagum City Command Center',
+                area: 'HQ Tagum City Command Center'
+              });
+            }
+          } else if (uRole.includes('SUPERVISOR') || uPos.includes('SUPERVISOR') || uDept.includes('sup')) {
+            if (!u.name.toUpperCase().includes('JUNDY') && !supervisors.some(s => (s.id && s.id === u.employeeId) || (s.name && s.name.toLowerCase() === u.name.toLowerCase()))) {
+              supervisors.push({
+                id: u.employeeId || u.id,
+                name: u.name,
+                role: 'SUPERVISOR',
+                department: 'dept-sup',
+                phone: u.phone || 'N/A',
+                status: u.status || 'Active',
+                municipality: 'Davao Del Norte Sector Command',
+                area: 'Davao Del Norte Sector Command'
+              });
+            }
+          } else if (uRole.includes('COLLECTOR') || uPos.includes('COLLECTOR') || uDept.includes('col')) {
+            if (!collectors.some(c => (c.id && c.id === u.employeeId) || (c.name && c.name.toLowerCase() === u.name.toLowerCase()))) {
+              collectors.push({
+                id: u.employeeId || u.id,
+                name: u.name,
+                role: 'COLLECTOR',
+                department: 'dept-col',
+                phone: u.phone || 'N/A',
+                status: u.status || 'Active',
+                municipality: 'Field Route',
+                area: 'Field Route'
+              });
+            }
+          }
+        });
+      }
+
+      // Explicitly purge any trace of unauthorized JUNDY
+      admins = admins.filter(e => !e.name || !e.name.toUpperCase().includes('JUNDY'));
+      supervisors = supervisors.filter(e => !e.name || !e.name.toUpperCase().includes('JUNDY'));
+      collectors = collectors.filter(e => !e.name || !e.name.toUpperCase().includes('JUNDY'));
 
       const allOrg = [...admins, ...supervisors, ...collectors];
 

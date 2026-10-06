@@ -21,6 +21,7 @@
 
   <!-- Core Design System CSS -->
   <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/landing-portal.css">
 
   <!-- Early Route Pre-Activation (Eliminates Dashboard Flash on Reload) -->
   <script>
@@ -4334,8 +4335,7 @@
       </div>
       <div class="modal-body" style="padding: 20px;">
         <p style="font-size: 13.5px; color: var(--text-main); margin-bottom: 8px;">
-          Your active session will be securely terminated. You will need to log in again to access protected ERP
-          modules.
+          Your active session will be securely terminated. You will need to log in again to access protected ERP modules.
         </p>
       </div>
       <div class="modal-footer"
@@ -4350,153 +4350,347 @@
   </div>
 
   <!-- ===================================================================
-       CENTRALIZED SIGN IN / LOGIN PORTAL (GATEWAY ENTRY POINT)
+       NORTH-005 DAVAO DEL NORTE — PUBLIC LANDING & AUTHENTICATION PORTAL
        =================================================================== -->
-  <div id="modal-auth-login" class="modal-overlay"
-    style="z-index: 10050; background: radial-gradient(circle at center, rgba(15,23,42,0.96) 0%, rgba(3,7,18,0.98) 100%); backdrop-filter: blur(12px);">
-    <div class="modal-card"
-      style="max-width: 440px; width: 92%; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 25px 60px rgba(0,0,0,0.85); border-radius: 12px; overflow: hidden;">
-      <div class="modal-header"
-        style="padding: 24px 24px 18px 24px; border-bottom: 1px solid var(--border-color); text-align: center; display:block; background: rgba(255,255,255,0.02);">
-        <div
-          style="width: 52px; height: 52px; margin: 0 auto 12px auto; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 0 20px rgba(245,158,11,0.2);">
-          🔐
+  <div id="landing-page-portal" style="display: none;">
+    <!-- Corner Decorative Ribbons -->
+    <div class="landing-corner-ribbon-tl"></div>
+    <div class="landing-corner-ribbon-br"></div>
+
+    <div class="landing-container">
+      <!-- LEFT SIDE: BRAND / INFORMATION -->
+      <div class="landing-brand-col">
+        <div class="landing-logo-wrapper">
+          <img src="assets/north-005-logo.png" alt="NORTH-005 Davao del Norte Official Emblem" class="landing-logo" width="130" height="130">
         </div>
-        <h3 style="margin: 0; font-size: 20px; font-weight: 800; color: #fff; letter-spacing: -0.3px;">Sign In to Omni
-          ERP</h3>
-        <p style="margin: 6px 0 0 0; font-size: 12px; color: var(--text-muted);">NORTH-005 Davao Del Norte HQ Control
-          Center</p>
+        <h1 class="landing-brand-title">NORTH-005</h1>
+        <div class="landing-brand-subtitle">DAVAO DEL NORTE</div>
+        <div class="landing-gold-bar"></div>
+        <h2 class="landing-headline">
+          Together for a Stronger and More Progressive <span class="landing-gold-text">Davao del Norte.</span>
+        </h2>
+        <p class="landing-support-text">
+          A unified system for efficient operations, better coordination, and greater service across all sectors.
+        </p>
+
+        <!-- Four Visual Feature Indicators -->
+        <div class="landing-features-grid">
+          <div class="landing-feature-item">
+            <div class="landing-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                <polyline points="9 12 11 14 15 10"></polyline>
+              </svg>
+            </div>
+            <div class="landing-feature-title">Secure Access</div>
+            <div class="landing-feature-desc">Protected user authentication and role-based access.</div>
+          </div>
+
+          <div class="landing-feature-item">
+            <div class="landing-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <div class="landing-feature-title">Connected Teams</div>
+            <div class="landing-feature-desc">Keep teams and operational personnel connected.</div>
+          </div>
+
+          <div class="landing-feature-item">
+            <div class="landing-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              </svg>
+            </div>
+            <div class="landing-feature-title">Efficient Operations</div>
+            <div class="landing-feature-desc">Centralized tools for daily operations and management.</div>
+          </div>
+
+          <div class="landing-feature-item">
+            <div class="landing-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+            </div>
+            <div class="landing-feature-title">Greater Coverage</div>
+            <div class="landing-feature-desc">Better visibility across booths, locations, and field operations.</div>
+          </div>
+        </div>
       </div>
-      <div class="modal-body" style="padding: 24px;">
-        <div id="login-error-alert"
-          style="display:none; background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4); border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #fca5a5; margin-bottom: 14px;">
+
+      <!-- RIGHT SIDE: REAL AUTHENTICATION CARD -->
+      <div class="landing-auth-col">
+        <div class="landing-auth-card">
+          <!-- Interactive Tabs -->
+          <div class="landing-tabs" role="tablist">
+            <button id="tab-trigger-login" class="landing-tab active" type="button" role="tab" onclick="window.switchLandingTab('login')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              <span>Login</span>
+            </button>
+            <button id="tab-trigger-signup" class="landing-tab" type="button" role="tab" onclick="window.switchLandingTab('signup')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="8.5" cy="7" r="4"></circle>
+                <line x1="20" y1="8" x2="20" y2="14"></line>
+                <line x1="23" y1="11" x2="17" y2="11"></line>
+              </svg>
+              <span>Sign Up</span>
+            </button>
+          </div>
+
+          <!-- TAB PANE: LOGIN -->
+          <div id="landing-pane-login" class="landing-pane">
+            <h3 class="landing-card-title">Welcome Back!</h3>
+            <p class="landing-card-subtitle">Sign in to your account to continue.</p>
+
+            <div id="login-error-alert" class="landing-alert landing-alert-danger" role="alert"></div>
+
+            <form onsubmit="event.preventDefault(); window.submitLoginForm();">
+              <div class="landing-input-group">
+                <label for="auth-login-username">Email or Username</label>
+                <div class="landing-input-wrapper">
+                  <span class="landing-input-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                      <polyline points="22,6 12,13 2,6"></polyline>
+                    </svg>
+                  </span>
+                  <input type="text" id="auth-login-username" class="landing-input" placeholder="Email or Username" autocomplete="username" required>
+                </div>
+              </div>
+
+              <div class="landing-input-group">
+                <label for="auth-login-password">Password</label>
+                <div class="landing-input-wrapper">
+                  <span class="landing-input-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                  </span>
+                  <input type="password" id="auth-login-password" class="landing-input" placeholder="Password" autocomplete="current-password" required>
+                  <button type="button" id="btn-toggle-login-password" class="landing-pw-toggle" onclick="window.togglePasswordVisibility('auth-login-password', 'btn-toggle-login-password')" aria-label="Toggle password visibility">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="landing-auth-options">
+                <label class="landing-remember-label">
+                  <input type="checkbox" id="landing-remember-me" class="landing-checkbox">
+                  <span>Remember me</span>
+                </label>
+                <a href="javascript:void(0)" class="landing-forgot-link" onclick="window.openLandingForgotModal()">Forgot password?</a>
+              </div>
+
+              <button type="submit" id="landing-btn-login" class="landing-btn-primary">
+                <span>Login</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                  <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+              </button>
+            </form>
+
+            <div class="landing-divider">
+              <span>OR</span>
+            </div>
+
+            <button type="button" class="landing-btn-secondary" onclick="window.switchLandingTab('signup')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="8.5" cy="7" r="4"></circle>
+                <line x1="20" y1="8" x2="20" y2="14"></line>
+                <line x1="23" y1="11" x2="17" y2="11"></line>
+              </svg>
+              <span>Create an Account</span>
+            </button>
+          </div>
+
+          <!-- TAB PANE: SIGN UP -->
+          <div id="landing-pane-signup" class="landing-pane" style="display: none;">
+            <h3 class="landing-card-title">Create Account</h3>
+            <p class="landing-card-subtitle">Position-based authentication &amp; Master Registry verification.</p>
+
+            <div id="signup-error-alert" class="landing-alert landing-alert-danger" role="alert"></div>
+
+            <form onsubmit="event.preventDefault(); window.submitSignUpForm();">
+              <div class="landing-input-group">
+                <label for="reg-name">Full Name *</label>
+                <div class="landing-input-wrapper">
+                  <span class="landing-input-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                  </span>
+                  <input type="text" id="reg-name" class="landing-input" placeholder="e.g. Mark Anthony or Jehramea Marte" required>
+                </div>
+              </div>
+
+              <div class="landing-form-row">
+                <div class="landing-input-group" style="margin-bottom: 0;">
+                  <label for="reg-username">Email / Username *</label>
+                  <div class="landing-input-wrapper">
+                    <input type="text" id="reg-username" class="landing-input" style="padding-left: 14px;" placeholder="Username" required>
+                  </div>
+                </div>
+                <div class="landing-input-group" style="margin-bottom: 0;">
+                  <label for="reg-position">Position *</label>
+                  <select id="reg-position" class="landing-select">
+                    <option value="Teller">Teller (Outlet &amp; Booth)</option>
+                    <option value="Reliever">Reliever (Buffer Pool)</option>
+                    <option value="Supervisor">Supervisor (Team Davao)</option>
+                    <option value="Collector" selected>Collector (Field Unit)</option>
+                    <option value="Operations Administrator">Operations Administrator</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="landing-form-row" style="margin-top: 10px;">
+                <div class="landing-input-group" style="margin-bottom: 0;">
+                  <label for="reg-email">Email Address (Optional)</label>
+                  <input type="email" id="reg-email" class="landing-input" style="padding-left: 14px;" placeholder="name@north005.com">
+                </div>
+                <div class="landing-input-group" style="margin-bottom: 0;">
+                  <label for="reg-phone">Phone Number (Optional)</label>
+                  <input type="text" id="reg-phone" class="landing-input" style="padding-left: 14px;" placeholder="+63 9xx xxx xxxx">
+                </div>
+              </div>
+
+              <div class="landing-form-row" style="margin-top: 10px;">
+                <div class="landing-input-group" style="margin-bottom: 0;">
+                  <label for="reg-password">Password *</label>
+                  <div class="landing-input-wrapper">
+                    <input type="password" id="reg-password" class="landing-input" style="padding-left: 14px;" placeholder="Min. 6 chars" required>
+                    <button type="button" id="btn-toggle-reg-password" class="landing-pw-toggle" onclick="window.togglePasswordVisibility('reg-password', 'btn-toggle-reg-password')" aria-label="Toggle password visibility">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="landing-input-group" style="margin-bottom: 0;">
+                  <label for="reg-confirm-password">Confirm Password *</label>
+                  <div class="landing-input-wrapper">
+                    <input type="password" id="reg-confirm-password" class="landing-input" style="padding-left: 14px;" placeholder="Re-type password" required>
+                    <button type="button" id="btn-toggle-reg-confirm" class="landing-pw-toggle" onclick="window.togglePasswordVisibility('reg-confirm-password', 'btn-toggle-reg-confirm')" aria-label="Toggle password visibility">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="landing-input-group" style="margin-top: 10px;">
+                <label for="reg-photo">Profile Photo URL (Optional)</label>
+                <input type="text" id="reg-photo" class="landing-input" style="padding-left: 14px;" placeholder="https://...">
+              </div>
+
+              <button type="submit" id="landing-btn-signup" class="landing-btn-primary" style="margin-top: 8px;">
+                <span>Create Account</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                  <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+              </button>
+            </form>
+
+            <div class="landing-divider">
+              <span>OR</span>
+            </div>
+
+            <button type="button" class="landing-btn-secondary" onclick="window.switchLandingTab('login')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                <polyline points="10 17 15 12 10 7"></polyline>
+                <line x1="15" y1="12" x2="3" y2="12"></line>
+              </svg>
+              <span>Already have an account? Sign In</span>
+            </button>
+          </div>
+
+          <!-- Card Footer -->
+          <div class="landing-card-footer">
+            By signing in, you agree to our <a href="javascript:void(0)" onclick="window.openLandingTermsModal()">Terms of Service</a> and <a href="javascript:void(0)" onclick="window.openLandingPrivacyModal()">Privacy Policy</a>.
+          </div>
         </div>
-        <div class="form-group" style="margin-bottom: 14px;">
-          <label
-            style="display:block; margin-bottom: 5px; font-weight:700; font-size:12px; color: var(--text-main);">Email /
-            Username:</label>
-          <input type="text" id="auth-login-username" class="form-input"
-            style="width: 100%; font-size: 14px; padding: 10px 12px;" placeholder="e.g. admin or collector"
-            value="admin" autocomplete="username">
-        </div>
-        <div class="form-group" style="margin-bottom: 16px;">
-          <label
-            style="display:block; margin-bottom: 5px; font-weight:700; font-size:12px; color: var(--text-main);">Password:</label>
-          <input type="password" id="auth-login-password" class="form-input"
-            style="width: 100%; font-size: 14px; padding: 10px 12px;" placeholder="Enter password" value="Admin123!"
-            autocomplete="current-password">
-        </div>
-        <div
-          style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 18px; font-size: 12px;">
-          <span style="color: var(--text-muted); font-size: 11.5px;">Default: <code>admin</code> /
-            <code>Admin123!</code></span>
-          <a href="javascript:void(0)" onclick="window.openSignUpModal && window.openSignUpModal()"
-            style="color: var(--accent-gold); text-decoration: none; font-weight: 700;">Create Account →</a>
-        </div>
-        <button class="btn btn-primary" onclick="window.submitLoginForm && window.submitLoginForm()"
-          style="width: 100%; padding: 12px; font-size: 14px; font-weight: 800; background: var(--accent-gold); border-color: var(--accent-gold); color: #000; letter-spacing: 0.5px; box-shadow: 0 4px 14px rgba(245,158,11,0.3);">
-          LOGIN TO SYSTEM
-        </button>
       </div>
     </div>
   </div>
 
-
-  <!-- ===================================================================
-       CENTRALIZED SIGN UP / REGISTRATION MODAL
-       =================================================================== -->
-  <div id="modal-auth-signup" class="modal-overlay"
-    style="z-index: 10050; background: radial-gradient(circle at center, rgba(15,23,42,0.96) 0%, rgba(3,7,18,0.98) 100%); backdrop-filter: blur(12px);">
-    <div class="modal-card"
-      style="max-width: 520px; width: 92%; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 25px 60px rgba(0,0,0,0.85); border-radius: 12px;">
-      <div class="modal-header"
-        style="padding: 18px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <h3 style="margin: 0; font-size: 18px; font-weight: 800; color: #60a5fa;">📝 Create User Account</h3>
-          <p style="margin: 3px 0 0 0; font-size: 11.5px; color: var(--text-muted);">Position-based identity
-            authentication &amp; Master Registry mapping</p>
-        </div>
-        <button class="icon-btn"
-          onclick="document.getElementById('modal-auth-signup').classList.remove('active'); window.authManager.showLoginModal();">✕</button>
+  <!-- Auxiliary Modal: Terms of Service -->
+  <div id="modal-landing-terms" class="modal-overlay" style="z-index: 99999; display: none;">
+    <div class="modal-card" style="max-width: 580px; width: 92%; background: #ffffff; color: #0f172a; border-radius: 16px; box-shadow: 0 25px 70px rgba(0,0,0,0.5);">
+      <div class="modal-header" style="padding: 20px 24px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0; font-size: 18px; font-weight: 800; color: #0b3a75;">📋 Terms of Service — NORTH-005</h3>
+        <button class="icon-btn" onclick="window.closeLandingTermsModal()" style="color: #64748b; background: none; border: none; font-size: 18px; cursor: pointer;">✕</button>
       </div>
-      <div class="modal-body" style="padding: 20px 24px; max-height: 72vh; overflow-y: auto;">
-        <div
-          style="background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.25); border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #93c5fd; margin-bottom: 14px;">
-          ℹ️ <strong>Position-Based Access:</strong> Your selected position determines your verified Department &amp;
-          Role permissions after login.
-        </div>
-        <div id="signup-error-alert"
-          style="display:none; background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4); border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #fca5a5; margin-bottom: 14px;">
-        </div>
-
-        <div class="form-group" style="margin-bottom: 12px;">
-          <label style="display:block; margin-bottom: 4px; font-weight:700; font-size:12px;">Full Name *</label>
-          <input type="text" id="reg-name" class="form-input" style="width:100%;"
-            placeholder="e.g. Mark Anthony or Jehramea Marte">
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-          <div>
-            <label style="display:block; margin-bottom: 4px; font-weight:700; font-size:12px;">Email / Username
-              *</label>
-            <input type="text" id="reg-username" class="form-input" style="width:100%;"
-              placeholder="e.g. collector_davao">
-          </div>
-          <div>
-            <label style="display:block; margin-bottom: 4px; font-weight:700; font-size:12px;">Position *</label>
-            <select id="reg-position" class="form-select form-input" style="width:100%; font-weight: 600;">
-              <option value="Teller">Teller (Outlet &amp; Booth Operations)</option>
-              <option value="Reliever">Reliever (Outlet &amp; Booth Operations)</option>
-              <option value="Supervisor">Supervisor (Team Davao Supervisors)</option>
-              <option value="Collector">Collector (Field Collector Units)</option>
-              <option value="Operations Administrator">Operations Administrator</option>
-            </select>
-          </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-          <div>
-            <label style="display:block; margin-bottom: 4px; font-weight:700; font-size:12px;">Email Address
-              (Optional)</label>
-            <input type="email" id="reg-email" class="form-input" style="width:100%;" placeholder="name@north005.com">
-          </div>
-          <div>
-            <label style="display:block; margin-bottom: 4px; font-weight:700; font-size:12px;">Phone Number
-              (Optional)</label>
-            <input type="text" id="reg-phone" class="form-input" style="width:100%;" placeholder="+63 9xx xxx xxxx">
-          </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-          <div>
-            <label style="display:block; margin-bottom: 4px; font-weight:700; font-size:12px;">Password *</label>
-            <input type="password" id="reg-password" class="form-input" style="width:100%;" placeholder="Min. 6 chars">
-          </div>
-          <div>
-            <label style="display:block; margin-bottom: 4px; font-weight:700; font-size:12px;">Confirm Password
-              *</label>
-            <input type="password" id="reg-confirm-password" class="form-input" style="width:100%;"
-              placeholder="Re-type password">
-          </div>
-        </div>
-
-        <div class="form-group" style="margin-bottom: 4px;">
-          <label style="display:block; margin-bottom: 4px; font-weight:700; font-size:12px;">Profile Photo URL
-            (Optional)</label>
-          <input type="text" id="reg-photo" class="form-input" style="width:100%;" placeholder="https://...">
-        </div>
+      <div class="modal-body" style="padding: 24px; font-size: 13.5px; color: #334155; line-height: 1.6; max-height: 60vh; overflow-y: auto;">
+        <p><strong>1. Official Use Authorization:</strong> This portal is the official property of NORTH-005 Davao del Norte Sector. Access is strictly granted to authorized personnel including Outlets/Booths, Field Collectors, Supervisors, and Operations Administrators.</p>
+        <p><strong>2. Account Integrity &amp; Confidentiality:</strong> Users are responsible for safeguarding login credentials. Sharing of passwords, unauthorized delegation of accounts, or bypassing security controls is strictly prohibited.</p>
+        <p><strong>3. Data Compliance:</strong> All financial entries, daily shift logs, collections, and Master Registry transactions must be accurate and authenticated. Submitting fabricated records is grounds for disciplinary action and system suspension.</p>
+        <p><strong>4. Audit &amp; Monitoring:</strong> System activities, session timestamps, and operational submissions are monitored and logged in compliance with enterprise audit standards.</p>
       </div>
-      <div class="modal-footer"
-        style="padding: 14px 24px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-        <a href="javascript:void(0)"
-          onclick="document.getElementById('modal-auth-signup').classList.remove('active'); window.authManager.showLoginModal();"
-          style="color: var(--text-muted); font-size: 12px; text-decoration: none;">
-          ← Back to Sign In
-        </a>
-        <button class="btn btn-primary" onclick="window.submitSignUpForm && window.submitSignUpForm()"
-          style="font-weight: 800; background: #3b82f6; border-color: #3b82f6; color:#fff; padding: 9px 18px;">
-          CREATE ACCOUNT
-        </button>
+      <div class="modal-footer" style="padding: 14px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end;">
+        <button class="landing-btn-primary" style="height: 38px; width: auto; padding: 0 20px; font-size: 14px;" onclick="window.closeLandingTermsModal()">Acknowledge &amp; Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auxiliary Modal: Privacy Policy -->
+  <div id="modal-landing-privacy" class="modal-overlay" style="z-index: 99999; display: none;">
+    <div class="modal-card" style="max-width: 580px; width: 92%; background: #ffffff; color: #0f172a; border-radius: 16px; box-shadow: 0 25px 70px rgba(0,0,0,0.5);">
+      <div class="modal-header" style="padding: 20px 24px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0; font-size: 18px; font-weight: 800; color: #0b3a75;">🔒 Privacy &amp; Data Protection Policy</h3>
+        <button class="icon-btn" onclick="window.closeLandingPrivacyModal()" style="color: #64748b; background: none; border: none; font-size: 18px; cursor: pointer;">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 24px; font-size: 13.5px; color: #334155; line-height: 1.6; max-height: 60vh; overflow-y: auto;">
+        <p><strong>1. Information Collection:</strong> We collect personal identity details (full name, email, phone number, operational position) strictly for role-based access assignment, workforce verification, and operational routing.</p>
+        <p><strong>2. Registry Verification:</strong> Registration profiles are cross-checked against the official Master Registry database. Unauthorized account creation is held in pending status until administrator approval.</p>
+        <p><strong>3. Encryption &amp; Storage:</strong> Authentication sessions and credential tokens are encrypted and transmitted securely via industry-standard protocols.</p>
+        <p><strong>4. Data Retention:</strong> Operational records, audit logs, and attendance rosters are preserved in compliance with Davao del Norte regional management guidelines.</p>
+      </div>
+      <div class="modal-footer" style="padding: 14px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end;">
+        <button class="landing-btn-primary" style="height: 38px; width: auto; padding: 0 20px; font-size: 14px;" onclick="window.closeLandingPrivacyModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auxiliary Modal: Forgot Password -->
+  <div id="modal-landing-forgot" class="modal-overlay" style="z-index: 99999; display: none;">
+    <div class="modal-card" style="max-width: 480px; width: 92%; background: #ffffff; color: #0f172a; border-radius: 16px; box-shadow: 0 25px 70px rgba(0,0,0,0.5);">
+      <div class="modal-header" style="padding: 20px 24px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0; font-size: 18px; font-weight: 800; color: #0b3a75;">🔑 Password Recovery Assistance</h3>
+        <button class="icon-btn" onclick="window.closeLandingForgotModal()" style="color: #64748b; background: none; border: none; font-size: 18px; cursor: pointer;">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 24px; font-size: 13.5px; color: #334155; line-height: 1.6;">
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; color: #1e40af; font-size: 13px;">
+          ℹ️ For security compliance in the NORTH-005 Davao del Norte Sector, password resets are processed through verified administrator verification.
+        </div>
+        <p style="margin-top: 0;">If you forgot your password or cannot access your operational account:</p>
+        <ul style="padding-left: 20px; margin-bottom: 16px;">
+          <li>Contact your unit <strong>Supervisor</strong> or the <strong>Operations Administrator</strong>.</li>
+          <li>Present your verified Employee ID and unit assignment for identity confirmation.</li>
+          <li>System Administrator: <strong>Peter John Carrillo</strong> (HQ Operations Control).</li>
+        </ul>
+        <p style="margin-bottom: 0; font-size: 12px; color: #64748b;">Once verified, the Administrator can update your password in the User Management console.</p>
+      </div>
+      <div class="modal-footer" style="padding: 14px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end;">
+        <button class="landing-btn-primary" style="height: 38px; width: auto; padding: 0 20px; font-size: 14px;" onclick="window.closeLandingForgotModal()">Got It</button>
       </div>
     </div>
   </div>

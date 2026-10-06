@@ -105,24 +105,20 @@ class ExpensesPaymentController {
       store.save();
     }
 
-    if (!store.data.employees.find(e => e.name && e.name.toUpperCase().includes('TURA'))) {
-      store.data.employees.push({
-        id: 'DDN005-TEL-TURA',
-        name: 'JUVYLYN H. TURA',
-        role: 'Teller',
-        department: 'dept-tel',
-        area: 'Tagum City Station',
-        boothCode: 'DDN-1140',
-        status: 'Terminated',
-        etsStatus: 'Offline'
-      });
-    }
-
     // User Request: Delete/Reset to 0 the stored data for Expenses & Payment Management
     // Purge any legacy sample demo transactions (TXN-TURA, TXN-MAC, TXN-EXP, TXN-2024)
     if (store.data.transactions && Array.isArray(store.data.transactions)) {
       const isLegacyDemo = (id) => typeof id === 'string' && (id.startsWith('TXN-TURA-') || id.startsWith('TXN-MAC-') || id.startsWith('TXN-EXP-') || id.startsWith('TXN-2024-') || id.startsWith('TXN-SAMPLE-'));
       store.data.transactions = store.data.transactions.filter(t => t && !isLegacyDemo(t.id));
+    }
+
+    // Purge any ghost 'DDN005-TEL-TURA' employee that may have been injected by legacy code
+    if (store.data.employees && Array.isArray(store.data.employees)) {
+      const beforeLen = store.data.employees.length;
+      store.data.employees = store.data.employees.filter(e => e && e.id !== 'DDN005-TEL-TURA');
+      if (store.data.employees.length !== beforeLen) {
+        console.warn('[ERP] Purged legacy ghost employee DDN005-TEL-TURA from Master Registry.');
+      }
     }
 
     store.data.epSeedInitialized = true;

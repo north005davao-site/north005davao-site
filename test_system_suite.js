@@ -306,7 +306,9 @@ const hierarchy = org.getHierarchyData();
 console.log(`Org Chart Hierarchy: Admins=${hierarchy.admins.length}, Supervisors=${hierarchy.supervisors.length}, Collectors=${hierarchy.collectors.length}`);
 
 if (hierarchy.admins.length === 0) throw new Error('Org Chart must have Operations Administrator');
-if (hierarchy.supervisors.length === 0) throw new Error('Org Chart must have Supervisors');
+// Unauthorized JUNDY must NOT be present by default
+const hasUnauthorizedJundy = hierarchy.allOrg.some(e => e.name && e.name.toUpperCase().includes('JUNDY'));
+if (hasUnauthorizedJundy) throw new Error('Unauthorized JUNDY must NOT be present in Org Chart');
 if (hierarchy.collectors.length === 0) throw new Error('Org Chart must have Collectors');
 
 // Test that Master Registry All Staff strictly excludes Admins, Supervisors, and Collectors
