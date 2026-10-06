@@ -78,10 +78,20 @@
 
   // Helper: Match target sheet name flexibly (ignoring spaces, punctuation, case)
   function findMatchingTarget(sheetName) {
-    const norm = cleanStr(sheetName).toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (norm.includes('reliever')) {
+    const raw = cleanStr(sheetName);
+    const norm = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (norm.includes('reliever') || norm.includes('buffer')) {
       return { sheetName: 'RELIEVERS', municipality: 'Davao Sector', isRelieversSheet: true, isOptional: true };
     }
+    // Municipality checks
+    if (norm.includes('tagum')) return { sheetName: 'DDN 01 TAGUM', municipality: 'Tagum' };
+    if (norm.includes('panabo')) return { sheetName: 'DDN 02 PANABO', municipality: 'Panabo' };
+    if (norm.includes('carmen')) return { sheetName: 'DDN 03 CARMEN', municipality: 'Carmen' };
+    if (norm.includes('tomas')) return { sheetName: 'DDN 04 STO. TOMAS', municipality: 'Sto. Tomas' };
+    if (norm.includes('talaingod')) return { sheetName: 'DDN 05 TALAINGOD', municipality: 'Talaingod' };
+    if (norm.includes('kapalong')) return { sheetName: 'DDN 06 KAPALONG', municipality: 'Kapalong' };
+    if (norm.includes('samal') || norm.includes('igacos')) return { sheetName: 'DDN 10 SAMAL', municipality: 'Samal' };
+
     return TARGET_SHEETS.find(t => {
       const targetNorm = t.sheetName.toLowerCase().replace(/[^a-z0-9]/g, '');
       return norm === targetNorm;
@@ -180,101 +190,133 @@
     const workbook = currentImportData.workbook;
     const availableSheetNames = currentImportData.sheetNames;
 
-    // Scan for each of the designated sheets
     const sheetsStatus = [];
     let missingCount = 0;
     const sheetsToProcess = [];
 
+    // Helper: Identify non-operational / report sheets to ignore
+    const isExcludedSheet = (sName) => {
+      const l = cleanStr(sName).toLowerCase();
+      return l.startsWith('eod') || l.startsWith('low sales') || l.startsWith('draw date') || 
+             l.startsWith('accounting') || l.startsWith('summary') || l.startsWith('pivot');
+    };
+
+    // 1. Scan for each of the designated municipal target sheets
+    const matchedTargets = [];
     TARGET_SHEETS.forEach(target => {
-      // Find matching sheet in workbook
       const actualName = availableSheetNames.find(s => {
         const match = findMatchingTarget(s);
         return match && match.sheetName === target.sheetName;
       });
-
       if (actualName) {
-        sheetsStatus.push({
+        matchedTargets.push({
           targetSheet: target.sheetName,
           actualSheet: actualName,
-          municipality: target.municipality,
-          isRelieversSheet: !!target.isRelieversSheet,
-          found: true,
-          recordCount: 0
-        });
-        sheetsToProcess.push({
-          actualSheet: actualName,
-          targetSheet: target.sheetName,
           municipality: target.municipality,
           isRelieversSheet: !!target.isRelieversSheet
-        });
-      } else {
-        if (!target.isOptional) {
-          missingCount++;
-        }
-        sheetsStatus.push({
-          targetSheet: target.sheetName,
-          actualSheet: null,
-          municipality: target.municipality,
-          isRelieversSheet: !!target.isRelieversSheet,
-          found: false,
-          recordCount: 0
         });
       }
     });
 
-    // Detect any RELIEVERS sheets with variant names (e.g. "RELIEVER REGISTRY", "RELIEVERS LIST")
+    // Check if separate RELIEVERS sheet exists under any variant
     availableSheetNames.forEach(sheetName => {
       const norm = sheetName.toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (norm.includes('reliever')) {
-        const alreadyAdded = sheetsToProcess.some(s => s.actualSheet === sheetName);
-        if (!alreadyAdded) {
+      if (norm.includes('reliever') || norm.includes('buffer')) {
+        if (!matchedTargets.some(m => m.actualSheet === sheetName)) {
+          matchedTargets.push({
+            targetSheet: 'RELIEVERS',
+            actualSheet: sheetName,
+            municipality: 'Davao Sector',
+            isRelieversSheet: true
+          });
+        }
+      }
+    });
+
+    // Determine format: Multi-sheet (2+ designated sheets) vs Master Consolidated sheet
+    const hasConsolidatedSheet = availableSheetNames.some(s => /^(sheet1|master[\s_\-]*registry|master|registry|tellers|staff)$/i.test(s.trim()));
+    const is7SheetFormat = matchedTargets.length >= 2 || (matchedTargets.length === 1 && !hasConsolidatedSheet);
+
+    if (is7SheetFormat) {
+      TARGET_SHEETS.forEach(target => {
+        const found = matchedTargets.find(m => m.targetSheet === target.sheetName);
+        if (found) {
+          sheetsStatus.push({
+            targetSheet: target.sheetName,
+            actualSheet: found.actualSheet,
+            municipality: target.municipality,
+            isRelieversSheet: !!target.isRelieversSheet,
+            found: true,
+            recordCount: 0
+          });
+          sheetsToProcess.push(found);
+        } else {
+          if (!target.isOptional) {
+            missingCount++;
+          }
+          sheetsStatus.push({
+            targetSheet: target.sheetName,
+            actualSheet: null,
+            municipality: target.municipality,
+            isRelieversSheet: !!target.isRelieversSheet,
+            found: false,
+            recordCount: 0
+          });
+        }
+      });
+    } else {
+      // Consolidated Master Format (e.g. DDN - MASTER TEMPLATE.xlsx, SAMAL - MASTER TEMPLATE.xlsx, Master_Registry_Update_DDN.xlsx)
+      const primarySheet = availableSheetNames.find(s => /^(sheet1|master[\s_\-]*registry|master|registry|tellers|staff)$/i.test(s.trim()))
+        || availableSheetNames.find(s => !isExcludedSheet(s));
+
+      if (primarySheet) {
+        let defMuni = 'Sto. Tomas';
+        const fileLow = (currentImportData.fileName || '').toLowerCase();
+        if (fileLow.includes('samal')) defMuni = 'Samal';
+        else if (fileLow.includes('tagum')) defMuni = 'Tagum';
+        else if (fileLow.includes('panabo')) defMuni = 'Panabo';
+        else if (fileLow.includes('carmen')) defMuni = 'Carmen';
+
+        sheetsStatus.push({
+          targetSheet: primarySheet,
+          actualSheet: primarySheet,
+          municipality: defMuni,
+          isRelieversSheet: false,
+          found: true,
+          recordCount: 0
+        });
+        sheetsToProcess.push({
+          actualSheet: primarySheet,
+          targetSheet: primarySheet,
+          municipality: defMuni,
+          isRelieversSheet: false
+        });
+      }
+
+      // Also process any dedicated Relievers sheet if present
+      availableSheetNames.forEach(sheetName => {
+        const norm = sheetName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if ((norm.includes('reliever') || norm.includes('buffer')) && !sheetsToProcess.some(sp => sp.actualSheet === sheetName)) {
+          sheetsStatus.push({
+            targetSheet: 'RELIEVERS',
+            actualSheet: sheetName,
+            municipality: 'Davao Sector',
+            isRelieversSheet: true,
+            found: true,
+            recordCount: 0
+          });
           sheetsToProcess.push({
             actualSheet: sheetName,
             targetSheet: 'RELIEVERS',
             municipality: 'Davao Sector',
             isRelieversSheet: true
           });
-          const existingStatus = sheetsStatus.find(s => s.targetSheet === 'RELIEVERS');
-          if (existingStatus) {
-            existingStatus.actualSheet = sheetName;
-            existingStatus.found = true;
-          } else {
-            sheetsStatus.push({
-              targetSheet: 'RELIEVERS',
-              actualSheet: sheetName,
-              municipality: 'Davao Sector',
-              isRelieversSheet: true,
-              found: true,
-              recordCount: 0
-            });
-          }
         }
-      }
-    });
+      });
+    }
 
     currentImportData.targetSheetsStatus = sheetsStatus;
     currentImportData.missingSheetsCount = missingCount;
-
-    // Fallback: If NONE of the sheets are found, check if a single master sheet exists
-    if (sheetsToProcess.length === 0) {
-      // Check if there is a single sheet (e.g. Master_Registry or Sheet1)
-      let fallbackSheet = availableSheetNames[0];
-      for (const s of availableSheetNames) {
-        const l = s.toLowerCase();
-        if (l.includes('master') || l.includes('registry') || l.includes('staff')) {
-          fallbackSheet = s;
-          break;
-        }
-      }
-      if (fallbackSheet) {
-        sheetsToProcess.push({
-          actualSheet: fallbackSheet,
-          targetSheet: fallbackSheet,
-          municipality: 'Sto. Tomas',
-          isRelieversSheet: false
-        });
-      }
-    }
 
     // Process records across all identified sheets
     const allExtractedRecords = [];
@@ -306,14 +348,21 @@
         sheetRecordCount++;
         const record = extractRowData(row, rowIdx + headerAnalysis.headerRowIndex + 2, headerAnalysis, sheetInfo);
 
+        // Skip empty spacer or template rows
+        if ((!record.name || record.name === 'N/A') && (!record.id || record.id === 'N/A') && (!record.booth || record.booth === 'N/A' || record.booth === '-')) {
+          return;
+        }
+
         // In-file Duplicate Detection (across entire workbook)
         let fileKey = '';
         if (record.id && record.id !== 'N/A') {
           fileKey = `ID:${record.id.toUpperCase()}`;
-        } else if (record.name && record.name !== 'N/A' && record.booth && record.booth !== 'N/A') {
+        } else if (record.name && record.name !== 'N/A' && record.booth && record.booth !== 'N/A' && record.booth !== '-') {
           fileKey = `NAME:${record.name.toLowerCase()}|BOOTH:${record.booth.toUpperCase()}`;
         } else if (record.name && record.name !== 'N/A') {
-          fileKey = `NAME:${record.name.toLowerCase()}|ROW:${record.rowNum}`;
+          fileKey = `NAME:${record.name.toLowerCase()}`;
+        } else if (record.booth && record.booth !== 'N/A' && record.booth !== '-') {
+          fileKey = `BOOTH:${record.booth.toUpperCase()}`;
         } else {
           fileKey = `ROW:${sheetInfo.targetSheet}_${record.rowNum}`;
         }
@@ -334,11 +383,11 @@
         const existingMatch = allExisting.find(e => {
           if (normId && e.id && e.id.toLowerCase().trim() === normId) return true;
           if (normName && e.name && e.name.toLowerCase().trim() === normName) {
-            if (sheetInfo.isRelieversSheet || (e.role && e.role.toLowerCase().includes('reliever'))) {
-              return true;
-            }
+            return true;
+          }
+          if (normBooth && (!normName || normName === 'n/a')) {
             const eb = normalizeBoothCode(e.boothCode || e.booth);
-            if (eb === normBooth || !normBooth) return true;
+            if (eb === normBooth) return true;
           }
           return false;
         });
@@ -388,10 +437,6 @@
             changes.push(`Printer: ${exPr} → ${record.printerName}`);
           }
 
-          if (record.hasMissingRequired) {
-            changes.push(`Status set to INACTIVE (Missing: ${record.missingFields.join(', ')})`);
-          }
-
           if (changes.length === 0) {
             record.action = 'UNCHANGED';
             record.notes = 'Identical to existing Master Registry record';
@@ -406,7 +451,7 @@
           if (record.hasMissingRequired) {
             record.notes = `New record with missing data (${record.missingFields.join(', ')}) — Status set to INACTIVE`;
           } else {
-            record.notes = sheetInfo.isRelieversSheet
+            record.notes = record.role === 'Reliever'
               ? `New Reliever to be added to Reliever Registry (${record.municipality || 'Davao Sector'})`
               : `New Sales Representative to be added to Master Registry (${record.municipality})`;
           }
@@ -458,9 +503,19 @@
       let matches = 0;
       row.forEach(cell => {
         const text = cleanStr(cell).toLowerCase();
-        if (text.includes('sales rep') || text.includes('sales coordinator') || text.includes('booth code') || text.includes('pos no') || text.includes('id no')) {
-          matches += 2;
-        } else if (text.includes('purok') || text.includes('barangay') || text.includes('coordinates') || text.includes('status') || text.includes('contact')) {
+        if (!text) return;
+        if (
+          text.includes('teller') || text.includes('sales rep') || text.includes('sales coordinator') || 
+          text.includes('booth code') || text.includes('pos no') || text.includes('id no') || 
+          text.includes('employee id') || text.includes('employee name') || text.includes('full name') ||
+          text.includes('outlets')
+        ) {
+          matches += 3;
+        } else if (
+          text.includes('purok') || text.includes('barangay') || text.includes('address') || 
+          text.includes('coordinates') || text.includes('status') || text.includes('contact') || 
+          text.includes('phone') || text.includes('role') || text.includes('position') || text.includes('booth')
+        ) {
           matches += 1;
         }
       });
@@ -477,9 +532,11 @@
     let scCol = -1;
     let brgyCol = -1;
     let purokCol = -1;
+    let addrCol = -1;
     let statusCol = -1;
     let phoneCol = -1;
     let boothCol = -1;
+    let outletCol = -1;
     let posCol = -1;
     let coordsCol = -1;
     let muniCol = -1;
@@ -491,14 +548,30 @@
       const txt = cleanStr(cell).toLowerCase();
       if (!txt) return;
 
-      // Identify ID NO. columns
-      if (txt === 'id no.' || txt === 'id no' || txt === 'id number' || txt === 'id' || txt.includes('id no')) {
+      // Identify ID columns (Sales Rep ID, Employee ID, Teller ID, Staff ID)
+      if (
+        txt === 'id no.' || txt === 'id no' || txt === 'id number' || txt === 'id' || 
+        txt.includes('id no') || txt.includes('employee id') || txt.includes('emp id') || 
+        txt.includes('emp. id') || txt.includes('teller id') || txt.includes('sr id') || 
+        txt.includes('staff id') || txt.includes('control no') || txt.includes('id #')
+      ) {
         idCols.push({ idx, header: cleanStr(cell) });
       }
 
-      // Sales Representative
-      if ((txt.includes('sales rep') || txt.includes('sales representative') || txt.includes('representative')) && !txt.includes('coordinator')) {
-        srCol = idx;
+      // Sales Representative / Teller Name
+      const isCoord = txt.includes('coordinator');
+      const isPrt = txt.includes('printer');
+      if (!isCoord && !isPrt) {
+        if (
+          txt === 'teller' || txt === 'tellers' || txt === 'station teller' || 
+          txt.includes('teller name') || txt.includes('sales rep') || 
+          txt.includes('sales representative') || txt.includes('representative') ||
+          txt === 'employee name' || txt === 'emp name' || txt === 'staff name' ||
+          txt === 'personnel name' || txt === 'full name' || txt === 'reliever name' ||
+          txt === 'reliever' || txt === 'cashier'
+        ) {
+          srCol = idx;
+        }
       }
 
       // Sales Coordinator
@@ -516,6 +589,11 @@
         purokCol = idx;
       }
 
+      // Address / Location general
+      if (txt.includes('address') || txt.includes('location') || txt.includes('area')) {
+        addrCol = idx;
+      }
+
       // Status
       if (txt === 'status' || txt.includes('status')) {
         statusCol = idx;
@@ -527,12 +605,19 @@
       }
 
       // Booth Code
-      if (txt.includes('booth')) {
+      if (txt.includes('booth code') || txt === 'booth' || txt === 'booth no' || txt === 'booth #') {
         boothCol = idx;
+      } else if (txt.includes('booth')) {
+        if (boothCol === -1) boothCol = idx;
+      }
+
+      // Outlets column
+      if (txt === 'outlet' || txt === 'outlets' || txt.includes('outlet code') || txt.includes('station')) {
+        outletCol = idx;
       }
 
       // POS No.
-      if (txt.includes('pos')) {
+      if (txt.includes('pos') || txt.includes('terminal')) {
         posCol = idx;
       }
 
@@ -552,23 +637,30 @@
       }
 
       // Role
-      if (txt === 'role' || txt.includes('designation') || txt.includes('position')) {
+      if (txt === 'role' || txt.includes('designation') || txt.includes('position') || txt.includes('job title')) {
         roleCol = idx;
       }
     });
 
-    // Fallback: If srCol not found, look for "Full Name", "Employee Name", "Reliever", "Staff", "Personnel"
+    // Fallbacks
+    if (boothCol === -1 && outletCol !== -1) {
+      boothCol = outletCol;
+    }
+
     if (srCol === -1) {
       headerRow.forEach((cell, idx) => {
         const txt = cleanStr(cell).toLowerCase();
-        if ((txt.includes('name') || txt.includes('reliever') || txt.includes('personnel') || txt.includes('employee') || txt.includes('staff')) && !txt.includes('coordinator') && !txt.includes('printer')) {
+        if (
+          (txt.includes('name') || txt.includes('teller') || txt.includes('reliever') || 
+           txt.includes('personnel') || txt.includes('employee') || txt.includes('staff')) && 
+          !txt.includes('coordinator') && !txt.includes('printer') && !txt.includes('outlet') && !txt.includes('booth')
+        ) {
           srCol = idx;
         }
       });
     }
 
     // DISAMBIGUATE DUAL ID NO. COLUMNS:
-    // Prompt Section 2 & 5: Distinguish Sales Rep ID NO. from Sales Coordinator ID NO.
     let srIdCol = -1;
     let scIdCol = -1;
 
@@ -605,6 +697,7 @@
       scIdCol,
       brgyCol,
       purokCol,
+      addrCol,
       statusCol,
       phoneCol,
       boothCol,
@@ -620,37 +713,72 @@
   function extractRowData(row, rowNum, headerAnalysis, sheetInfo) {
     const getCell = (colIdx) => {
       if (colIdx !== -1 && colIdx !== undefined && row[colIdx] !== undefined) {
-        return cleanStr(row[colIdx]);
+        const cell = row[colIdx];
+        if (cell && typeof cell === 'object' && cell.result !== undefined) {
+          return cleanStr(cell.result);
+        }
+        return cleanStr(cell);
       }
       return '';
     };
 
-    // 1. Full Name (SALES REPRESENTATIVE or RELIEVER) - Never invent if missing
+    // 1. Full Name (SALES REPRESENTATIVE or RELIEVER)
     const rawName = getCell(headerAnalysis.srCol);
 
-    // 2. ID No. (Sales Representative / Reliever ID NO.) - Never invent if missing
+    // 2. ID No. (Sales Representative / Reliever ID NO.)
     const rawId = getCell(headerAnalysis.srIdCol);
 
-    // 3. Role (Relievers sheet receives 'Reliever', others receive 'Sales Representative')
-    let roleVal = sheetInfo.isRelieversSheet ? 'Reliever' : 'Sales Representative';
-    if (!rawName) {
-      roleVal = 'N/A';
-    } else if (headerAnalysis.roleCol !== -1) {
-      const explicitRole = getCell(headerAnalysis.roleCol);
-      if (explicitRole) {
-        const erUpper = explicitRole.toUpperCase();
-        if (erUpper.includes('RELIEVER') || erUpper.includes('RELIVER')) roleVal = 'Reliever';
-        else if (erUpper.includes('SUPERVISOR')) roleVal = 'Supervisor';
-        else if (erUpper.includes('COLLECTOR')) roleVal = 'Collector';
-        else if (erUpper.includes('TEAM LEADER')) roleVal = 'Team Leader';
-        else if (erUpper.includes('TELLER') || erUpper.includes('REP')) roleVal = 'Sales Representative';
-        else roleVal = explicitRole;
+    // 3. Booth Code (Normalized format: DDN 352 -> DDN-352)
+    let rawBooth = getCell(headerAnalysis.boothCol);
+    if (rawBooth) {
+      const m = rawBooth.match(/DDN[\s\-_]*\d+/i);
+      if (m) {
+        rawBooth = normalizeBoothCode(m[0]);
+      } else {
+        rawBooth = normalizeBoothCode(rawBooth);
       }
+    } else {
+      rawBooth = '-';
     }
 
-    // 4. Purok / Street / Barangay (Combine PUROK + BARANGAY)
+    // 4. Role detection (Tellers vs Relievers)
+    let isReliever = !!sheetInfo.isRelieversSheet;
+    let explicitRole = headerAnalysis.roleCol !== -1 ? getCell(headerAnalysis.roleCol) : '';
+
+    if (explicitRole) {
+      const erUpper = explicitRole.toUpperCase();
+      if (erUpper.includes('RELIEVER') || erUpper.includes('RELIVER') || erUpper.includes('BUFFER')) {
+        isReliever = true;
+      }
+    }
+    if (rawId && (rawId.toUpperCase().includes('-REL') || rawId.toUpperCase().startsWith('REL'))) {
+      isReliever = true;
+    }
+    if (rawName && (/reliever/i.test(rawName) || /buffer/i.test(rawName))) {
+      isReliever = true;
+    }
+    if (rawBooth && (/reliever/i.test(rawBooth) || /buffer/i.test(rawBooth) || /roving/i.test(rawBooth))) {
+      isReliever = true;
+    }
+
+    let roleVal = 'Sales Representative';
+    if (!rawName) {
+      roleVal = 'N/A';
+    } else if (isReliever) {
+      roleVal = 'Reliever';
+    } else if (explicitRole) {
+      const erUpper = explicitRole.toUpperCase();
+      if (erUpper.includes('SUPERVISOR')) roleVal = 'Supervisor';
+      else if (erUpper.includes('COLLECTOR')) roleVal = 'Collector';
+      else if (erUpper.includes('TEAM LEADER')) roleVal = 'Team Leader';
+      else if (erUpper.includes('TELLER') || erUpper.includes('REP')) roleVal = 'Sales Representative';
+      else roleVal = explicitRole;
+    }
+
+    // 5. Purok / Street / Barangay (Combine PUROK + BARANGAY or ADDRESS)
     const rawPurok = getCell(headerAnalysis.purokCol);
     const rawBarangay = getCell(headerAnalysis.brgyCol);
+    const rawAddr = getCell(headerAnalysis.addrCol);
     let combinedAddress = '';
     if (rawPurok && rawBarangay) {
       combinedAddress = `${rawPurok}, ${rawBarangay}`;
@@ -658,19 +786,29 @@
       combinedAddress = rawPurok;
     } else if (rawBarangay) {
       combinedAddress = rawBarangay;
+    } else if (rawAddr) {
+      combinedAddress = rawAddr;
     }
 
-    // 5. Municipality (Determined strictly from worksheet tab name or column)
+    // 6. Municipality (Determined from worksheet tab name, column, or address)
     let muniVal = sheetInfo.municipality || '';
     if (headerAnalysis.muniCol !== -1) {
       const rawMuni = getCell(headerAnalysis.muniCol);
       if (rawMuni) muniVal = rawMuni;
     }
+    if (!muniVal || muniVal === 'Davao Sector' || muniVal === 'Davao Del Norte' || muniVal === 'N/A' || muniVal === '-') {
+      const testText = `${combinedAddress} ${sheetInfo.targetSheet} ${sheetInfo.actualSheet || ''}`.toLowerCase();
+      if (testText.includes('tagum')) muniVal = 'Tagum';
+      else if (testText.includes('panabo')) muniVal = 'Panabo';
+      else if (testText.includes('carmen')) muniVal = 'Carmen';
+      else if (testText.includes('tomas') || testText.includes('salvacion') || testText.includes('tibal.og') || testText.includes('tibal-og')) muniVal = 'Sto. Tomas';
+      else if (testText.includes('talaingod')) muniVal = 'Talaingod';
+      else if (testText.includes('kapalong')) muniVal = 'Kapalong';
+      else if (testText.includes('samal') || testText.includes('babak') || testText.includes('penaplata') || testText.includes('kaputian') || testText.includes('igacos')) muniVal = 'Samal';
+      else muniVal = 'Sto. Tomas';
+    }
 
-    // 6. Booth Code (Normalized format: DDN 352 -> DDN-352) - Never invent if missing
-    const rawBooth = normalizeBoothCode(getCell(headerAnalysis.boothCol));
-
-    // 7. GPS Coordinates (Parsed accurately from COORDINATES) - Never invent if missing
+    // 7. GPS Coordinates (Parsed accurately from COORDINATES or authentic registry)
     const rawCoords = getCell(headerAnalysis.coordsCol);
     let parsedLat = null;
     let parsedLng = null;
@@ -679,7 +817,6 @@
       if (m) {
         let lat = parseFloat(m[1]);
         let lng = parseFloat(m[2]);
-        // Section 4: Inversion check (Latitude is first ~7.x, Longitude is second ~125.x)
         if (lat > 50 && lng < 50) {
           const temp = lat;
           lat = lng;
@@ -691,12 +828,20 @@
         }
       }
     }
+    // Authentic Master Registry coordinate match if valid booth
+    if (parsedLat === null && rawBooth && rawBooth !== '-' && rawBooth !== 'N/A') {
+      const normB = normalizeBoothCode(rawBooth);
+      if (typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined' && AUTHENTIC_MASTER_REGISTRY_COORDINATES[normB]) {
+        parsedLat = AUTHENTIC_MASTER_REGISTRY_COORDINATES[normB].lat;
+        parsedLng = AUTHENTIC_MASTER_REGISTRY_COORDINATES[normB].lng;
+      }
+    }
 
     // 8. Contact Phone (Never invent 0917-000-0000 or fake phone)
     const rawPhone = getCell(headerAnalysis.phoneCol);
     const cleanPhone = (rawPhone && rawPhone !== '0917-000-0000' && rawPhone !== '-') ? rawPhone : '';
 
-    // 9. POS Serial No. (Never invent fake POS Serial)
+    // 9. POS Serial No.
     const rawPos = getCell(headerAnalysis.posCol);
 
     // 10. Portable Printer (Dropdown: WITH PORTABLE PRINTER or N/A)
@@ -706,24 +851,30 @@
     }
     const printerVal = rawPrinter ? ((rawPrinter.includes('WITH') || rawPrinter.includes('PRT-') || rawPrinter.includes('YES') || rawPrinter.includes('TRUE')) ? 'WITH PORTABLE PRINTER' : 'N/A') : '';
 
-    // 11. Evaluate Missing Required Fields:
-    // If required Master Registry details are missing -> STATUS = INACTIVE
-    const missingFields = [];
-    if (!rawName) missingFields.push('Sales Representative Name');
-    if (!rawId) missingFields.push('ID No.');
-    if (!sheetInfo.isRelieversSheet && (!rawBooth || rawBooth === '-' || rawBooth === 'N/A')) missingFields.push('Booth Code');
-
+    // 11. Status Determination (BUG FIX: Missing ID never sets Status to INACTIVE)
     let statusVal = 'Active';
     let hasMissingRequired = false;
+    const missingFields = [];
+
+    if (!rawName || rawName === 'N/A') {
+      missingFields.push('Personnel Name');
+      hasMissingRequired = true;
+      statusVal = 'Inactive';
+    }
 
     const rawStatus = getCell(headerAnalysis.statusCol);
     if (rawStatus) {
-      if (rawStatus.toUpperCase() === 'INACTIVE') statusVal = 'Inactive';
-      else if (rawStatus.toUpperCase() === 'ACTIVE') statusVal = 'Active';
+      const sUp = rawStatus.toUpperCase();
+      if (sUp === 'INACTIVE' || sUp === 'OFFLINE' || sUp === 'SUSPENDED' || sUp === 'DEACTIVATED') {
+        statusVal = 'Inactive';
+      } else if (sUp === 'TERMINATED') {
+        statusVal = 'Terminated';
+      } else if (sUp === 'ACTIVE') {
+        statusVal = 'Active';
+      }
     }
 
-    if (missingFields.length > 0) {
-      hasMissingRequired = true;
+    if (combinedAddress && (combinedAddress.toUpperCase().includes('DEACTIVATED') || combinedAddress.toUpperCase().includes('TEMPORARY DEACTIVATED'))) {
       statusVal = 'Inactive';
     }
 
@@ -755,7 +906,6 @@
       matchId: '',
       matchName: '',
       changes: [],
-      notes: ''
     };
   }
 

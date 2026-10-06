@@ -1081,13 +1081,19 @@ function renderEmployeesTable(customList = null) {
 
   const supervisors = allStaff.filter(e => (e.role || '').toUpperCase().includes('SUPERVISOR') || (e.role || '').toUpperCase().includes('TEAM LEADER'));
   const collectors = allStaff.filter(e => (e.role || '').toUpperCase().includes('COLLECTOR'));
-  const relieversList = allStaff.filter(e => (e.role || '').toUpperCase().includes('RELIEVER') || (e.role || '').toUpperCase().includes('RELIVER'));
+  const relieversList = allStaff.filter(e => {
+    const r = (e.role || '').toUpperCase();
+    const id = (e.id || '').toUpperCase();
+    return r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('BUFFER') || id.includes('-REL');
+  });
 
   // Section 4: 3. Sales Representatives Registry must count ACTIVE Sales Representatives only.
   // Inactive Sales Representatives must NOT be included in this count.
   const tellers = allStaff.filter(e => {
     const r = (e.role || '').toUpperCase();
-    const isOtherRole = r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('SUPERVISOR') || r.includes('COLLECTOR') || r.includes('TEAM LEADER') || r.includes('ADMIN');
+    const id = (e.id || '').toUpperCase();
+    const isOtherRole = r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('BUFFER') || id.includes('-REL') || 
+                        r.includes('SUPERVISOR') || r.includes('COLLECTOR') || r.includes('TEAM LEADER') || r.includes('ADMIN');
     if (isOtherRole) return false;
     const statusUpper = (e.status || 'ACTIVE').toUpperCase();
     const isNameMissing = !e.name || e.name.trim() === '' || e.name.trim().toUpperCase() === 'N/A' || e.name.trim() === '-';
@@ -1097,7 +1103,9 @@ function renderEmployeesTable(customList = null) {
   // Section 5: 6. Terminated Tellers Registry
   const terminatedTellers = allStaff.filter(e => {
     const r = (e.role || '').toUpperCase();
-    const isOtherRole = r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('SUPERVISOR') || r.includes('COLLECTOR') || r.includes('TEAM LEADER') || r.includes('ADMIN');
+    const id = (e.id || '').toUpperCase();
+    const isOtherRole = r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('BUFFER') || id.includes('-REL') || 
+                        r.includes('SUPERVISOR') || r.includes('COLLECTOR') || r.includes('TEAM LEADER') || r.includes('ADMIN');
     if (isOtherRole) return false;
     return (e.status || '').toUpperCase() === 'TERMINATED';
   });

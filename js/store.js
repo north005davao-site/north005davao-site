@@ -2498,7 +2498,7 @@ class Store {
       const phoneVal = (rawPh && rawPh !== '0917-000-0000' && rawPh !== '-' && rawPh !== 'N/A') ? rawPh : 'N/A';
 
       let statusVal = 'ACTIVE';
-      if (finalName === 'N/A' || rec.hasMissingRequired || (rec.status && rec.status.toUpperCase() === 'INACTIVE')) {
+      if (finalName === 'N/A') {
         statusVal = 'INACTIVE';
       } else if (rec.status) {
         const sUp = rec.status.trim().toUpperCase();
@@ -2512,10 +2512,20 @@ class Store {
       } else {
         const roleUpper = roleVal.toUpperCase();
         if (roleUpper === 'TELLER' || roleUpper === 'STATION TELLER') roleVal = 'Sales Representative';
-        else if (roleUpper.includes('RELIEVER') || roleUpper.includes('RELIVER')) roleVal = 'Reliever';
+        else if (roleUpper.includes('RELIEVER') || roleUpper.includes('RELIVER') || roleUpper.includes('BUFFER')) roleVal = 'Reliever';
         else if (roleUpper.includes('SUPERVISOR')) roleVal = 'Supervisor';
         else if (roleUpper.includes('COLLECTOR')) roleVal = 'Collector';
         else if (roleUpper.includes('TEAM LEADER')) roleVal = 'Team Leader';
+      }
+
+      // Authentic coordinates lookup for recognized booths
+      if (!geo && boothCode && boothCode !== '-' && boothCode !== 'N/A' && typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined') {
+        const authCoord = AUTHENTIC_MASTER_REGISTRY_COORDINATES[boothCode];
+        if (authCoord) {
+          lat = authCoord.lat;
+          lng = authCoord.lng;
+          geo = { lat, lng };
+        }
       }
 
       const emp = {
@@ -2573,8 +2583,9 @@ class Store {
       }
 
       this.data.employees.push(emp);
-      if (emp.role && emp.role.toUpperCase().includes('RELIEVER') && this.data.relievers) {
-        if (!this.data.relievers.some(r => r.id === emp.id)) {
+      if (emp.role && emp.role.toUpperCase().includes('RELIEVER')) {
+        if (!this.data.relievers) this.data.relievers = [];
+        if (!this.data.relievers.some(r => r.id === emp.id || (r.name && emp.name && r.name.toLowerCase() === emp.name.toLowerCase()))) {
           this.data.relievers.push(emp);
         }
       }
@@ -2585,15 +2596,10 @@ class Store {
     updateRecords.forEach(rec => {
       const targetId = rec.matchId ? rec.matchId.toLowerCase().trim() : (rec.id ? rec.id.toLowerCase().trim() : null);
       const targetName = rec.matchName ? rec.matchName.toLowerCase().trim() : (rec.name ? rec.name.toLowerCase().trim() : null);
-      const targetBooth = (rec.booth || rec.boothCode || '').toUpperCase().trim();
 
       const idx = this.data.employees.findIndex(e => {
         if (targetId && e.id && e.id.toLowerCase().trim() === targetId) return true;
-        if (targetName && e.name && e.name.toLowerCase().trim() === targetName) {
-          if (!targetBooth || targetBooth === '-' || (e.booth && e.booth.toUpperCase().trim() === targetBooth) || (e.boothCode && e.boothCode.toUpperCase().trim() === targetBooth)) {
-            return true;
-          }
-        }
+        if (targetName && e.name && e.name.toLowerCase().trim() === targetName) return true;
         return false;
       });
 
@@ -2605,7 +2611,7 @@ class Store {
           let rVal = rec.role.trim();
           const rUpper = rVal.toUpperCase();
           if (rUpper === 'TELLER' || rUpper === 'STATION TELLER') rVal = 'Sales Representative';
-          else if (rUpper.includes('RELIEVER') || rUpper.includes('RELIVER')) rVal = 'Reliever';
+          else if (rUpper.includes('RELIEVER') || rUpper.includes('RELIVER') || rUpper.includes('BUFFER')) rVal = 'Reliever';
           else if (rUpper.includes('SUPERVISOR')) rVal = 'Supervisor';
           else if (rUpper.includes('COLLECTOR')) rVal = 'Collector';
           else if (rUpper.includes('TEAM LEADER')) rVal = 'Team Leader';
@@ -2657,7 +2663,13 @@ class Store {
           updates.lat = Number(rec.coordinates.lat);
           updates.lng = Number(rec.coordinates.lng);
           updates.coordinates = { lat: Number(rec.coordinates.lat), lng: Number(rec.coordinates.lng) };
+        } else if (updates.booth && updates.booth !== '-' && typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined' && AUTHENTIC_MASTER_REGISTRY_COORDINATES[updates.booth]) {
+          const ac = AUTHENTIC_MASTER_REGISTRY_COORDINATES[updates.booth];
+          updates.lat = ac.lat;
+          updates.lng = ac.lng;
+          updates.coordinates = { lat: ac.lat, lng: ac.lng };
         }
+
         if (updates.lat !== undefined) {
           const targetBCode = updates.booth || updates.boothCode || existing.booth || existing.boothCode;
           if (targetBCode && targetBCode !== '-') {
@@ -2689,10 +2701,7 @@ class Store {
           updates.printerSerial = normPr;
         }
 
-        if (rec.hasMissingRequired) {
-          updates.status = 'INACTIVE';
-          updates.etsStatus = 'Offline';
-        } else if (rec.status) {
+        if (rec.status) {
           const sUp = rec.status.trim().toUpperCase();
           updates.status = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
           updates.etsStatus = updates.status === 'ACTIVE' ? 'Active' : 'Offline';
@@ -2701,13 +2710,12 @@ class Store {
         this.data.employees[idx] = { ...existing, ...updates };
         
         // Also sync to relievers list if this employee is or was a reliever
-        if (this.data.relievers) {
-          const rIdx = this.data.relievers.findIndex(r => r.id === existing.id || r.name.toLowerCase() === existing.name.toLowerCase());
-          if (rIdx !== -1) {
-            this.data.relievers[rIdx] = { ...this.data.relievers[rIdx], ...updates };
-          } else if ((updates.role || existing.role || '').toUpperCase().includes('RELIEVER')) {
-            this.data.relievers.push(this.data.employees[idx]);
-          }
+        if (!this.data.relievers) this.data.relievers = [];
+        const rIdx = this.data.relievers.findIndex(r => r.id === existing.id || (r.name && existing.name && r.name.toLowerCase() === existing.name.toLowerCase()));
+        if (rIdx !== -1) {
+          this.data.relievers[rIdx] = { ...this.data.relievers[rIdx], ...updates };
+        } else if ((updates.role || existing.role || '').toUpperCase().includes('RELIEVER')) {
+          this.data.relievers.push(this.data.employees[idx]);
         }
         updatedCount++;
       }
