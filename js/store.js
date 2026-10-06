@@ -1231,10 +1231,65 @@ class Store {
             needsSave = true;
           }
 
-          // GPS Sync from Authoritative AUTHENTIC_MASTER_REGISTRY_COORDINATES dictionary.
-          // Runs on EVERY load (no one-time flag) so that newly-imported Excel GPS data is
-          // always kept in sync. User-pinned coordinates (_userCalibrated) are never touched.
-          if (typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined') {
+          // Strict Master Registry GPS Sync (Purge fake radial fallback coordinates on first run)
+          if (!parsed._gpsStrictMasterV1) {
+            parsed._gpsStrictMasterV1 = true;
+            if (typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined') {
+              const cleanBoothId = (code) => {
+                if (!code || typeof code !== 'string') return null;
+                const trimmed = code.trim().toUpperCase();
+                if (trimmed === '-' || trimmed === 'N/A' || trimmed === 'NONE' || trimmed === '' || trimmed === 'UNASSIGNED') return null;
+                let clean = trimmed.replace(/^BOOTH[\s-]*/i, '').replace(/^DDN[\s_]+(\d+)/i, 'DDN-$1');
+                if (/^\d+$/.test(clean)) clean = `DDN-${clean}`;
+                return clean;
+              };
+
+              if (Array.isArray(parsed.booths)) {
+                parsed.booths.forEach((b) => {
+                  if (b._userCalibrated) return;
+                  const norm = cleanBoothId(b.id || b.code);
+                  if (norm && AUTHENTIC_MASTER_REGISTRY_COORDINATES[norm]) {
+                    const masterCoord = AUTHENTIC_MASTER_REGISTRY_COORDINATES[norm];
+                    b.lat = masterCoord.lat;
+                    b.lng = masterCoord.lng;
+                    b.coordinates = { lat: masterCoord.lat, lng: masterCoord.lng };
+                    if (masterCoord.municipality) b.municipality = masterCoord.municipality;
+                  } else {
+                    // Purge previous fake/radial fallback coordinates
+                    b.lat = null;
+                    b.lng = null;
+                    b.coordinates = null;
+                  }
+                });
+              }
+
+              if (Array.isArray(parsed.employees)) {
+                parsed.employees.forEach((e) => {
+                  if (e._userCalibrated) return;
+                  const rU = (e.role || '').toUpperCase();
+                  if (rU.includes('COLLECTOR') || rU.includes('ADMIN')) return; // Retain collector/admin territory
+                  const bCode = e.boothCode || e.booth;
+                  const norm = cleanBoothId(bCode);
+                  if (norm && AUTHENTIC_MASTER_REGISTRY_COORDINATES[norm]) {
+                    const masterCoord = AUTHENTIC_MASTER_REGISTRY_COORDINATES[norm];
+                    e.lat = masterCoord.lat;
+                    e.lng = masterCoord.lng;
+                    e.coordinates = { lat: masterCoord.lat, lng: masterCoord.lng };
+                    if (masterCoord.municipality) e.municipality = masterCoord.municipality;
+                  } else {
+                    // Purge previous fake/radial fallback coordinates
+                    e.lat = null;
+                    e.lng = null;
+                    e.coordinates = null;
+                  }
+                });
+              }
+            }
+            needsSave = true;
+          }
+
+          // Ensure all authentic Master Registry booths are registered
+          if (typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined' && Array.isArray(parsed.booths)) {
             const cleanBoothId = (code) => {
               if (!code || typeof code !== 'string') return null;
               const trimmed = code.trim().toUpperCase();
@@ -1244,75 +1299,27 @@ class Store {
               return clean;
             };
 
-            if (Array.isArray(parsed.booths)) {
-              parsed.booths.forEach((b) => {
-                if (b._userCalibrated) return;
-                const norm = cleanBoothId(b.id || b.code);
-                if (norm && AUTHENTIC_MASTER_REGISTRY_COORDINATES[norm]) {
-                  const masterCoord = AUTHENTIC_MASTER_REGISTRY_COORDINATES[norm];
-                  b.lat = masterCoord.lat;
-                  b.lng = masterCoord.lng;
-                  b.coordinates = { lat: masterCoord.lat, lng: masterCoord.lng };
-                  if (masterCoord.municipality) b.municipality = masterCoord.municipality;
-                } else if (!b._userCalibrated) {
-                  // Preserve whatever lat/lng was imported from Excel; only null out if truly absent
-                  if (b.lat === undefined || b.lat === '') b.lat = null;
-                  if (b.lng === undefined || b.lng === '') b.lng = null;
-                  if (!b.lat || !b.lng) b.coordinates = null;
-                }
-              });
-
-              // Ensure all authentic Master Registry booths are registered
-              Object.entries(AUTHENTIC_MASTER_REGISTRY_COORDINATES).forEach(([bCode, coord]) => {
-                const exists = parsed.booths.some(b => cleanBoothId(b.id || b.code) === bCode);
-                if (!exists) {
-                  parsed.booths.push({
-                    id: bCode,
-                    code: bCode,
-                    name: `Station ${bCode}`,
-                    area: coord.municipality,
-                    municipality: coord.municipality,
-                    lat: coord.lat,
-                    lng: coord.lng,
-                    coordinates: { lat: coord.lat, lng: coord.lng },
-                    status: 'Active',
-                    posSerial: `POS-${bCode}`,
-                    printerSerial: `PRT-${bCode}`,
-                    assignedTellerId: '-',
-                    assignedTellerName: '-'
-                  });
-                  needsSave = true;
-                }
-              });
-            }
-
-            if (Array.isArray(parsed.employees)) {
-              parsed.employees.forEach((e) => {
-                if (e._userCalibrated) return;
-                const rU = (e.role || '').toUpperCase();
-                if (rU.includes('COLLECTOR') || rU.includes('ADMIN')) return; // Retain collector/admin territory
-                const bCode = e.boothCode || e.booth;
-                const norm = cleanBoothId(bCode);
-                if (norm && AUTHENTIC_MASTER_REGISTRY_COORDINATES[norm]) {
-                  const masterCoord = AUTHENTIC_MASTER_REGISTRY_COORDINATES[norm];
-                  e.lat = masterCoord.lat;
-                  e.lng = masterCoord.lng;
-                  e.coordinates = { lat: masterCoord.lat, lng: masterCoord.lng };
-                  if (masterCoord.municipality) e.municipality = masterCoord.municipality;
-                } else if (!e._userCalibrated) {
-                  // Preserve Excel-imported coordinates; only null out if truly absent
-                  if (e.lat === undefined || e.lat === '') e.lat = null;
-                  if (e.lng === undefined || e.lng === '') e.lng = null;
-                  if (!e.lat || !e.lng) e.coordinates = null;
-                }
-              });
-            }
-            needsSave = true;
-          }
-          // Remove stale one-time migration flag so the block above runs cleanly going forward
-          if (parsed._gpsStrictMasterV1 !== undefined) {
-            delete parsed._gpsStrictMasterV1;
-            needsSave = true;
+            Object.entries(AUTHENTIC_MASTER_REGISTRY_COORDINATES).forEach(([bCode, coord]) => {
+              const exists = parsed.booths.some(b => cleanBoothId(b.id || b.code) === bCode);
+              if (!exists) {
+                parsed.booths.push({
+                  id: bCode,
+                  code: bCode,
+                  name: `Station ${bCode}`,
+                  area: coord.municipality,
+                  municipality: coord.municipality,
+                  lat: coord.lat,
+                  lng: coord.lng,
+                  coordinates: { lat: coord.lat, lng: coord.lng },
+                  status: 'Active',
+                  posSerial: `POS-${bCode}`,
+                  printerSerial: `PRT-${bCode}`,
+                  assignedTellerId: '-',
+                  assignedTellerName: '-'
+                });
+                needsSave = true;
+              }
+            });
           }
 
           if (!parsed.masterRegistryVersion) {
