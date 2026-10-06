@@ -566,6 +566,7 @@
       if (cached && !forceRefresh) {
         // Cache Hit: Render directly from pre-validated Master Registry cache
         cached.booths.forEach(b => {
+          if (b.personnel === 'Unassigned' || !b.personnel || (b.status || '').toUpperCase() === 'INACTIVE') return;
           this._renderMarkerForBooth(b, isDraggable, isAdmin);
         });
 
@@ -597,6 +598,7 @@
       registeredBooths.forEach(b => {
         const normCode = normalizeBoothCode(b.id || b.code);
         if (!normCode) return; // Skip non-booth entries like '-'
+        if ((b.status || '').toUpperCase() === 'INACTIVE') return; // Skip inactive booths
 
         boothMap.set(normCode, {
           normBoothCode: normCode,
@@ -650,6 +652,18 @@
       const uncoordinatedBoothsToCache = [];
 
       boothMap.forEach((entry, normBoothCode) => {
+        // Exclude unassigned booths or booths without assigned active personnel
+        if (!entry.staffList || entry.staffList.length === 0) {
+          return; // Skip unassigned booths from live tracking!
+        }
+        const hasActiveStaff = entry.staffList.some(s => (s.status || 'ACTIVE').toUpperCase() === 'ACTIVE');
+        if (!hasActiveStaff) {
+          return; // Skip booths without active staff!
+        }
+        if ((entry.status || '').toUpperCase() === 'INACTIVE') {
+          return; // Skip inactive booths!
+        }
+
         // Resolve GPS Coordinates from the Master Registry records for this booth
         // Priority 1: Registered booth record in Master Registry
         let gps = { isValid: false };

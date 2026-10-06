@@ -620,23 +620,24 @@ function buildDefaultStore() {
     });
   });
 
-  // Register standalone Master Registry booths across all corridors (e.g. Samal, Sunmi validation stations)
+  // Register standalone Master Registry booths across all corridors
   Object.entries(AUTHENTIC_MASTER_REGISTRY_COORDINATES).forEach(([bCode, coord]) => {
     if (!booths.some(b => b.id === bCode || b.code === bCode)) {
+      const teller = RAW_TELLERS.find(t => (t.booth || '').trim() === bCode);
       booths.push({
         id: bCode,
         code: bCode,
-        name: `Station ${bCode}`,
+        name: `Station ${bCode}${teller ? ' (' + teller.name + ')' : ''}`,
         area: coord.municipality,
         municipality: coord.municipality,
         lat: coord.lat,
         lng: coord.lng,
         coordinates: { lat: coord.lat, lng: coord.lng },
         status: 'Active',
-        posSerial: `POS-${bCode}`,
+        posSerial: (teller && teller.posSerial) ? teller.posSerial : `POS-${bCode}`,
         printerSerial: `PRT-${bCode}`,
-        assignedTellerId: '-',
-        assignedTellerName: '-'
+        assignedTellerId: teller ? teller.id : '',
+        assignedTellerName: teller ? teller.name : ''
       });
     }
   });
@@ -671,7 +672,7 @@ function buildDefaultStore() {
   });
 
   return {
-    masterRegistryVersion: 'MRV-20261006-001',
+    masterRegistryVersion: 'MRV-20261006-005',
     masterRegistryUpdatedAt: new Date().toISOString(),
     settings: {
       companyName: 'APEX Mindanao Operations & Gaming Services Corp.',
@@ -1198,13 +1199,24 @@ class Store {
             }
           }
           if (parsed.employees && parsed.employees.length > 0) {
-            // Purge Buffer Relievers, ghost DDN005-TEL-TURA, unauthorized JUNDY, and orphan BOOTH-DDN-1140 employees
+            // Purge Buffer Relievers, ghost IDs, orphan BOOTH- rows, phantom N/A employees, and inactive duplicates
             const GHOST_IDS_TO_PURGE = new Set(['DDN005-TEL-TURA', 'BOOTH-DDN-1140', 'DDN005-SUP01']);
+            const PHANTOM_BOOTHS = new Set(['DDN-2001', 'DDN-2002', 'DDN-2003', 'DDN-358', 'DDN-759', 'DDN-901']);
             const cleanEmployees = parsed.employees.filter(e => {
               if (!e) return false;
               if (e.name && (e.name.includes('Buffer Reliever') || e.name.toUpperCase().includes('JUNDY'))) return false;
               if (e.id && GHOST_IDS_TO_PURGE.has(e.id)) return false;
-              if (e.name === 'N/A' && (e.boothCode === 'DDN-1140' || e.booth === 'DDN-1140')) return false;
+              if (e.id && e.id.startsWith('BOOTH-')) return false;
+              // Remove duplicate inactive Ferlyn Zamora Robello (she is active reliever DDN005-REL017)
+              if (e.id === 'DDN005-SR0001' && (e.status || '').toUpperCase() === 'INACTIVE') return false;
+              // Purge phantom employees with N/A name or N/A role
+              const normName = (e.name || '').trim().toUpperCase();
+              if (!normName || normName === 'N/A' || normName === '-') return false;
+              const rNorm = (e.role || '').trim().toUpperCase();
+              if (rNorm === 'N/A' || rNorm === '-') return false;
+              // Purge inactive phantom booths
+              const bNorm = (e.boothCode || e.booth || '').trim().toUpperCase();
+              if (PHANTOM_BOOTHS.has(bNorm) && (e.status || '').toUpperCase() === 'INACTIVE') return false;
               return true;
             });
             if (cleanEmployees.length !== parsed.employees.length) {
@@ -1501,7 +1513,7 @@ class Store {
             needsSave = true;
           }
 
-          // Ensure all authentic Master Registry booths are registered
+          // Ensure all authentic Master Registry booths are registered and phantom/unassigned booths purged
           if (typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined' && Array.isArray(parsed.booths)) {
             const cleanBoothId = (code) => {
               if (!code || typeof code !== 'string') return null;
@@ -1512,25 +1524,45 @@ class Store {
               return clean;
             };
 
+            const PHANTOM_BOOTHS = new Set(['DDN-2001', 'DDN-2002', 'DDN-2003', 'DDN-358', 'DDN-759', 'DDN-901']);
+            const origBoothsCount = parsed.booths.length;
+            parsed.booths = parsed.booths.filter(b => {
+              if (!b) return false;
+              const norm = cleanBoothId(b.id || b.code);
+              if (!norm) return false;
+              if (PHANTOM_BOOTHS.has(norm)) return false;
+              if ((b.status || '').toUpperCase() === 'INACTIVE' && (!b.assignedTellerName || b.assignedTellerName === '-' || b.assignedTellerName === 'N/A' || b.assignedTellerName === 'Unassigned')) return false;
+              return true;
+            });
+            if (parsed.booths.length !== origBoothsCount) needsSave = true;
+
             Object.entries(AUTHENTIC_MASTER_REGISTRY_COORDINATES).forEach(([bCode, coord]) => {
-              const exists = parsed.booths.some(b => cleanBoothId(b.id || b.code) === bCode);
-              if (!exists) {
+              const existingBooth = parsed.booths.find(b => cleanBoothId(b.id || b.code) === bCode);
+              const teller = typeof RAW_TELLERS !== 'undefined' ? RAW_TELLERS.find(t => (t.booth || '').trim() === bCode) : null;
+              if (!existingBooth) {
                 parsed.booths.push({
                   id: bCode,
                   code: bCode,
-                  name: `Station ${bCode}`,
+                  name: `Station ${bCode}${teller ? ' (' + teller.name + ')' : ''}`,
                   area: coord.municipality,
                   municipality: coord.municipality,
                   lat: coord.lat,
                   lng: coord.lng,
                   coordinates: { lat: coord.lat, lng: coord.lng },
                   status: 'Active',
-                  posSerial: `POS-${bCode}`,
+                  posSerial: (teller && teller.posSerial) ? teller.posSerial : `POS-${bCode}`,
                   printerSerial: `PRT-${bCode}`,
-                  assignedTellerId: '-',
-                  assignedTellerName: '-'
+                  assignedTellerId: teller ? teller.id : '',
+                  assignedTellerName: teller ? teller.name : ''
                 });
                 needsSave = true;
+              } else {
+                if (teller && (!existingBooth.assignedTellerName || existingBooth.assignedTellerName === '-' || existingBooth.assignedTellerName === 'Unassigned' || existingBooth.assignedTellerName === 'N/A' || (existingBooth.status || '').toUpperCase() === 'INACTIVE')) {
+                  existingBooth.assignedTellerId = teller.id;
+                  existingBooth.assignedTellerName = teller.name;
+                  existingBooth.status = 'Active';
+                  needsSave = true;
+                }
               }
             });
           }
@@ -2367,7 +2399,7 @@ class Store {
 
   // Version tracking & smart cache management for Master Registry
   getMasterRegistryVersion() {
-    return (this.data && this.data.masterRegistryVersion) || 'MRV-20261006-001';
+    return (this.data && this.data.masterRegistryVersion) || 'MRV-20261006-005';
   }
 
   bumpMasterRegistryVersion() {
@@ -2464,11 +2496,32 @@ class Store {
             modified = true;
             return;
           }
-          // Purge known ghost records: DDN005-TEL-TURA (legacy injected terminated ghost),
-          // orphan BOOTH-DDN-1140 entries, and unauthorized JUNDY
+          // Purge known ghost records: DDN005-TEL-TURA, orphan BOOTH- rows, unauthorized JUNDY,
+          // duplicate inactive Ferlyn (DDN005-SR0001), and phantom N/A rows
+          const PHANTOM_BOOTHS = new Set(['DDN-2001', 'DDN-2002', 'DDN-2003', 'DDN-358', 'DDN-759', 'DDN-901']);
           if (e.id === 'BOOTH-DDN-1140' || e.id === 'DDN005-TEL-TURA' || e.id === 'DDN005-SUP01' || (e.name && e.name.toUpperCase().includes('JUNDY')) || (e.name === 'N/A' && (e.boothCode === 'DDN-1140' || e.booth === 'DDN-1140'))) {
             modified = true;
             return; // Prune orphan/unauthorized row!
+          }
+          if (e.id && e.id.startsWith('BOOTH-')) {
+            modified = true;
+            return;
+          }
+          if (e.id === 'DDN005-SR0001' && (e.status || '').toUpperCase() === 'INACTIVE') {
+            modified = true;
+            return;
+          }
+          if (!normName || normName === 'N/A' || normName === '-') {
+            modified = true;
+            return;
+          }
+          if (!roleNorm || roleNorm === 'N/A' || roleNorm === '-') {
+            modified = true;
+            return;
+          }
+          if (PHANTOM_BOOTHS.has(bCode) && (e.status || '').toUpperCase() === 'INACTIVE') {
+            modified = true;
+            return;
           }
 
           const dedupKey = normName ? `${normName}::${bCode || roleNorm}` : `id::${e.id}`;
@@ -2560,9 +2613,13 @@ class Store {
         if (bC) activeEmpBooths.add(bC);
       });
 
+      const PHANTOM_BOOTHS = new Set(['DDN-2001', 'DDN-2002', 'DDN-2003', 'DDN-358', 'DDN-759', 'DDN-901']);
       this.data.booths = this.data.booths.filter(b => {
         if (!b || !b.id) return false;
         if (b.id === 'BOOTH-DDN-1140') return false;
+        const clean = (b.id || b.code || '').replace(/^BOOTH-/, '').toUpperCase();
+        if (PHANTOM_BOOTHS.has(clean)) return false;
+        if ((b.status || '').toUpperCase() === 'INACTIVE' && (!b.assignedTellerName || b.assignedTellerName === '-' || b.assignedTellerName === 'N/A' || b.assignedTellerName === 'Unassigned')) return false;
         if (b.id.startsWith('BOOTH-')) {
           const raw = b.id.replace(/^BOOTH-/, '').toUpperCase();
           if (activeEmpBooths.has(raw)) return false;
@@ -2584,10 +2641,26 @@ class Store {
 }
 
   addEmployee(emp) {
-    emp.id = emp.id || `DDN005-SR${Math.floor(1000 + Math.random() * 9000)}`;
+    const isRel = emp.role && emp.role.toUpperCase().includes('RELIEVER');
+    emp.id = emp.id || (isRel ? `DDN005-REL${String(Math.floor(100 + Math.random() * 900)).padStart(3, '0')}` : `DDN005-SR${Math.floor(1000 + Math.random() * 9000)}`);
     const sUp = (emp.status || 'ACTIVE').toUpperCase();
     emp.status = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
     this.data.employees.unshift(emp);
+    if (isRel) {
+      if (!this.data.relievers) this.data.relievers = [];
+      if (!this.data.relievers.some(r => r.id === emp.id)) {
+        this.data.relievers.push({
+          id: emp.id,
+          name: emp.name,
+          role: 'Reliever',
+          boothCode: emp.boothCode || '-',
+          area: emp.address || emp.area || emp.municipality || 'Davao Sector',
+          address: emp.address || emp.area || emp.municipality || 'Davao Sector',
+          phone: emp.phone || emp.contact || '',
+          status: emp.status || 'Active'
+        });
+      }
+    }
     this.bumpMasterRegistryVersion();
     this.save();
     return emp;
@@ -2694,8 +2767,24 @@ class Store {
     // Role cross-synchronization
     if (result && updates.role) {
       const isRelRole = updates.role.toUpperCase().includes('RELIEVER');
-      if (isRelRole && this.data.relievers && !this.data.relievers.some(r => r.id === result.id)) {
-        this.data.relievers.push({ ...result });
+      if (isRelRole && this.data.relievers) {
+        const rIndex = this.data.relievers.findIndex(r => r.id === result.id || (result.name && r.name && r.name.toLowerCase() === result.name.toLowerCase()));
+        if (rIndex >= 0) {
+          this.data.relievers[rIndex] = { ...this.data.relievers[rIndex], ...result, role: 'Reliever' };
+        } else {
+          this.data.relievers.push({
+            id: result.id,
+            name: result.name,
+            role: 'Reliever',
+            boothCode: result.boothCode || '-',
+            area: result.address || result.area || result.municipality || 'Davao Sector',
+            address: result.address || result.area || result.municipality || 'Davao Sector',
+            phone: result.phone || result.contact || '',
+            status: result.status || 'Active'
+          });
+        }
+      } else if (!isRelRole && this.data.relievers) {
+        this.data.relievers = this.data.relievers.filter(r => r.id !== result.id && (!result.name || !r.name || r.name.toLowerCase() !== result.name.toLowerCase()));
       }
       if (!isRelRole && idx === -1 && this.data.employees) {
         this.data.employees.unshift({ ...result });

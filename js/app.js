@@ -710,28 +710,30 @@ function renderDashboardLiveOperations(selectedMuni) {
   // 2. Render Municipality Pills
   if (container) {
     const pillConfigs = [
-      { key: 'ALL', label: 'All Municipalities', count: booths.length, badgeClass: 'badge-neutral' },
-      { key: 'Sto. Tomas', label: 'Sto. Tomas', count: muniCounts['Sto. Tomas'], badgeClass: 'badge-info' },
-      { key: 'Tagum City', label: 'Tagum City', count: muniCounts['Tagum City'], badgeClass: 'badge-purple' },
-      { key: 'Carmen', label: 'Carmen', count: muniCounts['Carmen'], badgeClass: 'badge-success' },
-      { key: 'Panabo City', label: 'Panabo City', count: muniCounts['Panabo City'], badgeClass: 'badge-warning' },
-      { key: 'Kapalong', label: 'Kapalong', count: muniCounts['Kapalong'], badgeClass: 'badge-neutral' },
-      { key: 'Talaingod', label: 'Talaingod', count: muniCounts['Talaingod'], badgeClass: 'badge-neutral' },
-      { key: 'Samal', label: 'Samal (IGACOS)', count: muniCounts['Samal'], badgeClass: 'badge-info' }
+      { key: 'ALL', label: 'All Municipalities', count: booths.length, color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.12)', border: 'rgba(56, 189, 248, 0.45)' },
+      { key: 'Sto. Tomas', label: 'Sto. Tomas', count: muniCounts['Sto. Tomas'], color: '#eab308', bg: 'rgba(234, 179, 8, 0.12)', border: 'rgba(234, 179, 8, 0.45)' },
+      { key: 'Tagum City', label: 'Tagum City', count: muniCounts['Tagum City'], color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)', border: 'rgba(139, 92, 246, 0.45)' },
+      { key: 'Carmen', label: 'Carmen', count: muniCounts['Carmen'], color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.45)' },
+      { key: 'Panabo City', label: 'Panabo City', count: muniCounts['Panabo City'], color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.45)' },
+      { key: 'Kapalong', label: 'Kapalong', count: muniCounts['Kapalong'], color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.12)', border: 'rgba(59, 130, 246, 0.45)' },
+      { key: 'Talaingod', label: 'Talaingod', count: muniCounts['Talaingod'], color: '#ec4899', bg: 'rgba(236, 72, 153, 0.12)', border: 'rgba(236, 72, 153, 0.45)' },
+      { key: 'Samal', label: 'Samal (IGACOS)', count: muniCounts['Samal'], color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.12)', border: 'rgba(6, 182, 212, 0.45)' }
     ].filter(p => p.key === 'ALL' || p.count > 0);
 
     container.innerHTML = pillConfigs.map(p => {
       const isSelected = (selectedMuni === p.key || (selectedMuni === 'ALL' && p.key === 'ALL'));
       const activeStyle = isSelected
-        ? 'border: 2px solid var(--primary); background: rgba(59, 130, 246, 0.2); font-weight: 800; transform: scale(1.03);'
-        : 'opacity: 0.85; cursor: pointer;';
+        ? `border: 2px solid ${p.color}; background: ${p.color}33; color: #ffffff; font-weight: 800; transform: translateY(-1px) scale(1.03); box-shadow: 0 0 14px ${p.color}66;`
+        : `border: 1px solid ${p.border}; background: ${p.bg}; color: ${p.color === '#eab308' ? '#fde047' : p.color}; opacity: 0.95; cursor: pointer;`;
 
       return `
-        <span class="badge ${p.badgeClass} clickable" 
+        <span class="badge clickable" 
           onclick="window.filterDashboardMuni('${p.key}')"
-          style="padding: 6px 12px; font-size: 12px; cursor: pointer; transition: all 0.15s ease; ${activeStyle}"
-          title="Filter by ${p.label}">
-          ${p.label}: <strong>${p.count} Outlets</strong>
+          style="display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; font-size: 12px; border-radius: 9999px; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); ${activeStyle}"
+          title="Filter by ${p.label} (Matches ${p.color} ETS Booth Pins)">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${p.color}; box-shadow: 0 0 8px ${p.color}; flex-shrink: 0;"></span>
+          <span>${p.label}:</span>
+          <strong style="color: #ffffff; background: rgba(0, 0, 0, 0.28); padding: 1px 7px; border-radius: 9999px; font-size: 11.5px;">${p.count} Outlets</strong>
         </span>
       `;
     }).join('');
@@ -952,7 +954,9 @@ window.handleDeptChangeInModal = function(dept) {
   } else if (dVal === 'dept-admin' || dVal.includes('admin')) {
     roleSelect.value = 'OPERATIONS ADMINISTRATOR';
   } else {
-    roleSelect.value = 'TELLER';
+    if (roleSelect.value !== 'RELIEVER') {
+      roleSelect.value = 'TELLER';
+    }
   }
 };
 
@@ -1118,22 +1122,22 @@ function renderEmployeesTable(customList = null) {
     return (e.status || '').toUpperCase() === 'TERMINATED';
   });
 
-  // Section 3: 5. Inactive Booths must include both:
-  // 1. Sales Representative records with STATUS = INACTIVE (Excluding TERMINATED - terminated belong in Terminated Tellers)
-  // 2. Standalone booth records where the Sales Representative name is missing/blank or status is INACTIVE
-  // Rule: ONE BOOTH CODE = ONE RECORD. If an employee in allStaff already has this Booth Code, do not duplicate!
+
+  // Section 3: 5. Inactive Booths (Authentic Sales Representative records with STATUS = INACTIVE)
+  // Exclude TERMINATED (belong in Terminated Tellers) and phantom/ghost rows (Name = N/A or Unassigned)
+  const PHANTOM_BOOTHS = new Set(['DDN-2001', 'DDN-2002', 'DDN-2003', 'DDN-358', 'DDN-759', 'DDN-901']);
   const seenBoothCodes = new Set();
   const seenRecordIds = new Set();
   const inactiveBooths = [];
 
-  // Collect all assigned booth codes from employees in allStaff
+  // Collect all assigned booth codes from active employees in allStaff
   const activeEmpBoothCodes = new Set();
   allStaff.forEach(emp => {
     const bCode = (emp.boothCode && emp.boothCode !== '-') ? emp.boothCode.trim().toUpperCase() : (emp.booth && emp.booth !== '-' ? emp.booth.trim().toUpperCase() : null);
-    if (bCode) activeEmpBoothCodes.add(bCode);
+    if (bCode && (emp.status || 'ACTIVE').toUpperCase() === 'ACTIVE') activeEmpBoothCodes.add(bCode);
   });
 
-  // A. Candidate employee records (STATUS = INACTIVE only, NOT TERMINATED)
+  // A. Candidate employee records (STATUS = INACTIVE only, must have valid non-phantom name)
   allStaff.forEach(emp => {
     const r = (emp.role || '').toUpperCase();
     const isOtherRole = r.includes('SUPERVISOR') || r.includes('TEAM LEADER') || r.includes('COLLECTOR') || r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('ADMIN');
@@ -1142,9 +1146,10 @@ function renderEmployeesTable(customList = null) {
     const statusUpper = (emp.status || '').toUpperCase();
     const isInactive = statusUpper === 'INACTIVE';
     const isNameMissing = !emp.name || emp.name.trim() === '' || emp.name.trim().toUpperCase() === 'N/A' || emp.name.trim() === '-';
+    const bCode = (emp.boothCode && emp.boothCode !== '-') ? emp.boothCode.trim().toUpperCase() : (emp.booth && emp.booth !== '-' ? emp.booth.trim().toUpperCase() : null);
 
-    if (isInactive || isNameMissing) {
-      const bCode = (emp.boothCode && emp.boothCode !== '-') ? emp.boothCode.trim().toUpperCase() : (emp.booth && emp.booth !== '-' ? emp.booth.trim().toUpperCase() : null);
+    // Only include real employees that are legitimately marked INACTIVE (never ghost N/A rows or phantom booths)
+    if (isInactive && !isNameMissing && r !== 'N/A' && (!bCode || !PHANTOM_BOOTHS.has(bCode))) {
       if (bCode) {
         if (!seenBoothCodes.has(bCode)) {
           seenBoothCodes.add(bCode);
@@ -1160,19 +1165,20 @@ function renderEmployeesTable(customList = null) {
     }
   });
 
-  // B. Candidate standalone booth records with missing sales rep or inactive status
+  // B. Candidate standalone booth records:
+  // Must be authentic registered booths with a real assigned teller who is INACTIVE (no ghost/unassigned booths)
   const allBooths = (store.data && store.data.booths) ? store.data.booths : [];
   allBooths.forEach(b => {
     const bCode = (b.id || b.code || '').trim().toUpperCase().replace(/^BOOTH-/, '');
-    if (!bCode || bCode === '-' || b.id === 'BOOTH-DDN-1140') return;
-    // Rule: ONE BOOTH CODE = ONE ACTIVE BOOTH RECORD. If already assigned to an employee, do not create duplicate!
+    if (!bCode || bCode === '-' || b.id === 'BOOTH-DDN-1140' || PHANTOM_BOOTHS.has(bCode)) return;
     if (activeEmpBoothCodes.has(bCode)) return;
     if (seenBoothCodes.has(bCode)) return;
 
     const tellerName = b.assignedTellerName || b.activeTeller || '';
     const isNameMissing = !tellerName || tellerName.trim() === '' || tellerName.trim().toUpperCase() === 'N/A' || tellerName.trim() === '-';
-    const isInactive = (b.status || '').toUpperCase() === 'INACTIVE';
+    if (isNameMissing) return; // Do not add unassigned booths as inactive booths!
 
+    const isInactive = (b.status || '').toUpperCase() === 'INACTIVE';
     let isAssignedTellerInactive = false;
     if (b.assignedTellerId) {
       const assignedEmp = allStaff.find(e => e.id === b.assignedTellerId);
@@ -1181,12 +1187,12 @@ function renderEmployeesTable(customList = null) {
       }
     }
 
-    if (isNameMissing || isInactive || isAssignedTellerInactive) {
+    if (isInactive || isAssignedTellerInactive) {
       seenBoothCodes.add(bCode);
       inactiveBooths.push({
         id: b.assignedTellerId || `BOOTH-${bCode}`,
-        name: isNameMissing ? 'N/A' : tellerName,
-        role: isNameMissing ? 'N/A' : 'SALES REPRESENTATIVE',
+        name: tellerName,
+        role: 'SALES REPRESENTATIVE',
         department: 'dept-tel',
         purok: b.purok || '-',
         municipality: b.municipality || 'Sto. Tomas',
@@ -1601,12 +1607,13 @@ window.editEmployee = function(id) {
   if (idDisplay) idDisplay.value = emp.id;
   document.getElementById('emp-form-name').value = (emp.name && emp.name !== 'N/A' && emp.name !== '-') ? emp.name : (emp.name === 'N/A' ? 'N/A' : '');
   
-  // Standardize Role dropdown selection to the 4 strict roles
+  // Standardize Role dropdown selection
   const rUpper = (emp.role || 'TELLER').toUpperCase();
   let normalizedRole = 'TELLER';
   if (rUpper.includes('ADMINISTRATOR') || rUpper.includes('ADMIN') || rUpper.includes('TEAM LEADER')) normalizedRole = 'OPERATIONS ADMINISTRATOR';
   else if (rUpper.includes('SUPERVISOR')) normalizedRole = 'SUPERVISOR';
   else if (rUpper.includes('COLLECTOR')) normalizedRole = 'COLLECTOR';
+  else if (rUpper.includes('RELIEVER') || rUpper.includes('RELIVER') || (emp.id && emp.id.includes('-REL'))) normalizedRole = 'RELIEVER';
   else normalizedRole = 'TELLER';
   document.getElementById('emp-form-role').value = normalizedRole;
 
@@ -1770,7 +1777,7 @@ window.saveEmployeeForm = function() {
   const payload = {
     id: finalId,
     name: name,
-    role: role,
+    role: role === 'RELIEVER' ? 'Reliever' : role,
     department: dept,
     area: muni !== '-' ? muni : (purok !== '-' ? purok : '-'),
     address: fullAddress,
