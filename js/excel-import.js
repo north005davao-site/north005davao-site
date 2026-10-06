@@ -59,6 +59,11 @@
     activeSheetFilter: 'all'
   };
 
+  // Expose current import session state for inspection & tests
+  window.getCurrentImportData = function () {
+    return currentImportData;
+  };
+
   // Helper: Normalize string
   function cleanStr(val) {
     if (val === null || val === undefined) return '';
@@ -500,23 +505,33 @@
     for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
       const row = rawRows[i];
       if (!Array.isArray(row)) continue;
+
+      // Ignore merged banner/title rows where cells repeat the same text
+      const nonEmpties = row.map(c => cleanStr(c).toLowerCase()).filter(Boolean);
+      if (nonEmpties.length === 0) continue;
+      const uniqueTexts = new Set(nonEmpties);
+      // If a row has multiple cells but very few unique values, it's a merged title banner!
+      if (nonEmpties.length >= 3 && uniqueTexts.size <= 2) {
+        continue;
+      }
+
       let matches = 0;
-      row.forEach(cell => {
-        const text = cleanStr(cell).toLowerCase();
-        if (!text) return;
+      uniqueTexts.forEach(text => {
         if (
           text.includes('teller') || text.includes('sales rep') || text.includes('sales coordinator') || 
+          text.includes('sales supervisor') || text.includes('operations administrator') ||
           text.includes('booth code') || text.includes('pos no') || text.includes('id no') || 
           text.includes('employee id') || text.includes('employee name') || text.includes('full name') ||
           text.includes('outlets')
         ) {
-          matches += 3;
+          matches += 4;
         } else if (
           text.includes('purok') || text.includes('barangay') || text.includes('address') || 
           text.includes('coordinates') || text.includes('status') || text.includes('contact') || 
-          text.includes('phone') || text.includes('role') || text.includes('position') || text.includes('booth')
+          text.includes('phone') || text.includes('role') || text.includes('position') || text.includes('booth') ||
+          text.includes('relievers')
         ) {
-          matches += 1;
+          matches += 2;
         }
       });
       if (matches > maxMatches) {
@@ -559,7 +574,7 @@
       }
 
       // Sales Representative / Teller Name
-      const isCoord = txt.includes('coordinator');
+      const isCoord = txt.includes('coordinator') || txt.includes('supervisor') || txt.includes('administrator');
       const isPrt = txt.includes('printer');
       if (!isCoord && !isPrt) {
         if (
@@ -568,15 +583,21 @@
           txt.includes('sales representative') || txt.includes('representative') ||
           txt === 'employee name' || txt === 'emp name' || txt === 'staff name' ||
           txt === 'personnel name' || txt === 'full name' || txt === 'reliever name' ||
-          txt === 'reliever' || txt === 'cashier'
+          txt === 'reliever' || txt === 'relievers' || txt === 'cashier'
         ) {
           srCol = idx;
         }
       }
 
-      // Sales Coordinator
-      if (txt.includes('sales coordinator') || txt.includes('coordinator')) {
-        scCol = idx;
+      // Sales Coordinator / Sales Supervisor / Operations Administrator
+      if (
+        txt.includes('sales coordinator') || txt.includes('coordinator') ||
+        txt.includes('sales supervisor') || txt.includes('supervisor') ||
+        txt.includes('operations administrator')
+      ) {
+        if (!txt.includes('id no') && !txt.includes('id #') && !txt.includes('id')) {
+          scCol = idx;
+        }
       }
 
       // Barangay
