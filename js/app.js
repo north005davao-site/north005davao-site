@@ -291,17 +291,102 @@ function initRouter() {
   }
 }
 
+/* ==========================================================================
+   NORTH-005 DAVAO DEL NORTE — MOBILE RESPONSIVE SIDEBAR DRAWER CONTROLLER
+   ========================================================================== */
+
+window.openMobileSidebar = function() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (sidebar) sidebar.classList.add('mobile-open');
+  if (backdrop) backdrop.classList.add('active');
+  document.body.classList.add('mobile-sidebar-active');
+};
+
+window.closeMobileSidebar = function() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (sidebar) sidebar.classList.remove('mobile-open');
+  if (backdrop) backdrop.classList.remove('active');
+  document.body.classList.remove('mobile-sidebar-active');
+};
+
+window.toggleMobileSidebar = function() {
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar && sidebar.classList.contains('mobile-open')) {
+    window.closeMobileSidebar();
+  } else {
+    window.openMobileSidebar();
+  }
+};
+
+function initMobileSidebarGestures() {
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+
+  document.addEventListener('touchstart', (e) => {
+    if (!e.touches || e.touches.length !== 1) return;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchStartTime = Date.now();
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e) => {
+    if (!e.changedTouches || e.changedTouches.length !== 1) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+    const deltaTime = Date.now() - touchStartTime;
+
+    // Fast horizontal swipe (< 500ms, not a vertical scroll gesture)
+    if (deltaTime > 500) return;
+    if (Math.abs(deltaY) > Math.abs(deltaX) * 0.7) return;
+
+    const sidebar = document.getElementById('sidebar');
+    const isMobile = window.innerWidth <= 1024;
+    if (!isMobile || !sidebar) return;
+
+    const isOpen = sidebar.classList.contains('mobile-open');
+
+    // Swipe right from left edge (touchStartX <= 40px) to open
+    if (!isOpen && touchStartX <= 40 && deltaX > 60) {
+      window.openMobileSidebar();
+    }
+    // Swipe left when open to close
+    else if (isOpen && deltaX < -60) {
+      window.closeMobileSidebar();
+    }
+  }, { passive: true });
+
+  // Close with Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      window.closeMobileSidebar();
+    }
+  });
+}
+
 function initNavigation() {
   const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
   navItems.forEach(item => {
     item.addEventListener('click', () => {
       const viewId = item.getAttribute('data-view');
       switchView(viewId, true);
+      window.closeMobileSidebar();
     });
   });
+
+  initMobileSidebarGestures();
 }
 
 window.switchView = function(viewId, updateHistory = true) {
+  // Automatically close mobile sidebar drawer on navigation
+  if (typeof window.closeMobileSidebar === 'function') {
+    window.closeMobileSidebar();
+  }
+
   if (window.authManager && typeof window.authManager.canAccessView === 'function') {
     if (!window.authManager.canAccessView(viewId)) {
       alert('Permission Denied: Your account role does not have permission to access this module.');
