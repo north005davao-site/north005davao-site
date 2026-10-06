@@ -333,42 +333,193 @@ const RAW_TELLERS = [
   { id: "DDN005-SR1765", name: "Anne Via Feje", address: "PRk 7, TADTAD, TADTAD BADERA, Samal", booth: "DDN-1765", posSerial: "V3A7249R20287", phone: "9948408199" },
 ];
 
-// 2. Relievers Data (34 Active Buffer Relievers from September 2026 Masterlist)
+// 2. Relievers Data (34 Active Buffer Relievers from September 2026 Masterlist - Official default ID is DDN005-SR000)
 const RAW_RELIEVERS = [
-  { id: "DDN005-REL001", name: "Princess Solamillo", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9468132286" },
-  { id: "DDN005-REL002", name: "Kei Pagulong", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9919283377" },
-  { id: "DDN005-REL003", name: "Jessa Busaco", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9676822834" },
-  { id: "DDN005-REL004", name: "Yzalou I. Dumaguing", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9510424848" },
-  { id: "DDN005-REL005", name: "Othmarie Lupiba", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9923318041" },
-  { id: "DDN005-REL006", name: "Faith Hermoso", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9282951030" },
-  { id: "DDN005-REL007", name: "Mari Sarol", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9282951030" },
-  { id: "DDN005-REL008", name: "Ellen Riño", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9514630915" },
-  { id: "DDN005-REL009", name: "Rhea Desnacido", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9679345770" },
-  { id: "DDN005-REL010", name: "Angelie Tiedra", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9361565796" },
-  { id: "DDN005-REL011", name: "Noreen D. Bayang", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9096001837" },
-  { id: "DDN005-REL012", name: "Rhea Mae M. Bolilawa", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9485511382" },
-  { id: "DDN005-REL013", name: "Jasnen Parame Aquino", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9757074658" },
-  { id: "DDN005-REL014", name: "Marjory Torino", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9941680208" },
-  { id: "DDN005-REL015", name: "Gina Paula Gemino", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9559806184" },
-  { id: "DDN005-REL016", name: "Jennifer M. Osman", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9945141031" },
-  { id: "DDN005-REL017", name: "Ferlyn Zamora Robello", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9674700611" },
-  { id: "DDN005-REL018", name: "Jeziel R. Simene", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9917297977" },
-  { id: "DDN005-REL019", name: "Karen Batas", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9634312448" },
-  { id: "DDN005-REL020", name: "Elyn T. Rosento", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9169158160" },
-  { id: "DDN005-REL021", name: "Ester Mopon", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9505540780" },
-  { id: "DDN005-REL022", name: "Christly Ann Tuasoc", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9971007208" },
-  { id: "DDN005-REL023", name: "Jane Christine Tuasoc", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "N/A" },
-  { id: "DDN005-REL024", name: "Clouie Mae Hipos", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9304557576" },
-  { id: "DDN005-REL025", name: "Aires Monreal", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9944076355" },
-  { id: "DDN005-REL026", name: "PRECIOUS NICA TORREFIEL", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "N/A" },
-  { id: "DDN005-REL027", name: "Jemma Rose Roco", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9776828684" },
-  { id: "DDN005-REL028", name: "Carolyn Joy Catubigan", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9924119660" },
-  { id: "DDN005-REL029", name: "Pamela Denisse G. Antequeza", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9535591036" },
-  { id: "DDN005-REL030", name: "Bbelen Apatan", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9708905412" },
-  { id: "DDN005-REL031", name: "Laika jeanne Sapine", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9518222585" },
-  { id: "DDN005-REL032", name: "Jeah Rica Linsay", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9453272597" },
-  { id: "DDN005-REL033", name: "Kristina Cassandra D. Lumidin", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9926135202" },
-  { id: "DDN005-REL034", name: "Mae Jean Gementiza", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9460700135" },
+  { id: "DDN005-SR000", name: "Princess Solamillo", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9468132286" },
+  { id: "DDN005-SR000", name: "Kei Pagulong", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9919283377" },
+  { id: "DDN005-SR000", name: "Jessa Busaco", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9676822834" },
+  { id: "DDN005-SR000", name: "Yzalou I. Dumaguing", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9510424848" },
+  { id: "DDN005-SR000", name: "Othmarie Lupiba", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9923318041" },
+  { id: "DDN005-SR000", name: "Faith Hermoso", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9282951030" },
+  { id: "DDN005-SR000", name: "Mari Sarol", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9282951030" },
+  { id: "DDN005-SR000", name: "Ellen Riño", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9514630915" },
+  { id: "DDN005-SR000", name: "Rhea Desnacido", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9679345770" },
+  { id: "DDN005-SR000", name: "Angelie Tiedra", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9361565796" },
+  { id: "DDN005-SR000", name: "Noreen D. Bayang", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9096001837" },
+  { id: "DDN005-SR000", name: "Rhea Mae M. Bolilawa", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9485511382" },
+  { id: "DDN005-SR000", name: "Jasnen Parame Aquino", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9757074658" },
+  { id: "DDN005-SR000", name: "Marjory Torino", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9941680208" },
+  { id: "DDN005-SR000", name: "Gina Paula Gemino", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9559806184" },
+  { id: "DDN005-SR000", name: "Jennifer M. Osman", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9945141031" },
+  { id: "DDN005-SR000", name: "Ferlyn Zamora Robello", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9674700611" },
+  { id: "DDN005-SR000", name: "Jeziel R. Simene", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9917297977" },
+  { id: "DDN005-SR000", name: "Karen Batas", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9634312448" },
+  { id: "DDN005-SR000", name: "Elyn T. Rosento", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9169158160" },
+  { id: "DDN005-SR000", name: "Ester Mopon", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9505540780" },
+  { id: "DDN005-SR000", name: "Christly Ann Tuasoc", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9971007208" },
+  { id: "DDN005-SR000", name: "Jane Christine Tuasoc", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "N/A" },
+  { id: "DDN005-SR000", name: "Clouie Mae Hipos", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9304557576" },
+  { id: "DDN005-SR000", name: "Aires Monreal", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9944076355" },
+  { id: "DDN005-SR000", name: "PRECIOUS NICA TORREFIEL", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "N/A" },
+  { id: "DDN005-SR000", name: "Jemma Rose Roco", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9776828684" },
+  { id: "DDN005-SR000", name: "Carolyn Joy Catubigan", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9924119660" },
+  { id: "DDN005-SR000", name: "Pamela Denisse G. Antequeza", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9535591036" },
+  { id: "DDN005-SR000", name: "Bbelen Apatan", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9708905412" },
+  { id: "DDN005-SR000", name: "Laika jeanne Sapine", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9518222585" },
+  { id: "DDN005-SR000", name: "Jeah Rica Linsay", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9453272597" },
+  { id: "DDN005-SR000", name: "Kristina Cassandra D. Lumidin", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9926135202" },
+  { id: "DDN005-SR000", name: "Mae Jean Gementiza", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9460700135" },
+];
+
+// 3. Unused Booths (7 Operational Booths without Assigned Tellers from September 2026 Masterlist)
+const RAW_UNUSED_BOOTHS = [
+  {
+    id: "DDN005-SR766",
+    name: "N/A",
+    role: "N/A",
+    department: "dept-tel",
+    purok: "PUROK ILVI",
+    barangay: "PAGSABANGAN",
+    address: "PUROK ILVI, PAGSABANGAN, Tagum",
+    area: "Tagum",
+    municipality: "Tagum",
+    boothCode: "DDN-766",
+    booth: "DDN-766",
+    posSerial: "V302248820134",
+    printerSerial: "N/A",
+    phone: "9361207891",
+    status: "UNUSED",
+    etsStatus: "Offline",
+    lat: 7.471085,
+    lng: 125.760813,
+    coordinates: { lat: 7.471085, lng: 125.760813 }
+  },
+  {
+    id: "DDN005-SR1750",
+    name: "N/A",
+    role: "N/A",
+    department: "dept-tel",
+    purok: "PUROK 7",
+    barangay: "CACAO",
+    address: "PUROK 7, CACAO, Panabo",
+    area: "Panabo",
+    municipality: "Panabo",
+    boothCode: "DDN-1750",
+    booth: "DDN-1750",
+    posSerial: "N/A",
+    printerSerial: "N/A",
+    phone: "9510424848",
+    status: "UNUSED",
+    etsStatus: "Offline",
+    lat: 7.312412,
+    lng: 125.593712,
+    coordinates: { lat: 7.312412, lng: 125.593712 }
+  },
+  {
+    id: "DDN005-SR1753",
+    name: "N/A",
+    role: "N/A",
+    department: "dept-tel",
+    purok: "Purok Balite",
+    barangay: "TALOMO",
+    address: "Purok Balite, TALOMO, Sto. Tomas",
+    area: "Sto. Tomas",
+    municipality: "Sto. Tomas",
+    boothCode: "DDN-1753",
+    booth: "DDN-1753",
+    posSerial: "N/A",
+    printerSerial: "N/A",
+    phone: "9941873379",
+    status: "UNUSED",
+    etsStatus: "Offline",
+    lat: 7.525676,
+    lng: 125.713530,
+    coordinates: { lat: 7.525676, lng: 125.713530 }
+  },
+  {
+    id: "DDN005-SR1680",
+    name: "N/A",
+    role: "N/A",
+    department: "dept-tel",
+    purok: "PRK 6",
+    barangay: "New Katipunan",
+    address: "PRK 6, New Katipunan, Sto. Tomas",
+    area: "Sto. Tomas",
+    municipality: "Sto. Tomas",
+    boothCode: "DDN-1680",
+    booth: "DDN-1680",
+    posSerial: "V302248820802",
+    printerSerial: "N/A",
+    phone: "N/A",
+    status: "UNUSED",
+    etsStatus: "Offline",
+    lat: 7.530783,
+    lng: 125.655975,
+    coordinates: { lat: 7.530783, lng: 125.655975 }
+  },
+  {
+    id: "DDN005-SR1635",
+    name: "N/A",
+    role: "N/A",
+    department: "dept-tel",
+    purok: "PUROK 6 TUGUAK",
+    barangay: "COGON",
+    address: "PUROK 6 TUGUAK, COGON, Samal",
+    area: "Samal",
+    municipality: "Samal",
+    boothCode: "DDN-1635",
+    booth: "DDN-1635",
+    posSerial: "V30224CG20628",
+    printerSerial: "N/A",
+    phone: "N/A",
+    status: "UNUSED",
+    etsStatus: "Offline",
+    lat: 7.145169,
+    lng: 125.726759,
+    coordinates: { lat: 7.145169, lng: 125.726759 }
+  },
+  {
+    id: "DDN005-SR1630",
+    name: "N/A",
+    role: "N/A",
+    department: "dept-tel",
+    purok: "PUROK 7 ANUNANG",
+    barangay: "KAPUTIAN",
+    address: "PUROK 7 ANUNANG, KAPUTIAN, Samal",
+    area: "Samal",
+    municipality: "Samal",
+    boothCode: "DDN-1630",
+    booth: "DDN-1630",
+    posSerial: "V30224CG20654",
+    printerSerial: "N/A",
+    phone: "N/A",
+    status: "UNUSED",
+    etsStatus: "Offline",
+    lat: 7.018645,
+    lng: 125.742199,
+    coordinates: { lat: 7.018645, lng: 125.742199 }
+  },
+  {
+    id: "DDN005-SR1763",
+    name: "N/A",
+    role: "N/A",
+    department: "dept-tel",
+    purok: "PRK 3B",
+    barangay: "ANUNANG",
+    address: "PRK 3B, ANUNANG, Samal",
+    area: "Samal",
+    municipality: "Samal",
+    boothCode: "DDN-1763",
+    booth: "DDN-1763",
+    posSerial: "N/A",
+    printerSerial: "N/A",
+    phone: "N/A",
+    status: "UNUSED",
+    etsStatus: "Offline",
+    lat: 6.997705,
+    lng: 125.733667,
+    coordinates: { lat: 6.997705, lng: 125.733667 }
+  }
 ];
 
 const RAW_INACTIVE_BOOTHS = [];
@@ -574,49 +725,24 @@ function buildDefaultStore() {
     });
   });
 
-  // Add 2 Inactive Booths
-  RAW_INACTIVE_BOOTHS.forEach((ib) => {
-    const cleanBooth = (ib.booth || '').trim();
-    const masterCoord = AUTHENTIC_MASTER_REGISTRY_COORDINATES[cleanBooth] || null;
-    const addrParsed = parseAddress(ib.address);
-    const muni = (masterCoord && masterCoord.municipality) ? masterCoord.municipality : addrParsed.municipality;
-
-    employees.push({
-      id: ib.id,
-      name: ib.name,
-      gender: 'Female',
-      role: 'TELLER',
-      department: 'dept-tel',
-      area: ib.address,
-      address: ib.address,
-      purok: addrParsed.purok,
-      municipality: muni,
-      lat: masterCoord ? masterCoord.lat : null,
-      lng: masterCoord ? masterCoord.lng : null,
-      coordinates: masterCoord ? { lat: masterCoord.lat, lng: masterCoord.lng } : null,
-      boothCode: cleanBooth,
-      posSerial: `POS-${cleanBooth}`,
-      printerSerial: `PRT-${cleanBooth}`,
-      phone: `+63 9${Math.floor(100000000 + Math.random() * 900000000)}`,
-      status: 'INACTIVE',
-      etsStatus: 'Offline'
-    });
-
+  // Add 7 Unused Booths (Operational Booths without Assigned Tellers)
+  RAW_UNUSED_BOOTHS.forEach((ub) => {
     booths.push({
-      id: cleanBooth,
-      code: cleanBooth,
-      name: `Station ${cleanBooth} (${ib.name})`,
-      area: ib.address,
-      purok: addrParsed.purok,
-      municipality: muni,
-      lat: masterCoord ? masterCoord.lat : null,
-      lng: masterCoord ? masterCoord.lng : null,
-      coordinates: masterCoord ? { lat: masterCoord.lat, lng: masterCoord.lng } : null,
-      status: 'INACTIVE',
-      posSerial: `POS-${cleanBooth}`,
-      printerSerial: `PRT-${cleanBooth}`,
-      assignedTellerId: ib.id,
-      assignedTellerName: ib.name
+      id: ub.boothCode,
+      code: ub.boothCode,
+      name: `Station ${ub.boothCode} (Unused)`,
+      area: ub.address,
+      purok: ub.purok,
+      municipality: ub.municipality,
+      lat: ub.lat,
+      lng: ub.lng,
+      coordinates: ub.coordinates,
+      status: 'UNUSED',
+      posSerial: ub.posSerial,
+      printerSerial: ub.printerSerial,
+      phone: ub.phone,
+      assignedTellerId: '-',
+      assignedTellerName: '-'
     });
   });
 
@@ -1323,8 +1449,9 @@ class Store {
                 return; // Purge orphan booth row!
               }
 
-              // Deduplication key: normalized name + boothCode (or role for staff without booth)
-              const dedupKey = normName ? `${normName}::${bCode || roleNorm}` : `id::${e.id}`;
+              // Deduplication key: normalized name + (boothCode if assigned to booth, or role for buffer staff without booth)
+              const cleanB = (bCode && bCode !== '-') ? bCode : '';
+              const dedupKey = normName ? `${normName}::${cleanB || roleNorm}` : `id::${e.id}`;
               if (seenStaffKeys.has(dedupKey)) {
                 needsSave = true;
                 return; // Discard duplicate employee record!
@@ -1333,24 +1460,27 @@ class Store {
 
               let id = (e.id || '').trim();
               const isRel = roleNorm.includes('RELIEVER') || roleNorm.includes('RELIVER');
-              if (!id || id === 'N/A' || id === '-' || seenIds.has(id)) {
+              if (isRel) {
+                // Relievers default ID No is DDN005-SR000 for all assigned relievers
+                e.id = 'DDN005-SR000';
+                id = 'DDN005-SR000';
+              } else if (!id || id === 'N/A' || id === '-' || id.startsWith('DDN005-REL') || seenIds.has(id)) {
                 let genId;
-                const prefix = isRel ? 'DDN005-REL' : 'DDN005-SR';
                 do {
-                  const num = isRel ? String(relSeq++).padStart(3, '0') : String(staffSeq++).padStart(4, '0');
-                  genId = `${prefix}${num}`;
+                  genId = `DDN005-SR${String(staffSeq++).padStart(4, '0')}`;
                 } while (seenIds.has(genId));
                 e.id = genId;
                 id = genId;
                 needsSave = true;
               }
-              seenIds.add(id);
+              if (!isRel) seenIds.add(id);
 
               // Normalize status field to uppercase canonical values — respect whatever the
               // Excel import already stored; do NOT override with hardcoded name/ID lists.
               const sUp = (e.status || 'ACTIVE').toUpperCase();
               if (sUp === 'TERMINATED') e.status = 'TERMINATED';
               else if (sUp === 'INACTIVE') e.status = 'INACTIVE';
+              else if (sUp === 'UNUSED') e.status = 'UNUSED';
               else e.status = 'ACTIVE';
 
               cleanEmployees.push(e);
@@ -1363,24 +1493,9 @@ class Store {
 
           if (parsed.relievers && Array.isArray(parsed.relievers) && parsed.relievers.length > 0) {
             parsed.relievers.forEach(r => {
-              const matchEmp = parsed.employees ? parsed.employees.find(e => e.name && e.name.trim().toLowerCase() === (r.name || '').trim().toLowerCase()) : null;
-              if (matchEmp) {
-                r.id = matchEmp.id;
-                r.status = matchEmp.status;
-              } else {
-                let id = (r.id || '').trim();
-                if (!id || id === 'N/A' || id === '-' || seenIds.has(id)) {
-                  let genId;
-                  do {
-                    genId = `DDN005-REL${String(relSeq++).padStart(3, '0')}`;
-                  } while (seenIds.has(genId));
-                  r.id = genId;
-                  needsSave = true;
-                }
-                seenIds.add(r.id);
-                const sUp = (r.status || 'ACTIVE').toUpperCase();
-                r.status = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
-              }
+              r.id = 'DDN005-SR000';
+              const sUp = (r.status || 'ACTIVE').toUpperCase();
+              r.status = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : (sUp === 'UNUSED' ? 'UNUSED' : 'ACTIVE'));
             });
           } else {
             const relEmployees = (parsed.employees || []).filter(e => (e.role || '').toUpperCase().includes('RELIEVER'));
@@ -1621,13 +1736,13 @@ class Store {
             });
           }
 
-          // Ensure all 34 official relievers from September 2026 Masterlist are present
+          // Ensure all 34 official relievers from September 2026 Masterlist are present with default ID DDN005-SR000
           if (Array.isArray(parsed.employees) && typeof RAW_RELIEVERS !== 'undefined') {
             RAW_RELIEVERS.forEach(r => {
-              const existingRel = parsed.employees.find(e => (e.id && e.id === r.id) || (e.name && e.name.toLowerCase() === r.name.toLowerCase()));
+              const existingRel = parsed.employees.find(e => (e.role && e.role.toUpperCase().includes('RELIEVER')) && (e.name && e.name.toLowerCase().trim() === r.name.toLowerCase().trim()));
               if (!existingRel) {
                 parsed.employees.push({
-                  id: r.id,
+                  id: 'DDN005-SR000',
                   name: r.name,
                   gender: 'Female',
                   role: 'Reliever',
@@ -1646,6 +1761,40 @@ class Store {
                   status: 'Active',
                   etsStatus: 'Active'
                 });
+                needsSave = true;
+              } else if (existingRel.id !== 'DDN005-SR000' && (existingRel.id.startsWith('DDN005-REL') || !existingRel.id)) {
+                existingRel.id = 'DDN005-SR000';
+                needsSave = true;
+              }
+            });
+          }
+
+          // Ensure the 7 unused booths from September 2026 Masterlist are registered in booths
+          if (Array.isArray(parsed.booths) && typeof RAW_UNUSED_BOOTHS !== 'undefined') {
+            RAW_UNUSED_BOOTHS.forEach(ub => {
+              const cleanB = ub.boothCode.toUpperCase();
+              let b = parsed.booths.find(x => (x.id && x.id.toUpperCase() === cleanB) || (x.code && x.code.toUpperCase() === cleanB));
+              if (!b) {
+                parsed.booths.push({
+                  id: ub.boothCode,
+                  code: ub.boothCode,
+                  name: `Station ${ub.boothCode} (Unused)`,
+                  area: ub.address,
+                  purok: ub.purok,
+                  municipality: ub.municipality,
+                  lat: ub.lat,
+                  lng: ub.lng,
+                  coordinates: ub.coordinates,
+                  status: 'UNUSED',
+                  posSerial: ub.posSerial,
+                  printerSerial: ub.printerSerial,
+                  phone: ub.phone,
+                  assignedTellerId: '-',
+                  assignedTellerName: '-'
+                });
+                needsSave = true;
+              } else if ((b.status || '').toUpperCase() !== 'UNUSED' && (!b.assignedTellerId || b.assignedTellerId === '-' || b.assignedTellerName === '-')) {
+                b.status = 'UNUSED';
                 needsSave = true;
               }
             });
@@ -2524,7 +2673,8 @@ class Store {
             return;
           }
 
-          const dedupKey = normName ? `${normName}::${bCode || roleNorm}` : `id::${e.id}`;
+          const cleanB = (bCode && bCode !== '-') ? bCode : '';
+          const dedupKey = normName ? `${normName}::${cleanB || roleNorm}` : `id::${e.id}`;
           if (seenStaffKeys.has(dedupKey)) {
             modified = true;
             return; // Prune duplicate employee record!
@@ -2533,21 +2683,23 @@ class Store {
 
           let id = (e.id || '').trim();
           const isRel = roleNorm.includes('RELIEVER') || roleNorm.includes('RELIVER');
-          if (!id || id === 'N/A' || id === '-' || seenIds.has(id)) {
+          if (isRel) {
+            // Relievers default ID No is DDN005-SR000 for all assigned relievers
+            e.id = 'DDN005-SR000';
+            id = 'DDN005-SR000';
+          } else if (!id || id === 'N/A' || id === '-' || id.startsWith('DDN005-REL') || seenIds.has(id)) {
             let genId;
-            const prefix = isRel ? 'DDN005-REL' : 'DDN005-SR';
             do {
-              const num = isRel ? String(relSeq++).padStart(3, '0') : String(staffSeq++).padStart(4, '0');
-              genId = `${prefix}${num}`;
+              genId = `DDN005-SR${String(staffSeq++).padStart(4, '0')}`;
             } while (seenIds.has(genId));
             e.id = genId;
             id = genId;
             modified = true;
           }
-          seenIds.add(id);
+          if (!isRel) seenIds.add(id);
 
           const sUp = (e.status || 'ACTIVE').toUpperCase();
-          const normStatus = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
+          const normStatus = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : (sUp === 'UNUSED' ? 'UNUSED' : 'ACTIVE'));
           if (e.status !== normStatus) {
             e.status = normStatus;
             modified = true;
@@ -2576,30 +2728,15 @@ class Store {
 
     if (this.data.relievers && Array.isArray(this.data.relievers)) {
       this.data.relievers.forEach(r => {
-        const matchEmp = this.data.employees ? this.data.employees.find(e => e.name && e.name.trim().toLowerCase() === (r.name || '').trim().toLowerCase()) : null;
-        if (matchEmp) {
-          if (r.id !== matchEmp.id || r.status !== matchEmp.status) {
-            r.id = matchEmp.id;
-            r.status = matchEmp.status;
-            modified = true;
-          }
-        } else {
-          let id = (r.id || '').trim();
-          if (!id || id === 'N/A' || id === '-' || seenIds.has(id)) {
-            let genId;
-            do {
-              genId = `DDN005-REL${String(relSeq++).padStart(3, '0')}`;
-            } while (seenIds.has(genId));
-            r.id = genId;
-            modified = true;
-          }
-          seenIds.add(r.id);
-          const sUp = (r.status || 'ACTIVE').toUpperCase();
-          const normStatus = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
-          if (r.status !== normStatus) {
-            r.status = normStatus;
-            modified = true;
-          }
+        if (r.id !== 'DDN005-SR000') {
+          r.id = 'DDN005-SR000';
+          modified = true;
+        }
+        const sUp = (r.status || 'ACTIVE').toUpperCase();
+        const normStatus = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : (sUp === 'UNUSED' ? 'UNUSED' : 'ACTIVE'));
+        if (r.status !== normStatus) {
+          r.status = normStatus;
+          modified = true;
         }
       });
     }
@@ -2642,15 +2779,19 @@ class Store {
 
   addEmployee(emp) {
     const isRel = emp.role && emp.role.toUpperCase().includes('RELIEVER');
-    emp.id = emp.id || (isRel ? `DDN005-REL${String(Math.floor(100 + Math.random() * 900)).padStart(3, '0')}` : `DDN005-SR${Math.floor(1000 + Math.random() * 9000)}`);
+    if (isRel) {
+      emp.id = 'DDN005-SR000';
+    } else {
+      emp.id = emp.id || `DDN005-SR${Math.floor(1000 + Math.random() * 9000)}`;
+    }
     const sUp = (emp.status || 'ACTIVE').toUpperCase();
-    emp.status = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
+    emp.status = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : (sUp === 'UNUSED' ? 'UNUSED' : 'ACTIVE'));
     this.data.employees.unshift(emp);
     if (isRel) {
       if (!this.data.relievers) this.data.relievers = [];
-      if (!this.data.relievers.some(r => r.id === emp.id)) {
+      if (!this.data.relievers.some(r => r.name && emp.name && r.name.toLowerCase() === emp.name.toLowerCase())) {
         this.data.relievers.push({
-          id: emp.id,
+          id: 'DDN005-SR000',
           name: emp.name,
           role: 'Reliever',
           boothCode: emp.boothCode || '-',
@@ -2671,7 +2812,7 @@ class Store {
 
     if (updates.status) {
       const sUp = updates.status.toUpperCase();
-      updates.status = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
+      updates.status = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : (sUp === 'UNUSED' ? 'UNUSED' : 'ACTIVE'));
     }
 
     const targetId = (updates.id && updates.id.trim()) ? updates.id.trim() : id;
@@ -2768,12 +2909,16 @@ class Store {
     if (result && updates.role) {
       const isRelRole = updates.role.toUpperCase().includes('RELIEVER');
       if (isRelRole && this.data.relievers) {
+        if (!result.id || result.id.startsWith('DDN005-REL') || !result.id.trim()) {
+          result.id = 'DDN005-SR000';
+          if (idx !== -1) this.data.employees[idx].id = 'DDN005-SR000';
+        }
         const rIndex = this.data.relievers.findIndex(r => r.id === result.id || (result.name && r.name && r.name.toLowerCase() === result.name.toLowerCase()));
         if (rIndex >= 0) {
-          this.data.relievers[rIndex] = { ...this.data.relievers[rIndex], ...result, role: 'Reliever' };
+          this.data.relievers[rIndex] = { ...this.data.relievers[rIndex], ...result, role: 'Reliever', id: 'DDN005-SR000' };
         } else {
           this.data.relievers.push({
-            id: result.id,
+            id: 'DDN005-SR000',
             name: result.name,
             role: 'Reliever',
             boothCode: result.boothCode || '-',
@@ -2910,10 +3055,11 @@ class Store {
       const finalName = (empName && empName !== 'N/A') ? empName : 'N/A';
 
       let newId = (rec.id && rec.id.trim() && rec.id.trim() !== 'N/A') ? rec.id.trim() : null;
-      if (!newId) {
-        const isRel = (rec.role || '').toUpperCase().includes('RELIEVER');
-        const prefix = isRel ? 'DDN005-REL' : 'DDN005-SR';
-        newId = `${prefix}${Math.floor(1000 + Math.random() * 9000)}`;
+      const isRel = (rec.role || '').toUpperCase().includes('RELIEVER');
+      if (isRel) {
+        newId = 'DDN005-SR000';
+      } else if (!newId || newId.startsWith('DDN005-REL')) {
+        newId = `DDN005-SR${Math.floor(1000 + Math.random() * 9000)}`;
       }
       const purokStr = (rec.purok && rec.purok !== 'N/A' && rec.purok !== '-') ? rec.purok.trim() : 'N/A';
       const muniStr = (rec.municipality && rec.municipality !== 'N/A') ? rec.municipality.trim() : 'N/A';
@@ -2937,10 +3083,10 @@ class Store {
 
       let statusVal = 'ACTIVE';
       if (finalName === 'N/A') {
-        statusVal = 'INACTIVE';
+        statusVal = 'UNUSED';
       } else if (rec.status) {
         const sUp = rec.status.trim().toUpperCase();
-        statusVal = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
+        statusVal = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : (sUp === 'UNUSED' ? 'UNUSED' : 'ACTIVE'));
       }
       
       // Standardize Role: Teller -> Sales Representative, Reliver -> Reliever, Team Leader, missing -> N/A
@@ -3022,9 +3168,19 @@ class Store {
 
       this.data.employees.push(emp);
       if (emp.role && emp.role.toUpperCase().includes('RELIEVER')) {
+        emp.id = 'DDN005-SR000';
         if (!this.data.relievers) this.data.relievers = [];
-        if (!this.data.relievers.some(r => r.id === emp.id || (r.name && emp.name && r.name.toLowerCase() === emp.name.toLowerCase()))) {
-          this.data.relievers.push(emp);
+        if (!this.data.relievers.some(r => r.name && emp.name && r.name.toLowerCase() === emp.name.toLowerCase())) {
+          this.data.relievers.push({
+            id: 'DDN005-SR000',
+            name: emp.name,
+            role: 'Reliever',
+            boothCode: emp.boothCode || '-',
+            area: emp.address || emp.area || emp.municipality || 'Davao Sector',
+            address: emp.address || emp.area || emp.municipality || 'Davao Sector',
+            phone: emp.phone || emp.contact || '',
+            status: emp.status || 'Active'
+          });
         }
       }
       addedCount++;
@@ -3141,7 +3297,7 @@ class Store {
 
         if (rec.status) {
           const sUp = rec.status.trim().toUpperCase();
-          updates.status = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
+          updates.status = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : (sUp === 'UNUSED' ? 'UNUSED' : 'ACTIVE'));
           updates.etsStatus = updates.status === 'ACTIVE' ? 'Active' : 'Offline';
         }
 
@@ -3149,11 +3305,16 @@ class Store {
         
         // Also sync to relievers list if this employee is or was a reliever
         if (!this.data.relievers) this.data.relievers = [];
+        const isNowRel = (updates.role || existing.role || '').toUpperCase().includes('RELIEVER');
         const rIdx = this.data.relievers.findIndex(r => r.id === existing.id || (r.name && existing.name && r.name.toLowerCase() === existing.name.toLowerCase()));
-        if (rIdx !== -1) {
-          this.data.relievers[rIdx] = { ...this.data.relievers[rIdx], ...updates };
-        } else if ((updates.role || existing.role || '').toUpperCase().includes('RELIEVER')) {
-          this.data.relievers.push(this.data.employees[idx]);
+        if (isNowRel) {
+          if (rIdx !== -1) {
+            this.data.relievers[rIdx] = { ...this.data.relievers[rIdx], ...updates, role: 'Reliever', id: 'DDN005-SR000' };
+          } else {
+            this.data.relievers.push({ ...this.data.employees[idx], role: 'Reliever', id: 'DDN005-SR000' });
+          }
+        } else if (rIdx !== -1) {
+          this.data.relievers.splice(rIdx, 1);
         }
         updatedCount++;
       }

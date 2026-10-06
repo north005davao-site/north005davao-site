@@ -385,8 +385,12 @@
         const normName = (record.name && record.name !== 'N/A') ? record.name.toLowerCase().trim() : '';
         const normBooth = (record.booth && record.booth !== 'N/A' && record.booth !== '-') ? record.booth.toUpperCase().trim() : '';
 
+        const isRelSheet = !!sheetInfo.isRelieversSheet;
         const existingMatch = allExisting.find(e => {
-          if (normId && e.id && e.id.toLowerCase().trim() === normId) return true;
+          const eIsRel = (e.role || '').toUpperCase().includes('RELIEVER');
+          if (isRelSheet && !eIsRel) return false;
+          if (!isRelSheet && eIsRel && normBooth) return false;
+          if (normId && normId !== 'ddn005-sr000' && e.id && e.id.toLowerCase().trim() === normId) return true;
           if (normName && e.name && e.name.toLowerCase().trim() === normName) {
             return true;
           }
@@ -873,6 +877,7 @@
     const printerVal = rawPrinter ? ((rawPrinter.includes('WITH') || rawPrinter.includes('PRT-') || rawPrinter.includes('YES') || rawPrinter.includes('TRUE')) ? 'WITH PORTABLE PRINTER' : 'N/A') : '';
 
     // 11. Status Determination (BUG FIX: Missing ID never sets Status to INACTIVE)
+    // 11. Status Determination (BUG FIX: Missing ID never sets Status to INACTIVE; Missing Name = Unused Booth)
     let statusVal = 'Active';
     let hasMissingRequired = false;
     const missingFields = [];
@@ -880,29 +885,36 @@
     if (!rawName || rawName === 'N/A') {
       missingFields.push('Personnel Name');
       hasMissingRequired = true;
-      statusVal = 'Inactive';
+      statusVal = 'Unused';
     }
 
     const rawStatus = getCell(headerAnalysis.statusCol);
     if (rawStatus) {
       const sUp = rawStatus.toUpperCase();
-      if (sUp === 'INACTIVE' || sUp === 'OFFLINE' || sUp === 'SUSPENDED' || sUp === 'DEACTIVATED') {
-        statusVal = 'Inactive';
+      if (sUp === 'INACTIVE' || sUp === 'OFFLINE' || sUp === 'SUSPENDED' || sUp === 'DEACTIVATED' || sUp === 'DEACTIVED') {
+        statusVal = (!rawName || rawName === 'N/A') ? 'Unused' : 'Inactive';
       } else if (sUp === 'TERMINATED') {
         statusVal = 'Terminated';
+      } else if (sUp === 'UNUSED') {
+        statusVal = 'Unused';
       } else if (sUp === 'ACTIVE') {
-        statusVal = 'Active';
+        statusVal = (!rawName || rawName === 'N/A') ? 'Unused' : 'Active';
       }
     }
 
     if (combinedAddress && (combinedAddress.toUpperCase().includes('DEACTIVATED') || combinedAddress.toUpperCase().includes('TEMPORARY DEACTIVATED'))) {
-      statusVal = 'Inactive';
+      statusVal = (!rawName || rawName === 'N/A') ? 'Unused' : 'Inactive';
+    }
+
+    let finalId = rawId || 'N/A';
+    if (isReliever) {
+      finalId = (rawId && !rawId.startsWith('DDN005-REL') && rawId !== 'N/A') ? rawId : 'DDN005-SR000';
     }
 
     return {
       rowNum: rowNum,
       sheetName: sheetInfo.targetSheet,
-      id: rawId || 'N/A',
+      id: finalId,
       name: rawName || 'N/A',
       role: roleVal,
       purok: combinedAddress || 'N/A',
@@ -1003,7 +1015,7 @@
     document.getElementById('tab-prev-invalid').textContent = `Invalid (${currentImportData.summary.invalidCount})`;
 
     // Filter and Render Table Rows
-    filterPreviewTable('all');
+    window.filterPreviewTable('all');
 
     // Enable/Disable Confirm Button
     const confirmBtn = document.getElementById('btn-excel-confirm-sync');

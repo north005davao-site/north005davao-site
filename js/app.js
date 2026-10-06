@@ -877,14 +877,15 @@ function parseAddressHelper(rawAddress) {
 }
 
 window.filterRegistryCategory = function(cat) {
+  if (cat === 'unused-booths') cat = 'inactive-booths';
   sfx.playClick();
   currentRegistryCategory = cat;
   registryCurrentPage = 1;
 
-  ['all', 'tellers', 'relievers', 'inactive-booths', 'terminated', 'supervisors', 'collectors'].forEach(c => {
+  ['all', 'tellers', 'relievers', 'inactive-booths', 'unused-booths', 'terminated', 'supervisors', 'collectors'].forEach(c => {
     const btn = document.getElementById(`tab-btn-${c}`);
     if (btn) {
-      if (c === cat) {
+      if (c === cat || (c === 'inactive-booths' && cat === 'unused-booths') || (c === 'unused-booths' && cat === 'inactive-booths')) {
         btn.classList.remove('btn-secondary');
         btn.classList.add('btn-primary');
       } else {
@@ -1123,76 +1124,51 @@ function renderEmployeesTable(customList = null) {
   });
 
 
-  // Section 3: 5. Inactive Booths (Authentic Sales Representative records with STATUS = INACTIVE)
-  // Exclude TERMINATED (belong in Terminated Tellers) and phantom/ghost rows (Name = N/A or Unassigned)
-  const PHANTOM_BOOTHS = new Set(['DDN-2001', 'DDN-2002', 'DDN-2003', 'DDN-358', 'DDN-759', 'DDN-901']);
-  const seenBoothCodes = new Set();
-  const seenRecordIds = new Set();
-  const inactiveBooths = [];
+  // Section 3: 5. Unused Booths (The 7 Authentic Operational Booths without Assigned Tellers from September 2026 Masterlist)
+  const seenUnusedBoothCodes = new Set();
+  const unusedBooths = [];
 
-  // Collect all assigned booth codes from active employees in allStaff
-  const activeEmpBoothCodes = new Set();
-  allStaff.forEach(emp => {
-    const bCode = (emp.boothCode && emp.boothCode !== '-') ? emp.boothCode.trim().toUpperCase() : (emp.booth && emp.booth !== '-' ? emp.booth.trim().toUpperCase() : null);
-    if (bCode && (emp.status || 'ACTIVE').toUpperCase() === 'ACTIVE') activeEmpBoothCodes.add(bCode);
-  });
+  // A. Include the 7 authentic unused booths from RAW_UNUSED_BOOTHS (or fallback definitions)
+  if (typeof RAW_UNUSED_BOOTHS !== 'undefined' && Array.isArray(RAW_UNUSED_BOOTHS)) {
+    RAW_UNUSED_BOOTHS.forEach(ub => {
+      const bCode = ub.boothCode.toUpperCase();
+      seenUnusedBoothCodes.add(bCode);
+      const storeBooth = (store.data && store.data.booths) ? store.data.booths.find(b => (b.id && b.id.toUpperCase() === bCode) || (b.code && b.code.toUpperCase() === bCode)) : null;
+      unusedBooths.push({
+        id: ub.id,
+        name: (storeBooth && storeBooth.assignedTellerName && storeBooth.assignedTellerName !== '-') ? storeBooth.assignedTellerName : 'N/A',
+        role: 'N/A',
+        department: 'dept-tel',
+        purok: (storeBooth && storeBooth.purok) ? storeBooth.purok : ub.purok,
+        municipality: (storeBooth && storeBooth.municipality) ? storeBooth.municipality : ub.municipality,
+        address: (storeBooth && storeBooth.area) ? storeBooth.area : ub.address,
+        area: (storeBooth && storeBooth.area) ? storeBooth.area : ub.area,
+        boothCode: ub.boothCode,
+        booth: ub.boothCode,
+        lat: (storeBooth && storeBooth.lat) ? storeBooth.lat : ub.lat,
+        lng: (storeBooth && storeBooth.lng) ? storeBooth.lng : ub.lng,
+        coordinates: (storeBooth && storeBooth.coordinates) ? storeBooth.coordinates : ub.coordinates,
+        phone: (storeBooth && storeBooth.phone) ? storeBooth.phone : ub.phone,
+        status: 'UNUSED',
+        posSerial: (storeBooth && storeBooth.posSerial) ? storeBooth.posSerial : ub.posSerial,
+        printerName: 'N/A',
+        printerSerial: 'N/A'
+      });
+    });
+  }
 
-  // A. Candidate employee records (STATUS = INACTIVE only, must have valid non-phantom name)
-  allStaff.forEach(emp => {
-    const r = (emp.role || '').toUpperCase();
-    const isOtherRole = r.includes('SUPERVISOR') || r.includes('TEAM LEADER') || r.includes('COLLECTOR') || r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('ADMIN');
-    if (isOtherRole) return;
-
-    const statusUpper = (emp.status || '').toUpperCase();
-    const isInactive = statusUpper === 'INACTIVE';
-    const isNameMissing = !emp.name || emp.name.trim() === '' || emp.name.trim().toUpperCase() === 'N/A' || emp.name.trim() === '-';
-    const bCode = (emp.boothCode && emp.boothCode !== '-') ? emp.boothCode.trim().toUpperCase() : (emp.booth && emp.booth !== '-' ? emp.booth.trim().toUpperCase() : null);
-
-    // Only include real employees that are legitimately marked INACTIVE (never ghost N/A rows or phantom booths)
-    if (isInactive && !isNameMissing && r !== 'N/A' && (!bCode || !PHANTOM_BOOTHS.has(bCode))) {
-      if (bCode) {
-        if (!seenBoothCodes.has(bCode)) {
-          seenBoothCodes.add(bCode);
-          seenRecordIds.add(emp.id);
-          inactiveBooths.push(emp);
-        }
-      } else {
-        if (!seenRecordIds.has(emp.id)) {
-          seenRecordIds.add(emp.id);
-          inactiveBooths.push(emp);
-        }
-      }
-    }
-  });
-
-  // B. Candidate standalone booth records:
-  // Must be authentic registered booths with a real assigned teller who is INACTIVE (no ghost/unassigned booths)
+  // B. Also include any other booths from store.data.booths with status === 'UNUSED'
   const allBooths = (store.data && store.data.booths) ? store.data.booths : [];
   allBooths.forEach(b => {
     const bCode = (b.id || b.code || '').trim().toUpperCase().replace(/^BOOTH-/, '');
-    if (!bCode || bCode === '-' || b.id === 'BOOTH-DDN-1140' || PHANTOM_BOOTHS.has(bCode)) return;
-    if (activeEmpBoothCodes.has(bCode)) return;
-    if (seenBoothCodes.has(bCode)) return;
-
-    const tellerName = b.assignedTellerName || b.activeTeller || '';
-    const isNameMissing = !tellerName || tellerName.trim() === '' || tellerName.trim().toUpperCase() === 'N/A' || tellerName.trim() === '-';
-    if (isNameMissing) return; // Do not add unassigned booths as inactive booths!
-
-    const isInactive = (b.status || '').toUpperCase() === 'INACTIVE';
-    let isAssignedTellerInactive = false;
-    if (b.assignedTellerId) {
-      const assignedEmp = allStaff.find(e => e.id === b.assignedTellerId);
-      if (assignedEmp && (assignedEmp.status || '').toUpperCase() === 'INACTIVE') {
-        isAssignedTellerInactive = true;
-      }
-    }
-
-    if (isInactive || isAssignedTellerInactive) {
-      seenBoothCodes.add(bCode);
-      inactiveBooths.push({
-        id: b.assignedTellerId || `BOOTH-${bCode}`,
-        name: tellerName,
-        role: 'SALES REPRESENTATIVE',
+    if (!bCode || bCode === '-' || seenUnusedBoothCodes.has(bCode)) return;
+    const isUnused = (b.status || '').toUpperCase() === 'UNUSED';
+    if (isUnused) {
+      seenUnusedBoothCodes.add(bCode);
+      unusedBooths.push({
+        id: b.id.startsWith('DDN005-') ? b.id : `DDN005-SR${bCode.replace(/[^0-9]/g, '').padStart(3, '0')}`,
+        name: b.assignedTellerName || 'N/A',
+        role: 'N/A',
         department: 'dept-tel',
         purok: b.purok || '-',
         municipality: b.municipality || 'Sto. Tomas',
@@ -1204,7 +1180,7 @@ function renderEmployeesTable(customList = null) {
         lng: b.lng,
         coordinates: (b.lat && b.lng) ? { lat: b.lat, lng: b.lng } : null,
         phone: b.phone || 'N/A',
-        status: 'INACTIVE',
+        status: 'UNUSED',
         posSerial: b.posSerial || `POS-${bCode}`,
         printerName: b.printerSerial ? 'WITH PORTABLE PRINTER' : 'N/A',
         printerSerial: b.printerSerial || 'N/A'
@@ -1212,13 +1188,16 @@ function renderEmployeesTable(customList = null) {
     }
   });
 
+  const inactiveBooths = unusedBooths; // alias for backwards compatibility
+
   // Update dynamic counter badges (All Staff count excludes Leadership & Collectors)
   if (document.getElementById('count-all')) document.getElementById('count-all').textContent = allStaffOperational.length;
   if (document.getElementById('count-supervisors')) document.getElementById('count-supervisors').textContent = supervisors.length;
   if (document.getElementById('count-collectors')) document.getElementById('count-collectors').textContent = collectors.length;
   if (document.getElementById('count-tellers')) document.getElementById('count-tellers').textContent = tellers.length;
   if (document.getElementById('count-relievers')) document.getElementById('count-relievers').textContent = relieversList.length;
-  if (document.getElementById('count-inactive-booths')) document.getElementById('count-inactive-booths').textContent = inactiveBooths.length;
+  if (document.getElementById('count-inactive-booths')) document.getElementById('count-inactive-booths').textContent = unusedBooths.length;
+  if (document.getElementById('count-unused-booths')) document.getElementById('count-unused-booths').textContent = unusedBooths.length;
   if (document.getElementById('count-terminated')) document.getElementById('count-terminated').textContent = terminatedTellers.length;
 
   const empBadge = document.getElementById('sidebar-emp-count');
@@ -1230,8 +1209,8 @@ function renderEmployeesTable(customList = null) {
       list = tellers;
     } else if (currentRegistryCategory === 'relievers') {
       list = relieversList;
-    } else if (currentRegistryCategory === 'inactive-booths') {
-      list = inactiveBooths;
+    } else if (currentRegistryCategory === 'inactive-booths' || currentRegistryCategory === 'unused-booths') {
+      list = unusedBooths;
     } else if (currentRegistryCategory === 'terminated') {
       list = terminatedTellers;
     } else if (currentRegistryCategory === 'supervisors') {
@@ -1310,6 +1289,8 @@ function renderEmployeesTable(customList = null) {
     let statusStyle = 'border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.15); color: #10b981;';
     if (statusUpper === 'INACTIVE') {
       statusStyle = 'border: 1px solid rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.15); color: #f59e0b;';
+    } else if (statusUpper === 'UNUSED') {
+      statusStyle = 'border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(148, 163, 184, 0.15); color: #94a3b8;';
     } else if (statusUpper === 'TERMINATED') {
       statusStyle = 'border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.15); color: #ef4444;';
     }
@@ -1336,6 +1317,7 @@ function renderEmployeesTable(customList = null) {
           <select class="form-select" style="padding: 3px 8px; font-size: 11px; font-weight: 700; width: auto; border-radius: 4px; display: inline-block; margin: 0 auto; ${statusStyle}" ${!isAdmin ? 'disabled title="Supervisor: View-only"' : `onchange="window.updateEmployeeStatus('${emp.id}', this.value)"`}>
             <option value="ACTIVE" ${statusUpper === 'ACTIVE' ? 'selected' : ''}>ACTIVE</option>
             <option value="INACTIVE" ${statusUpper === 'INACTIVE' ? 'selected' : ''}>INACTIVE</option>
+            <option value="UNUSED" ${statusUpper === 'UNUSED' ? 'selected' : ''}>UNUSED</option>
             <option value="TERMINATED" ${statusUpper === 'TERMINATED' ? 'selected' : ''}>TERMINATED</option>
           </select>
         </td>

@@ -566,7 +566,7 @@
       if (cached && !forceRefresh) {
         // Cache Hit: Render directly from pre-validated Master Registry cache
         cached.booths.forEach(b => {
-          if (b.personnel === 'Unassigned' || !b.personnel || (b.status || '').toUpperCase() === 'INACTIVE') return;
+          if (b.personnel === 'Unassigned' || !b.personnel || (b.status || '').toUpperCase() === 'INACTIVE' || (b.status || '').toUpperCase() === 'UNUSED') return;
           this._renderMarkerForBooth(b, isDraggable, isAdmin);
         });
 
@@ -598,7 +598,8 @@
       registeredBooths.forEach(b => {
         const normCode = normalizeBoothCode(b.id || b.code);
         if (!normCode) return; // Skip non-booth entries like '-'
-        if ((b.status || '').toUpperCase() === 'INACTIVE') return; // Skip inactive booths
+        const bStatus = (b.status || '').toUpperCase();
+        if (bStatus === 'INACTIVE' || bStatus === 'UNUSED') return; // Skip inactive and unused booths
 
         boothMap.set(normCode, {
           normBoothCode: normCode,
@@ -656,12 +657,13 @@
         if (!entry.staffList || entry.staffList.length === 0) {
           return; // Skip unassigned booths from live tracking!
         }
-        const hasActiveStaff = entry.staffList.some(s => (s.status || 'ACTIVE').toUpperCase() === 'ACTIVE');
+        const hasActiveStaff = entry.staffList.some(s => (s.status || 'ACTIVE').toUpperCase() === 'ACTIVE' && s.name && s.name !== 'N/A' && s.name !== '-');
         if (!hasActiveStaff) {
           return; // Skip booths without active staff!
         }
-        if ((entry.status || '').toUpperCase() === 'INACTIVE') {
-          return; // Skip inactive booths!
+        const entryStatus = (entry.status || '').toUpperCase();
+        if (entryStatus === 'INACTIVE' || entryStatus === 'UNUSED') {
+          return; // Skip inactive and unused booths!
         }
 
         // Resolve GPS Coordinates from the Master Registry records for this booth
@@ -792,6 +794,8 @@
     registeredBooths.forEach(b => {
       const bCode = normalizeBoothCode(b.id || b.code);
       if (!bCode) return;
+      const bStatus = (b.status || '').toUpperCase();
+      if (bStatus === 'INACTIVE' || bStatus === 'UNUSED') return;
 
       const mrGps = parseGpsCoordinates(b);
       const emp = employees.find(e => normalizeBoothCode(e.boothCode || e.booth) === bCode);

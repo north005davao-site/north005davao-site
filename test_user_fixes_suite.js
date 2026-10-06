@@ -75,10 +75,27 @@ const testReliever = window.appStore.addEmployee({
   phone: '09171234567',
   status: 'ACTIVE'
 });
-assert.ok(testReliever.id.startsWith('DDN005-REL'), `Generated ID must start with DDN005-REL, got ${testReliever.id}`);
+assert.strictEqual(testReliever.id, 'DDN005-SR000', `Reliever default ID No must be DDN005-SR000, got ${testReliever.id}`);
 const relFound = window.appStore.data.relievers.find(r => r.name === 'Maria Elena Santos');
 assert.ok(relFound, 'Reliever must be automatically synced to store.data.relievers');
-console.log('✓ Requirement 2 (Role & Store): Added Reliever auto-synced to store.data.relievers with ID:', testReliever.id);
+assert.strictEqual(relFound.id, 'DDN005-SR000', 'Reliever in store.data.relievers must have ID DDN005-SR000');
+
+// Test updateEmployee to RELIEVER and away from RELIEVER
+const testStaff = window.appStore.addEmployee({
+  name: 'Test Role Switcher',
+  role: 'SALES REPRESENTATIVE',
+  department: 'dept-tel',
+  status: 'ACTIVE'
+});
+window.appStore.updateEmployee(testStaff.id, { role: 'RELIEVER' });
+const relUpdated = window.appStore.data.relievers.find(r => r.name === 'Test Role Switcher');
+assert.ok(relUpdated, 'Role update to RELIEVER must register staff into store.data.relievers');
+assert.strictEqual(relUpdated.id, 'DDN005-SR000', 'Updated reliever must have ID DDN005-SR000');
+
+window.appStore.updateEmployee('DDN005-SR000', { role: 'SALES REPRESENTATIVE', name: 'Test Role Switcher' });
+const relRemoved = window.appStore.data.relievers.find(r => r.name === 'Test Role Switcher');
+assert.strictEqual(relRemoved, undefined, 'Changing role away from Reliever must remove staff from store.data.relievers');
+console.log('✓ Requirement 1 (Relievers Default ID & Sync): All relievers default to DDN005-SR000 and bi-directionally sync');
 
 // 4. Test LocalStorage Purge of phantom booths & ghost inactive records
 const mockCorruptedStorage = {
@@ -127,6 +144,33 @@ assert.ok(pillsHtml.includes('#ec4899'), 'Talaingod pink color (#ec4899) must be
 assert.ok(pillsHtml.includes('#06b6d4'), 'Samal cyan color (#06b6d4) must be in pills HTML');
 console.log('✓ Requirement 3 (Dashboard): All 7 municipality pills styled with exact matching STL Booth pin colors & glowing indicator dots');
 
+// 6. Test 34 Relievers count and default ID DDN005-SR000
+localStorage.clear();
+const freshStore = window.appStore.load();
+const relieversInStore = freshStore.employees.filter(e => (e.role || '').toUpperCase().includes('RELIEVER'));
+assert.strictEqual(relieversInStore.length, 34, `Must have exactly 34 relievers, got ${relieversInStore.length}`);
+relieversInStore.forEach(r => {
+  assert.strictEqual(r.id, 'DDN005-SR000', `Reliever ${r.name} ID must be DDN005-SR000, got ${r.id}`);
+});
+console.log('✓ Requirement 4 (Relievers Count & ID): Exactly 34 official relievers present, all with DDN005-SR000');
+
+// 7. Test 7 Unused Booths registered in booths
+const unusedBoothsInStore = freshStore.booths.filter(b => (b.status || '').toUpperCase() === 'UNUSED');
+assert.strictEqual(unusedBoothsInStore.length, 7, `Must have exactly 7 unused booths in store.booths, got ${unusedBoothsInStore.length}`);
+const expectedUnusedCodes = ['DDN-766', 'DDN-1750', 'DDN-1753', 'DDN-1680', 'DDN-1635', 'DDN-1630', 'DDN-1763'];
+expectedUnusedCodes.forEach(code => {
+  assert.ok(unusedBoothsInStore.some(b => (b.id || b.code) === code), `Unused booth ${code} must be present in store.booths`);
+});
+console.log('✓ Requirement 5 (Unused Booths): All 7 authentic unassigned booths registered with status UNUSED');
+
+// 8. Test ETS Map ignores UNUSED booths
+window.etsMap.init('ets-map-container');
+window.etsMap.renderAllMarkers(true);
+expectedUnusedCodes.forEach(code => {
+  assert.strictEqual(window.etsMap.allMarkerInstances[code], undefined, `Unused booth ${code} must NOT have an active map pin`);
+});
+console.log('✓ Requirement 6 (Map Pins): None of the 7 unused booths rendered as active pins on ETS map');
+
 console.log('\n======================================================');
-console.log('🎉 ALL 3 USER REQUIREMENTS VERIFIED AND PASSED 100%!');
+console.log('🎉 ALL USER REQUIREMENTS VERIFIED AND PASSED 100%!');
 console.log('======================================================\n');
