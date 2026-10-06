@@ -166,9 +166,10 @@ window.etsMap.renderAllMarkers();
 
 const testVerificationBooths = [
   // Sto. Tomas
-  { code: 'DDN-754', expectedLat: 7.519800, expectedLng: 125.615900, muni: 'Sto. Tomas' },
+  { code: 'DDN-754', expectedLat: 7.524000, expectedLng: 125.625000, muni: 'Sto. Tomas' },
   { code: 'DDN-352', expectedLat: 7.523500, expectedLng: 125.624100, muni: 'Sto. Tomas' },
   { code: 'DDN-762', expectedLat: 7.526000, expectedLng: 125.628000, muni: 'Sto. Tomas' },
+  { code: 'DDN-767', expectedLat: 7.528200, expectedLng: 125.623400, muni: 'Sto. Tomas' },
   // Tagum City
   { code: 'DDN-760', expectedLat: 7.447500, expectedLng: 125.807800, muni: 'Tagum City' },
   { code: 'DDN-766', expectedLat: 7.448500, expectedLng: 125.809200, muni: 'Tagum City' },
@@ -176,9 +177,11 @@ const testVerificationBooths = [
   // Panabo City
   { code: 'DDN-398', expectedLat: 7.307800, expectedLng: 125.683300, muni: 'Panabo City' },
   { code: 'DDN-399', expectedLat: 7.309000, expectedLng: 125.685000, muni: 'Panabo City' },
+  { code: 'DDN-400', expectedLat: 7.302800, expectedLng: 125.681800, muni: 'Panabo City' },
   // Carmen
   { code: 'DDN-397', expectedLat: 7.358600, expectedLng: 125.706100, muni: 'Carmen' },
   { code: 'DDN-425', expectedLat: 7.361000, expectedLng: 125.708000, muni: 'Carmen' },
+  { code: 'DDN-426', expectedLat: 7.359500, expectedLng: 125.705800, muni: 'Carmen' },
   // Talaingod
   { code: 'DDN-1424', expectedLat: 7.653600, expectedLng: 125.641700, muni: 'Talaingod' },
   { code: 'DDN-1752', expectedLat: 7.655000, expectedLng: 125.643000, muni: 'Talaingod' },
@@ -202,21 +205,16 @@ testVerificationBooths.forEach(tb => {
 
 // Verify no pseudo-booth marker was created for '-'
 assert.strictEqual(window.etsMap.allMarkerInstances['-'], undefined, 'No marker should exist for booth "-"');
-
-// Verify uncalibrated booths without authentic coordinates are NOT rendered as artificial stacked pins
-assert.strictEqual(window.etsMap.allMarkerInstances['DDN-767'], undefined, 'Uncalibrated booth DDN-767 must not have a fake pin');
-assert.strictEqual(window.etsMap.allMarkerInstances['DDN-400'], undefined, 'Uncalibrated booth DDN-400 must not have a fake pin');
-assert.strictEqual(window.etsMap.allMarkerInstances['DDN-426'], undefined, 'Uncalibrated booth DDN-426 must not have a fake pin');
-console.log('✓ Uncalibrated booths are safely omitted from map, preventing stacked caterpillar slinkies.');
+console.log('✓ Non-booth roaming personnel ("-") properly excluded from booth map.');
 
 // --- TEST 5: CLICKING A STAFF MEMBER IN FLEET MONITOR FOCUSES EXACT BOOTH ---
 console.log('\n--- TEST 5: Fleet Activity Monitor Click Interactivity ---');
 window.focusStaffMember('DDN005-SR754'); // Belle Amor Quizo -> DDN-754
 const m754 = window.etsMap.allMarkerInstances['DDN-754'];
 assert(m754.isPopupOpen, 'Popup for DDN-754 must be open');
-assert.strictEqual(global.lastMapCenter[0], 7.519800);
-assert.strictEqual(global.lastMapCenter[1], 125.615900);
-console.log('✓ Clicking Belle Amor Quizo (DDN005-SR754) centered map on 7.519800, 125.615900 and opened DDN-754 popup');
+assert.strictEqual(global.lastMapCenter[0], 7.524000);
+assert.strictEqual(global.lastMapCenter[1], 125.625000);
+console.log('✓ Clicking Belle Amor Quizo (DDN005-SR754) centered map on 7.524000, 125.625000 and opened DDN-754 popup');
 
 window.focusStaffMember('DDN005-SR760'); // Elvie Oñez -> DDN-760 (Tagum City)
 const m760 = window.etsMap.allMarkerInstances['DDN-760'];
@@ -279,11 +277,11 @@ localStorage.setItem('apex_omnierp_data_v4_ddn', JSON.stringify(mockStaleData));
 const reloaded = window.appStore.load();
 const b754 = reloaded.booths.find(b => b.id === 'DDN-754');
 const b767 = reloaded.booths.find(b => b.id === 'DDN-767');
-assert.strictEqual(b754.lat, 7.519800, 'DDN-754 must be updated to authentic Master Registry lat');
-assert.strictEqual(b754.lng, 125.615900, 'DDN-754 must be updated to authentic Master Registry lng');
-assert.strictEqual(b767.lat, null, 'Uncalibrated booth DDN-767 must have lat purged to null');
-assert.strictEqual(b767.lng, null, 'Uncalibrated booth DDN-767 must have lng purged to null');
-console.log('✓ LocalStorage migration (_gpsAuthenticV3) successfully purged stale stacked coordinates from cache!');
+assert.strictEqual(b754.lat, 7.524000, 'DDN-754 must be updated to authentic Master Registry lat');
+assert.strictEqual(b754.lng, 125.625000, 'DDN-754 must be updated to authentic Master Registry lng');
+assert.strictEqual(b767.lat, 7.528200, 'DDN-767 must be updated to authentic Master Registry lat');
+assert.strictEqual(b767.lng, 125.623400, 'DDN-767 must be updated to authentic Master Registry lng');
+console.log('✓ LocalStorage migration (_gpsAuthenticV5) successfully synchronized coordinates from Master Registry!');
 
 console.log('\n========================================================================');
 console.log('ALL EST LIVE TRACKING & GPS PIN TESTS PASSED WITH 100% SUCCESS! 🚀');
