@@ -383,23 +383,65 @@ const RAW_COLLECTORS = [
   { id: "DDN005-SC005", name: "Jayson Pacaña", area: "Davao Del Norte", status: "Active", phone: "+63 917 111 0005", lat: 7.4500, lng: 125.7500 }
 ];
 
+// 5b. Operations Leadership (Supervisors - September 2026 Masterlist)
+const RAW_SUPERVISORS = [
+  {
+    id: "DDN005-SS001",
+    name: "Liewel John Mipaña",
+    gender: "Male",
+    role: "Sales Supervisor",
+    department: "dept-sup",
+    area: "Sto. Tomas, Talaingod, Kapalong",
+    address: "Sto. Tomas, Talaingod, Kapalong, Davao del Norte",
+    purok: "-",
+    municipality: "Sto. Tomas",
+    lat: 7.5303,
+    lng: 125.6264,
+    boothCode: "-",
+    posSerial: "N/A",
+    printerSerial: "N/A",
+    phone: "+63 917 222 0001",
+    status: "Active",
+    etsStatus: "Active"
+  },
+  {
+    id: "DDN005-SS002",
+    name: "Wildon Batalla",
+    gender: "Male",
+    role: "Sales Supervisor",
+    department: "dept-sup",
+    area: "Samal",
+    address: "Island Garden City of Samal, Davao del Norte",
+    purok: "-",
+    municipality: "Samal",
+    lat: 7.1310,
+    lng: 125.7112,
+    boothCode: "-",
+    posSerial: "N/A",
+    printerSerial: "N/A",
+    phone: "+63 917 222 0002",
+    status: "Active",
+    etsStatus: "Active"
+  }
+];
+
 // Generate Full Master Database
 function buildDefaultStore() {
   const employees = [];
   const booths = [];
 
-  // Add Administrator
+  // Add Operations Administrator (September 2026 Masterlist)
   const adminAddr = parseAddress('HQ Tagum City Command Center, Tagum City');
   employees.push({
-    id: 'DDN005-ADM01',
+    id: 'DDN005-OA001',
     name: 'Peter John Carrillo',
     gender: 'Male',
     role: 'OPERATIONS ADMINISTRATOR',
     department: 'dept-admin',
-    area: 'HQ Command Center',
+    area: 'Tagum, Panabo, Carmen',
     address: 'HQ Tagum City Command Center, Tagum City',
     purok: adminAddr.purok,
-    municipality: adminAddr.municipality,
+    municipality: 'Tagum City',
     lat: 7.4490,
     lng: 125.8090,
     boothCode: '-',
@@ -410,7 +452,28 @@ function buildDefaultStore() {
     etsStatus: 'Active'
   });
 
-  // Supervisors (None registered by default; added only when explicitly registered by Administrator)
+  // Add Sales Supervisors (September 2026 Masterlist)
+  RAW_SUPERVISORS.forEach(s => {
+    employees.push({
+      id: s.id,
+      name: s.name,
+      gender: s.gender || 'Male',
+      role: 'Sales Supervisor',
+      department: 'dept-sup',
+      area: s.area,
+      address: s.address,
+      purok: s.purok || '-',
+      municipality: s.municipality || s.area,
+      lat: s.lat,
+      lng: s.lng,
+      boothCode: '-',
+      posSerial: s.posSerial || 'N/A',
+      printerSerial: s.printerSerial || 'N/A',
+      phone: s.phone,
+      status: s.status || 'Active',
+      etsStatus: 'Active'
+    });
+  });
 
   // Add Collectors (Booth Code is - per requirement; they have Area Assignment)
   RAW_COLLECTORS.forEach(c => {
@@ -623,7 +686,7 @@ function buildDefaultStore() {
     departments: [
       { id: 'dept-tel', name: 'Outlet & Booth Operations', role: 'Teller', head: 'Jehramea Marte', icon: 'store' },
       { id: 'dept-col', name: 'Field Collector Units', role: 'Collector', head: 'MARK ANTHONY (MAC2)', icon: 'bike' },
-      { id: 'dept-sup', name: 'Team Davao Supervisors', role: 'Supervisor', head: '-', icon: 'shield-check' },
+      { id: 'dept-sup', name: 'Team Davao Supervisors', role: 'Supervisor', head: 'Liewel John Mipaña', icon: 'shield-check' },
       { id: 'dept-admin', name: 'Administrator', role: 'Operations Administrator', head: 'Peter John Carrillo', icon: 'crown' }
     ],
     booths: booths,
@@ -1556,8 +1619,76 @@ class Store {
             });
           }
 
-          if (parsed.masterRegistryVersion !== 'MRV-20261006-002') {
-            parsed.masterRegistryVersion = 'MRV-20261006-002';
+          // Ensure Operations Administrator (Peter John Carrillo) is updated to official ID DDN005-OA001
+          if (Array.isArray(parsed.employees)) {
+            const adminEmp = parsed.employees.find(e => (e.name && e.name.toLowerCase().includes('peter john')) || e.id === 'DDN005-OA001' || e.id === 'DDN005-ADM01');
+            if (adminEmp) {
+              adminEmp.id = 'DDN005-OA001';
+              adminEmp.role = 'OPERATIONS ADMINISTRATOR';
+              adminEmp.department = 'dept-admin';
+              adminEmp.area = 'Tagum, Panabo, Carmen';
+            } else {
+              parsed.employees.push({
+                id: 'DDN005-OA001',
+                name: 'Peter John Carrillo',
+                gender: 'Male',
+                role: 'OPERATIONS ADMINISTRATOR',
+                department: 'dept-admin',
+                area: 'Tagum, Panabo, Carmen',
+                address: 'HQ Tagum City Command Center, Tagum City',
+                purok: '-',
+                municipality: 'Tagum City',
+                lat: 7.4490,
+                lng: 125.8090,
+                boothCode: '-',
+                posSerial: 'ADM-WS-001',
+                printerSerial: 'N/A',
+                phone: '+63 946 166 7956',
+                status: 'Active',
+                etsStatus: 'Active'
+              });
+              needsSave = true;
+            }
+          }
+
+          // Ensure all official Sales Supervisors from September 2026 Masterlist are present
+          if (Array.isArray(parsed.employees) && typeof RAW_SUPERVISORS !== 'undefined') {
+            RAW_SUPERVISORS.forEach(s => {
+              const existingSup = parsed.employees.find(e => (e.id && e.id === s.id) || (e.name && e.name.toLowerCase() === s.name.toLowerCase()));
+              if (!existingSup) {
+                parsed.employees.push({
+                  id: s.id,
+                  name: s.name,
+                  gender: s.gender || 'Male',
+                  role: 'Sales Supervisor',
+                  department: 'dept-sup',
+                  area: s.area,
+                  address: s.address,
+                  purok: s.purok || '-',
+                  municipality: s.municipality || s.area,
+                  lat: s.lat,
+                  lng: s.lng,
+                  boothCode: '-',
+                  posSerial: s.posSerial || 'N/A',
+                  printerSerial: s.printerSerial || 'N/A',
+                  phone: s.phone,
+                  status: s.status || 'Active',
+                  etsStatus: 'Active'
+                });
+                needsSave = true;
+              }
+            });
+          }
+
+          if (Array.isArray(parsed.departments)) {
+            const supDept = parsed.departments.find(d => d.id === 'dept-sup');
+            if (supDept) supDept.head = 'Liewel John Mipaña';
+            const admDept = parsed.departments.find(d => d.id === 'dept-admin');
+            if (admDept) admDept.head = 'Peter John Carrillo';
+          }
+
+          if (parsed.masterRegistryVersion !== 'MRV-20261006-003') {
+            parsed.masterRegistryVersion = 'MRV-20261006-003';
             parsed.masterRegistryUpdatedAt = new Date().toISOString();
             needsSave = true;
           }

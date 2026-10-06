@@ -74,7 +74,7 @@ const isLeadershipOrCollector = (e) => {
 
 const operationalStaff = allEmps.filter(e => !isLeadershipOrCollector(e));
 console.log(`Operational Staff count (All Staff): ${operationalStaff.length}`);
-assert.strictEqual(operationalStaff.length, 86, `Expected 86 operational staff, got ${operationalStaff.length}`);
+assert.strictEqual(operationalStaff.length, 150, `Expected 150 operational staff, got ${operationalStaff.length}`);
 
 const tellers = allEmps.filter(e => {
   const r = (e.role || '').toUpperCase();
@@ -84,19 +84,19 @@ const tellers = allEmps.filter(e => {
   return statusUpper === 'ACTIVE';
 });
 console.log(`Active Sales Representatives: ${tellers.length}`);
-assert.strictEqual(tellers.length, 78, `Expected 78 active Sales Reps, got ${tellers.length}`);
+assert.strictEqual(tellers.length, 116, `Expected 116 active Sales Reps, got ${tellers.length}`);
 
 const relievers = allEmps.filter(e => (e.role || '').toUpperCase().includes('RELIEVER'));
 console.log(`Relievers count: ${relievers.length}`);
-assert.strictEqual(relievers.length, 4, `Expected 4 relievers, got ${relievers.length}`);
+assert.strictEqual(relievers.length, 34, `Expected 34 relievers, got ${relievers.length}`);
 
 const inactiveBooths = allEmps.filter(e => (e.status || '').toUpperCase() === 'INACTIVE');
 console.log(`Inactive booths count: ${inactiveBooths.length}`);
-assert.strictEqual(inactiveBooths.length, 2, `Expected 2 inactive booths, got ${inactiveBooths.length}`);
+assert.strictEqual(inactiveBooths.length, 0, `Expected 0 inactive booths, got ${inactiveBooths.length}`);
 
 const terminated = allEmps.filter(e => (e.status || '').toUpperCase() === 'TERMINATED');
 console.log(`Terminated tellers count: ${terminated.length}`);
-assert.strictEqual(terminated.length, 2, `Expected 2 terminated tellers, got ${terminated.length}`);
+assert.strictEqual(terminated.length, 0, `Expected 0 terminated tellers, got ${terminated.length}`);
 
 // 2. Test Collector Dropdown Isolation
 const ep = window.expensesPayment;

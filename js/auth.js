@@ -429,6 +429,7 @@
         const isAuthorizedAdmin = matchedEmp && (
           (matchedEmp.role || '').toUpperCase().includes('ADMIN') ||
           matchedEmp.department === 'dept-admin' ||
+          matchedEmp.id === 'DDN005-OA001' ||
           matchedEmp.id === 'DDN005-ADM01' ||
           cleanLowerName.includes('peter john') || cleanLowerName.includes('carrillo')
         );
@@ -437,7 +438,7 @@
           department = 'Administrator';
           role = 'Operations Administrator';
           status = 'Active';
-          linkedEmpId = matchedEmp ? matchedEmp.id : 'DDN005-ADM01';
+          linkedEmpId = matchedEmp ? matchedEmp.id : 'DDN005-OA001';
         } else {
           department = 'Administrator';
           role = 'Operations Administrator';
