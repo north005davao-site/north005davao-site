@@ -1904,9 +1904,22 @@ function renderFleetTrackingList() {
     else if (roleUpper.includes('TEAM LEADER')) statusBg = '#ccfbf1; color: #0f766e;';
     else if (roleUpper.includes('RELIEVER') || roleUpper.includes('RELIVER')) statusBg = '#e2e8f0; color: #334155;';
 
-    const gps = (typeof window.parseGpsCoordinates === 'function')
+    let gps = (typeof window.parseGpsCoordinates === 'function')
       ? window.parseGpsCoordinates(emp)
       : { isValid: false };
+
+    // Resolve GPS from linked Master Registry booth if not on employee directly
+    if (!gps.isValid && emp.boothCode && emp.boothCode !== '-') {
+      const normB = (typeof window.normalizeBoothCode === 'function') ? window.normalizeBoothCode(emp.boothCode) : emp.boothCode;
+      const boothRec = (store.getBooths() || []).find(b => {
+        const bNorm = (typeof window.normalizeBoothCode === 'function') ? window.normalizeBoothCode(b.id || b.code) : (b.id || b.code);
+        return bNorm === normB;
+      });
+      if (boothRec) {
+        const bGps = window.parseGpsCoordinates(boothRec);
+        if (bGps.isValid) gps = bGps;
+      }
+    }
 
     let displayRole = emp.role || 'Staff';
     if (roleUpper === 'TELLER' || roleUpper === 'STATION TELLER') displayRole = 'Sales Representative';
@@ -2036,9 +2049,22 @@ window.focusStaffMember = function(empId) {
   const emp = allStaff.find(e => e.id === empId || e.name === empId);
   if (!emp) return;
 
-  const gps = (typeof window.parseGpsCoordinates === 'function') 
+  let gps = (typeof window.parseGpsCoordinates === 'function') 
     ? window.parseGpsCoordinates(emp) 
     : { isValid: false };
+
+  // Resolve GPS from linked Master Registry booth if not on employee directly
+  if (!gps.isValid && emp.boothCode && emp.boothCode !== '-') {
+    const normB = (typeof window.normalizeBoothCode === 'function') ? window.normalizeBoothCode(emp.boothCode) : emp.boothCode;
+    const boothRec = (store.getBooths() || []).find(b => {
+      const bNorm = (typeof window.normalizeBoothCode === 'function') ? window.normalizeBoothCode(b.id || b.code) : (b.id || b.code);
+      return bNorm === normB;
+    });
+    if (boothRec) {
+      const bGps = window.parseGpsCoordinates(boothRec);
+      if (bGps.isValid) gps = bGps;
+    }
+  }
 
   if (!gps.isValid) {
     const boothName = emp.boothCode || emp.booth || 'Unassigned';

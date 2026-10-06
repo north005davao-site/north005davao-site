@@ -361,6 +361,17 @@
       });
 
       const bounds = [];
+      const auditSummary = {
+        totalMasterRegistryBooths: boothMap.size,
+        recordsWithValidGps: 0,
+        recordsWithInvalidGps: 0,
+        recordsWithMissingGps: 0,
+        estMarkersCreated: 0,
+        estMarkersMissing: 0,
+        validBoothCodes: [],
+        missingBoothCodes: [],
+        invalidBoothCodes: []
+      };
 
       boothMap.forEach((entry, normBoothCode) => {
         // Resolve GPS Coordinates from the Master Registry records for this booth
@@ -381,11 +392,24 @@
           }
         }
 
-        // Section 6: If no valid GPS coordinates exist in Master Registry, DO NOT place on map!
+        // Section 11 & 12: If no valid GPS coordinates exist in Master Registry, DO NOT place on map!
+        // Record and log the specific Booth Code for diagnostic tracking
         if (!gps.isValid) {
-          console.warn(`[ETS GPS Validation] Booth: ${normBoothCode} - Missing/invalid GPS coordinate. Marker omitted.`);
+          if (gps.reason && (gps.reason.includes('INVALID') || gps.reason.includes('BOUNDS'))) {
+            auditSummary.recordsWithInvalidGps++;
+            auditSummary.invalidBoothCodes.push(normBoothCode);
+          } else {
+            auditSummary.recordsWithMissingGps++;
+            auditSummary.missingBoothCodes.push(normBoothCode);
+          }
+          auditSummary.estMarkersMissing++;
+          console.warn(`[ETS GPS Audit] Booth: ${normBoothCode} - GPS: Missing / Invalid (${gps.reason || 'UNAVAILABLE'}). Marker: Not rendered.`);
           return;
         }
+
+        auditSummary.recordsWithValidGps++;
+        auditSummary.estMarkersCreated++;
+        auditSummary.validBoothCodes.push(normBoothCode);
 
         const lat = gps.lat;
         const lng = gps.lng;
@@ -474,6 +498,9 @@
 
         this.markers.booths.addLayer(marker);
       });
+
+      this.lastAuditSummary = auditSummary;
+      console.log(`[ETS GPS Audit Summary] Total Master Registry Booths: ${auditSummary.totalMasterRegistryBooths} | Valid GPS: ${auditSummary.recordsWithValidGps} | Missing GPS: ${auditSummary.recordsWithMissingGps} | Invalid GPS: ${auditSummary.recordsWithInvalidGps} | EST Markers Rendered: ${auditSummary.estMarkersCreated} | Missing Markers: ${auditSummary.estMarkersMissing}`);
     }
 
     // Draggable Calibration Mode
@@ -495,5 +522,8 @@
   }
 
   window.etsMap = new EtsMapEngine();
+  window.getEtsGpsAuditReport = function() {
+    return window.etsMap ? window.etsMap.lastAuditSummary : null;
+  };
 
 })();

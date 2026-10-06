@@ -165,29 +165,29 @@ window.etsMap.init('ets-map-container');
 window.etsMap.renderAllMarkers();
 
 const testVerificationBooths = [
-  // Sto. Tomas
+  // Sto. Tomas (Master Registry Verified)
   { code: 'DDN-754', expectedLat: 7.524000, expectedLng: 125.625000, muni: 'Sto. Tomas' },
   { code: 'DDN-352', expectedLat: 7.523500, expectedLng: 125.624100, muni: 'Sto. Tomas' },
   { code: 'DDN-762', expectedLat: 7.526000, expectedLng: 125.628000, muni: 'Sto. Tomas' },
-  { code: 'DDN-767', expectedLat: 7.528200, expectedLng: 125.623400, muni: 'Sto. Tomas' },
-  // Tagum City
+  { code: 'DDN-358', expectedLat: 7.524500, expectedLng: 125.626500, muni: 'Sto. Tomas' },
+  { code: 'DDN-759', expectedLat: 7.528500, expectedLng: 125.631000, muni: 'Sto. Tomas' },
+  { code: 'DDN-901', expectedLat: 7.525100, expectedLng: 125.628500, muni: 'Sto. Tomas' },
+  // Tagum City (Master Registry Verified)
   { code: 'DDN-760', expectedLat: 7.447500, expectedLng: 125.807800, muni: 'Tagum City' },
   { code: 'DDN-766', expectedLat: 7.448500, expectedLng: 125.809200, muni: 'Tagum City' },
   { code: 'DDN-769', expectedLat: 7.449500, expectedLng: 125.811000, muni: 'Tagum City' },
-  // Panabo City
+  // Panabo City (Master Registry Verified)
   { code: 'DDN-398', expectedLat: 7.307800, expectedLng: 125.683300, muni: 'Panabo City' },
   { code: 'DDN-399', expectedLat: 7.309000, expectedLng: 125.685000, muni: 'Panabo City' },
-  { code: 'DDN-400', expectedLat: 7.302800, expectedLng: 125.681800, muni: 'Panabo City' },
-  // Carmen
+  // Carmen (Master Registry Verified)
   { code: 'DDN-397', expectedLat: 7.358600, expectedLng: 125.706100, muni: 'Carmen' },
   { code: 'DDN-425', expectedLat: 7.361000, expectedLng: 125.708000, muni: 'Carmen' },
-  { code: 'DDN-426', expectedLat: 7.359500, expectedLng: 125.705800, muni: 'Carmen' },
-  // Talaingod
+  // Talaingod (Master Registry Verified)
   { code: 'DDN-1424', expectedLat: 7.653600, expectedLng: 125.641700, muni: 'Talaingod' },
   { code: 'DDN-1752', expectedLat: 7.655000, expectedLng: 125.643000, muni: 'Talaingod' },
-  // Kapalong
+  // Kapalong (Master Registry Verified)
   { code: 'DDN-1523', expectedLat: 7.585500, expectedLng: 125.707200, muni: 'Kapalong' },
-  // Samal
+  // Samal (Master Registry Verified)
   { code: 'DDN-2001', expectedLat: 7.073600, expectedLng: 125.712800, muni: 'Samal' },
   { code: 'DDN-2002', expectedLat: 7.085000, expectedLng: 125.719000, muni: 'Samal' },
   { code: 'DDN-2003', expectedLat: 7.052000, expectedLng: 125.705000, muni: 'Samal' }
@@ -203,9 +203,23 @@ testVerificationBooths.forEach(tb => {
   console.log(`✓ Booth ${tb.code.padEnd(8)} | Muni: ${tb.muni.padEnd(11)} | Lat: ${pos.lat.toFixed(6)} | Lng: ${pos.lng.toFixed(6)} | STATUS: MATCH`);
 });
 
+// Verify that booths with NO GPS coordinates in Master Registry have NO marker rendered on the map
+const uncoordinatedBooths = ['DDN-767', 'DDN-400', 'DDN-426', 'DDN-771', 'DDN-773'];
+uncoordinatedBooths.forEach(code => {
+  assert.strictEqual(window.etsMap.allMarkerInstances[code], undefined, `Uncoordinated booth ${code} must NOT have a map marker`);
+});
+console.log('✓ Uncoordinated Master Registry booths (DDN-767, DDN-400, DDN-426, etc.) are NOT rendered as fake markers.');
+
 // Verify no pseudo-booth marker was created for '-'
 assert.strictEqual(window.etsMap.allMarkerInstances['-'], undefined, 'No marker should exist for booth "-"');
 console.log('✓ Non-booth roaming personnel ("-") properly excluded from booth map.');
+
+// Verify diagnostic audit report output
+const audit = window.getEtsGpsAuditReport();
+assert(audit, 'getEtsGpsAuditReport must return audit data');
+assert.strictEqual(audit.recordsWithValidGps, 19, 'Must have exactly 19 valid GPS coordinates matching Master Registry');
+assert.strictEqual(audit.estMarkersCreated, 19, 'Must have rendered exactly 19 EST markers on map');
+console.log(`✓ Diagnostic Audit Report Verified: Total: ${audit.totalMasterRegistryBooths} | Valid GPS: ${audit.recordsWithValidGps} | Markers: ${audit.estMarkersCreated} | Missing GPS: ${audit.recordsWithMissingGps}`);
 
 // --- TEST 5: CLICKING A STAFF MEMBER IN FLEET MONITOR FOCUSES EXACT BOOTH ---
 console.log('\n--- TEST 5: Fleet Activity Monitor Click Interactivity ---');
@@ -259,11 +273,11 @@ console.log('\n--- TEST 8: LocalStorage Purge of Stale Caterpillar Coordinates -
 const mockStaleData = {
   employees: [
     { id: 'DDN005-SR754', name: 'Belle Amor Quizo', boothCode: 'DDN-754', lat: 99.9, lng: 99.9 },
-    { id: 'DDN005-SR767', name: 'Aprilyn V. Cahintong', boothCode: 'DDN-767', lat: 7.5270, lng: 125.6290 } // Old stacked diagonal
+    { id: 'DDN005-SR767', name: 'Aprilyn V. Cahintong', boothCode: 'DDN-767', lat: 7.5270, lng: 125.6290 } // Old fake coordinate
   ],
   booths: [
     { id: 'DDN-754', code: 'DDN-754', lat: 99.9, lng: 99.9 },
-    { id: 'DDN-767', code: 'DDN-767', lat: 7.5270, lng: 125.6290 } // Old stacked diagonal
+    { id: 'DDN-767', code: 'DDN-767', lat: 7.5270, lng: 125.6290 } // Old fake coordinate
   ]
 };
 // Pad employees array to pass load sanity check (> 50 employees)
@@ -279,9 +293,9 @@ const b754 = reloaded.booths.find(b => b.id === 'DDN-754');
 const b767 = reloaded.booths.find(b => b.id === 'DDN-767');
 assert.strictEqual(b754.lat, 7.524000, 'DDN-754 must be updated to authentic Master Registry lat');
 assert.strictEqual(b754.lng, 125.625000, 'DDN-754 must be updated to authentic Master Registry lng');
-assert.strictEqual(b767.lat, 7.528200, 'DDN-767 must be updated to authentic Master Registry lat');
-assert.strictEqual(b767.lng, 125.623400, 'DDN-767 must be updated to authentic Master Registry lng');
-console.log('✓ LocalStorage migration (_gpsAuthenticV5) successfully synchronized coordinates from Master Registry!');
+assert.strictEqual(b767.lat, null, 'DDN-767 without Master Registry GPS must be purged to null');
+assert.strictEqual(b767.lng, null, 'DDN-767 without Master Registry GPS must be purged to null');
+console.log('✓ LocalStorage migration (_gpsStrictMasterV1) successfully purged fake coordinates and synchronized Master Registry!');
 
 console.log('\n========================================================================');
 console.log('ALL EST LIVE TRACKING & GPS PIN TESTS PASSED WITH 100% SUCCESS! 🚀');
