@@ -166,31 +166,29 @@ window.etsMap.renderAllMarkers();
 
 const testVerificationBooths = [
   // Sto. Tomas (Master Registry Verified)
-  { code: 'DDN-754', expectedLat: 7.524000, expectedLng: 125.625000, muni: 'Sto. Tomas' },
-  { code: 'DDN-352', expectedLat: 7.523500, expectedLng: 125.624100, muni: 'Sto. Tomas' },
-  { code: 'DDN-762', expectedLat: 7.526000, expectedLng: 125.628000, muni: 'Sto. Tomas' },
-  { code: 'DDN-358', expectedLat: 7.524500, expectedLng: 125.626500, muni: 'Sto. Tomas' },
-  { code: 'DDN-759', expectedLat: 7.528500, expectedLng: 125.631000, muni: 'Sto. Tomas' },
-  { code: 'DDN-901', expectedLat: 7.525100, expectedLng: 125.628500, muni: 'Sto. Tomas' },
+  { code: 'DDN-754', expectedLat: 7.532151, expectedLng: 125.651232, muni: 'Sto. Tomas' },
+  { code: 'DDN-352', expectedLat: 7.484155, expectedLng: 125.716352, muni: 'Sto. Tomas' },
+  { code: 'DDN-762', expectedLat: 7.522965, expectedLng: 125.613093, muni: 'Sto. Tomas' },
   // Tagum City (Master Registry Verified)
-  { code: 'DDN-760', expectedLat: 7.447500, expectedLng: 125.807800, muni: 'Tagum City' },
-  { code: 'DDN-766', expectedLat: 7.448500, expectedLng: 125.809200, muni: 'Tagum City' },
-  { code: 'DDN-769', expectedLat: 7.449500, expectedLng: 125.811000, muni: 'Tagum City' },
+  { code: 'DDN-760', expectedLat: 7.465273, expectedLng: 125.825592, muni: 'Tagum City' },
+  { code: 'DDN-350', expectedLat: 7.460470, expectedLng: 125.784925, muni: 'Tagum City' },
+  { code: 'DDN-769', expectedLat: 7.423330, expectedLng: 125.828964, muni: 'Tagum City' },
   // Panabo City (Master Registry Verified)
-  { code: 'DDN-398', expectedLat: 7.307800, expectedLng: 125.683300, muni: 'Panabo City' },
-  { code: 'DDN-399', expectedLat: 7.309000, expectedLng: 125.685000, muni: 'Panabo City' },
+  { code: 'DDN-398', expectedLat: 7.293308, expectedLng: 125.667908, muni: 'Panabo City' },
+  { code: 'DDN-399', expectedLat: 7.320821, expectedLng: 125.668614, muni: 'Panabo City' },
   // Carmen (Master Registry Verified)
-  { code: 'DDN-397', expectedLat: 7.358600, expectedLng: 125.706100, muni: 'Carmen' },
-  { code: 'DDN-425', expectedLat: 7.361000, expectedLng: 125.708000, muni: 'Carmen' },
+  { code: 'DDN-397', expectedLat: 7.355234, expectedLng: 125.706468, muni: 'Carmen' },
+  { code: 'DDN-425', expectedLat: 7.368167, expectedLng: 125.723424, muni: 'Carmen' },
   // Talaingod (Master Registry Verified)
-  { code: 'DDN-1424', expectedLat: 7.653600, expectedLng: 125.641700, muni: 'Talaingod' },
-  { code: 'DDN-1752', expectedLat: 7.655000, expectedLng: 125.643000, muni: 'Talaingod' },
+  { code: 'DDN-1424', expectedLat: 7.626863, expectedLng: 125.616652, muni: 'Talaingod' },
+  { code: 'DDN-1752', expectedLat: 7.629899, expectedLng: 125.605769, muni: 'Talaingod' },
   // Kapalong (Master Registry Verified)
-  { code: 'DDN-1523', expectedLat: 7.585500, expectedLng: 125.707200, muni: 'Kapalong' },
+  { code: 'DDN-1523', expectedLat: 7.621407, expectedLng: 125.703117, muni: 'Kapalong' },
+  { code: 'DDN-402', expectedLat: 7.597889, expectedLng: 125.707191, muni: 'Kapalong' },
   // Samal (Master Registry Verified)
-  { code: 'DDN-2001', expectedLat: 7.073600, expectedLng: 125.712800, muni: 'Samal' },
-  { code: 'DDN-2002', expectedLat: 7.085000, expectedLng: 125.719000, muni: 'Samal' },
-  { code: 'DDN-2003', expectedLat: 7.052000, expectedLng: 125.705000, muni: 'Samal' }
+  { code: 'DDN-1281', expectedLat: 7.131028, expectedLng: 125.711256, muni: 'Samal' },
+  { code: 'DDN-1284', expectedLat: 7.130260, expectedLng: 125.696882, muni: 'Samal' },
+  { code: 'DDN-1285', expectedLat: 7.147230, expectedLng: 125.708615, muni: 'Samal' }
 ];
 
 testVerificationBooths.forEach(tb => {
@@ -203,12 +201,12 @@ testVerificationBooths.forEach(tb => {
   console.log(`✓ Booth ${tb.code.padEnd(8)} | Muni: ${tb.muni.padEnd(11)} | Lat: ${pos.lat.toFixed(6)} | Lng: ${pos.lng.toFixed(6)} | STATUS: MATCH`);
 });
 
-// Verify that booths with NO GPS coordinates in Master Registry have NO marker rendered on the map
-const uncoordinatedBooths = ['DDN-767', 'DDN-400', 'DDN-426', 'DDN-771', 'DDN-773'];
+// Verify that non-existent/uncoordinated booths have NO marker rendered on the map
+const uncoordinatedBooths = ['DDN-9999', 'DDN-UNKNOWN'];
 uncoordinatedBooths.forEach(code => {
   assert.strictEqual(window.etsMap.allMarkerInstances[code], undefined, `Uncoordinated booth ${code} must NOT have a map marker`);
 });
-console.log('✓ Uncoordinated Master Registry booths (DDN-767, DDN-400, DDN-426, etc.) are NOT rendered as fake markers.');
+console.log('✓ Uncoordinated booths are NOT rendered as fake markers.');
 
 // Verify no pseudo-booth marker was created for '-'
 assert.strictEqual(window.etsMap.allMarkerInstances['-'], undefined, 'No marker should exist for booth "-"');
@@ -217,8 +215,8 @@ console.log('✓ Non-booth roaming personnel ("-") properly excluded from booth 
 // Verify diagnostic audit report output
 const audit = window.getEtsGpsAuditReport();
 assert(audit, 'getEtsGpsAuditReport must return audit data');
-assert.strictEqual(audit.recordsWithValidGps, 19, 'Must have exactly 19 valid GPS coordinates matching Master Registry');
-assert.strictEqual(audit.estMarkersCreated, 19, 'Must have rendered exactly 19 EST markers on map');
+assert.strictEqual(audit.recordsWithValidGps, 116, 'Must have exactly 116 valid GPS coordinates matching Master Registry');
+assert.strictEqual(audit.estMarkersCreated, 116, 'Must have rendered exactly 116 EST markers on map');
 console.log(`✓ Diagnostic Audit Report Verified: Total: ${audit.totalMasterRegistryBooths} | Valid GPS: ${audit.recordsWithValidGps} | Markers: ${audit.estMarkersCreated} | Missing GPS: ${audit.recordsWithMissingGps}`);
 
 // --- TEST 5: CLICKING A STAFF MEMBER IN FLEET MONITOR FOCUSES EXACT BOOTH ---
@@ -226,15 +224,15 @@ console.log('\n--- TEST 5: Fleet Activity Monitor Click Interactivity ---');
 window.focusStaffMember('DDN005-SR754'); // Belle Amor Quizo -> DDN-754
 const m754 = window.etsMap.allMarkerInstances['DDN-754'];
 assert(m754.isPopupOpen, 'Popup for DDN-754 must be open');
-assert.strictEqual(global.lastMapCenter[0], 7.524000);
-assert.strictEqual(global.lastMapCenter[1], 125.625000);
-console.log('✓ Clicking Belle Amor Quizo (DDN005-SR754) centered map on 7.524000, 125.625000 and opened DDN-754 popup');
+assert.strictEqual(global.lastMapCenter[0], 7.532151);
+assert.strictEqual(global.lastMapCenter[1], 125.651232);
+console.log('✓ Clicking Belle Amor Quizo (DDN005-SR754) centered map on 7.532151, 125.651232 and opened DDN-754 popup');
 
 window.focusStaffMember('DDN005-SR760'); // Elvie Oñez -> DDN-760 (Tagum City)
 const m760 = window.etsMap.allMarkerInstances['DDN-760'];
 assert(m760.isPopupOpen, 'Popup for DDN-760 must be open');
-assert.strictEqual(global.lastMapCenter[0], 7.447500);
-assert.strictEqual(global.lastMapCenter[1], 125.807800);
+assert.strictEqual(global.lastMapCenter[0], 7.465273);
+assert.strictEqual(global.lastMapCenter[1], 125.825592);
 console.log('✓ Clicking Elvie Oñez (DDN005-SR760) centered map on 7.447500, 125.807800 and opened DDN-760 popup');
 
 // --- TEST 6: MUNICIPALITY LEGEND COLORS PRESERVED ---
@@ -273,11 +271,11 @@ console.log('\n--- TEST 8: LocalStorage Purge of Stale Caterpillar Coordinates -
 const mockStaleData = {
   employees: [
     { id: 'DDN005-SR754', name: 'Belle Amor Quizo', boothCode: 'DDN-754', lat: 99.9, lng: 99.9 },
-    { id: 'DDN005-SR767', name: 'Aprilyn V. Cahintong', boothCode: 'DDN-767', lat: 7.5270, lng: 125.6290 } // Old fake coordinate
+    { id: 'DDN-FAKE-1', name: 'Fake Uncoordinated', boothCode: 'DDN-9999', lat: 7.5270, lng: 125.6290 } // Booth without Master Registry GPS
   ],
   booths: [
     { id: 'DDN-754', code: 'DDN-754', lat: 99.9, lng: 99.9 },
-    { id: 'DDN-767', code: 'DDN-767', lat: 7.5270, lng: 125.6290 } // Old fake coordinate
+    { id: 'DDN-9999', code: 'DDN-9999', lat: 7.5270, lng: 125.6290 } // Booth without Master Registry GPS
   ]
 };
 // Pad employees array to pass load sanity check (> 50 employees)
@@ -290,11 +288,11 @@ localStorage.setItem('apex_omnierp_data_v4_ddn', JSON.stringify(mockStaleData));
 // Reload store
 const reloaded = window.appStore.load();
 const b754 = reloaded.booths.find(b => b.id === 'DDN-754');
-const b767 = reloaded.booths.find(b => b.id === 'DDN-767');
-assert.strictEqual(b754.lat, 7.524000, 'DDN-754 must be updated to authentic Master Registry lat');
-assert.strictEqual(b754.lng, 125.625000, 'DDN-754 must be updated to authentic Master Registry lng');
-assert.strictEqual(b767.lat, null, 'DDN-767 without Master Registry GPS must be purged to null');
-assert.strictEqual(b767.lng, null, 'DDN-767 without Master Registry GPS must be purged to null');
+const b9999 = reloaded.booths.find(b => b.id === 'DDN-9999');
+assert.strictEqual(b754.lat, 7.532151, 'DDN-754 must be updated to authentic Master Registry lat');
+assert.strictEqual(b754.lng, 125.651232, 'DDN-754 must be updated to authentic Master Registry lng');
+assert.strictEqual(b9999.lat, null, 'DDN-9999 without Master Registry GPS must be purged to null');
+assert.strictEqual(b9999.lng, null, 'DDN-9999 without Master Registry GPS must be purged to null');
 console.log('✓ LocalStorage migration (_gpsStrictMasterV1) successfully purged fake coordinates and synchronized Master Registry!');
 
 // --- TEST 9: SMART CACHE DATA INTEGRITY & TTL FALLBACK ---
@@ -307,13 +305,13 @@ window.etsMap.renderAllMarkers();
 const validCache = window.etsGpsCache.getValidData(curVer);
 assert.ok(validCache, 'Smart cache must return valid data for current version');
 assert.strictEqual(validCache.version, curVer, 'Cache version must match store version');
-assert.strictEqual(validCache.booths.length, 19, 'Cache must contain exactly 19 validated booths');
+assert.strictEqual(validCache.booths.length, 116, 'Cache must contain exactly 116 validated booths');
 
 // Check schema of cached record
 const sampleCached = validCache.booths.find(b => b.boothCode === 'DDN-754');
 assert.ok(sampleCached, 'Sample booth DDN-754 must be present in cache');
-assert.strictEqual(sampleCached.lat, 7.524000);
-assert.strictEqual(sampleCached.lng, 125.625000);
+assert.strictEqual(sampleCached.lat, 7.532151);
+assert.strictEqual(sampleCached.lng, 125.651232);
 assert.strictEqual(sampleCached.municipality, 'Sto. Tomas');
 assert.strictEqual(typeof sampleCached.masterRegistryVersion, 'string');
 assert.strictEqual(typeof sampleCached.lastUpdated, 'string');
@@ -339,7 +337,7 @@ console.log('✓ Smart Cache validates data integrity, strict coordinates, and e
 console.log('\n--- TEST 10: Version-Based Cache Invalidation & Pin Recalibration ---');
 const oldVer = window.appStore.getMasterRegistryVersion();
 // Recalibrate DDN-754 to a new precision coordinate
-window.appStore.updateCoordinates('DDN-754', 7.524050, 125.625050);
+window.appStore.updateCoordinates('DDN-754', 7.532200, 125.651300);
 const newVer = window.appStore.getMasterRegistryVersion();
 assert.notStrictEqual(oldVer, newVer, 'Recalibration must bump Master Registry Version');
 
@@ -352,8 +350,8 @@ window.etsMap.renderAllMarkers();
 const newCache = window.etsGpsCache.getValidData(newVer);
 assert.ok(newCache, 'New cache must be generated for new version');
 const updatedCachedBooth = newCache.booths.find(b => b.boothCode === 'DDN-754');
-assert.strictEqual(updatedCachedBooth.lat, 7.524050);
-assert.strictEqual(updatedCachedBooth.lng, 125.625050);
+assert.strictEqual(updatedCachedBooth.lat, 7.532200);
+assert.strictEqual(updatedCachedBooth.lng, 125.651300);
 console.log('✓ Pin recalibration bumps version and invalidates old cache without requiring browser restart.');
 
 // --- TEST 11: EXCEL IMPORT AUTO-INVALIDATION & REFRESH ---
@@ -362,7 +360,7 @@ const preExcelVer = window.appStore.getMasterRegistryVersion();
 const excelSyncRes = window.appStore.syncEmployeesFromExcel({
   newRecords: [],
   updateRecords: [
-    { boothCode: 'DDN-754', name: 'Belle Amor Quizo', lat: 7.524000, lng: 125.625000 }
+    { boothCode: 'DDN-754', name: 'Belle Amor Quizo', lat: 7.532151, lng: 125.651232 }
   ],
   fileName: 'Master_Registry_Update.xlsx',
   user: 'Peter John Carrillo'
@@ -375,8 +373,8 @@ window.etsMap.renderAllMarkers(true);
 const postExcelCache = window.etsGpsCache.getValidData(postExcelVer);
 assert.ok(postExcelCache, 'Cache must be populated after Excel import refresh');
 const restoredBooth = postExcelCache.booths.find(b => b.boothCode === 'DDN-754');
-assert.strictEqual(restoredBooth.lat, 7.524000);
-assert.strictEqual(restoredBooth.lng, 125.625000);
+assert.strictEqual(restoredBooth.lat, 7.532151);
+assert.strictEqual(restoredBooth.lng, 125.651232);
 console.log('✓ Master Registry Excel import automatically bumps version and invalidates cache.');
 
 // --- TEST 12: SECTION 18 validateEtsGpsSync() VERIFICATION ---
@@ -384,7 +382,7 @@ console.log('\n--- TEST 12: validateEtsGpsSync() Full Verification ---');
 const syncAudit = window.validateEtsGpsSync();
 assert.strictEqual(syncAudit.success, true, 'All booths must be synchronized between Master Registry, EST, and Markers');
 assert.strictEqual(syncAudit.discrepancies, 0, 'Zero discrepancies allowed');
-assert.ok(syncAudit.totalChecked >= 19, 'Must check all valid booths');
+assert.ok(syncAudit.totalChecked >= 116, 'Must check all valid booths');
 console.log(`✓ validateEtsGpsSync() verified ${syncAudit.totalChecked} booths: 100% synchronized across Master Registry, EST, and Map Markers.`);
 
 console.log('\n========================================================================');

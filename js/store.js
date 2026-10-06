@@ -82,147 +82,297 @@ function parseAddress(rawAddress) {
   return { purok: '-', municipality: '-' };
 }
 
-// Authoritative Master Registry GPS Coordinates Dictionary (Source of Truth)
-// STRICT MASTER REGISTRY SYNC: Contains ONLY authentic coordinates verified in Master Registry.
+// Authoritative Master Registry GPS Coordinates Dictionary (Source of Truth - September 2026 Official Masterlist)
+// STRICT MASTER REGISTRY SYNC: Contains 116 authentic coordinates verified in Master Registry.
 // Zero guessing, zero approximation, zero radial offset, zero mock coordinates.
 const AUTHENTIC_MASTER_REGISTRY_COORDINATES = {
-  // Sto. Tomas Corridor (Master Registry Verified)
-  'DDN-352': { lat: 7.523500, lng: 125.624100, municipality: 'Sto. Tomas' }, // Jehramea Marte (Salvacion, Near Baranggay Hall)
-  'DDN-754': { lat: 7.524000, lng: 125.625000, municipality: 'Sto. Tomas' }, // Belle Amor Quizo (New Katipunan, Feeder Road 3)
-  'DDN-762': { lat: 7.526000, lng: 125.628000, municipality: 'Sto. Tomas' }, // Davilyn Gelito (Sabungan ni NENE, Tibal-og)
-  'DDN-358': { lat: 7.524500, lng: 125.626500, municipality: 'Sto. Tomas' }, // Exact Registry
-  'DDN-759': { lat: 7.528500, lng: 125.631000, municipality: 'Sto. Tomas' }, // Exact Registry
-  'DDN-901': { lat: 7.525100, lng: 125.628500, municipality: 'Sto. Tomas' }, // Maricel A. Dumaguit (Poblacion)
-
-  // Tagum City Corridor (Master Registry Verified)
-  'DDN-760': { lat: 7.447500, lng: 125.807800, municipality: 'Tagum City' }, // Elvie Oñez (Magdum, Merville Subd)
-  'DDN-766': { lat: 7.448500, lng: 125.809200, municipality: 'Tagum City' }, // Analyn Lucida (Pagsabangan, Near Cemetery)
-  'DDN-769': { lat: 7.449500, lng: 125.811000, municipality: 'Tagum City' }, // Mary Jane Talisic (Apokon, Davao Medical Center)
-
-  // Panabo City Corridor (Master Registry Verified)
-  'DDN-398': { lat: 7.307800, lng: 125.683300, municipality: 'Panabo City' }, // Liza Calibud (Crystal Plain, Gredu)
-  'DDN-399': { lat: 7.309000, lng: 125.685000, municipality: 'Panabo City' }, // Charmae Queen Carzon (Villa Felisa Subd., San Vicente)
-
-  // Carmen Corridor (Master Registry Verified)
-  'DDN-397': { lat: 7.358600, lng: 125.706100, municipality: 'Carmen' }, // Maria Fe N. Gomez (Carmen Market)
-  'DDN-425': { lat: 7.361000, lng: 125.708000, municipality: 'Carmen' }, // April Jean Garpao (Baranggay Tuganay, P7)
-
-  // Talaingod Corridor (Master Registry Verified)
-  'DDN-1424': { lat: 7.653600, lng: 125.641700, municipality: 'Talaingod' }, // Marjorie Andil (Saw Mill, Sto. Nino)
-  'DDN-1752': { lat: 7.655000, lng: 125.643000, municipality: 'Talaingod' }, // Mae Ann Paraiso (Nakasaka, Sto. Niño)
-
-  // Kapalong Corridor (Master Registry Verified)
-  'DDN-1523': { lat: 7.585500, lng: 125.707200, municipality: 'Kapalong' }, // Annabelle Semblante (Capungagan)
-
-  // Samal Corridor (Master Registry Verified)
-  'DDN-2001': { lat: 7.073600, lng: 125.712800, municipality: 'Samal' }, // Kirsten Joy Alcantara (Babak)
-  'DDN-2002': { lat: 7.085000, lng: 125.719000, municipality: 'Samal' }, // Darwin Dave Morales (Peñaplata)
-  'DDN-2003': { lat: 7.052000, lng: 125.705000, municipality: 'Samal' }  // Rosalie M. Villar (Kaputian)
+  // Tagum City Corridor (22 Booths)
+  'DDN-350': { lat: 7.460470, lng: 125.784925, municipality: 'Tagum City' },
+  'DDN-351': { lat: 7.478119, lng: 125.805107, municipality: 'Tagum City' },
+  'DDN-353': { lat: 7.451125, lng: 125.825055, municipality: 'Tagum City' },
+  'DDN-422': { lat: 7.422684, lng: 125.807161, municipality: 'Tagum City' },
+  'DDN-423': { lat: 7.373690, lng: 125.750205, municipality: 'Tagum City' },
+  'DDN-424': { lat: 7.432682, lng: 125.815427, municipality: 'Tagum City' },
+  'DDN-760': { lat: 7.465273, lng: 125.825592, municipality: 'Tagum City' },
+  'DDN-769': { lat: 7.423330, lng: 125.828964, municipality: 'Tagum City' },
+  'DDN-770': { lat: 7.418289, lng: 125.797697, municipality: 'Tagum City' },
+  'DDN-772': { lat: 7.431548, lng: 125.800559, municipality: 'Tagum City' },
+  'DDN-775': { lat: 7.464045, lng: 125.776568, municipality: 'Tagum City' },
+  'DDN-776': { lat: 7.453310, lng: 125.781870, municipality: 'Tagum City' },
+  'DDN-777': { lat: 7.378367, lng: 125.755851, municipality: 'Tagum City' },
+  'DDN-778': { lat: 7.480606, lng: 125.751107, municipality: 'Tagum City' },
+  'DDN-779': { lat: 7.443478, lng: 125.775321, municipality: 'Tagum City' },
+  'DDN-780': { lat: 7.424187, lng: 125.809429, municipality: 'Tagum City' },
+  'DDN-1477': { lat: 7.341469, lng: 125.773863, municipality: 'Tagum City' },
+  'DDN-1586': { lat: 7.374190, lng: 125.757967, municipality: 'Tagum City' },
+  'DDN-1591': { lat: 7.387508, lng: 125.760861, municipality: 'Tagum City' },
+  'DDN-774': { lat: 7.418365, lng: 125.823344, municipality: 'Tagum City' },
+  'DDN-1778': { lat: 7.463334, lng: 125.763312, municipality: 'Tagum City' },
+  'DDN-1784': { lat: 7.398164, lng: 125.791198, municipality: 'Tagum City' },
+  // Panabo City Corridor (20 Booths)
+  'DDN-398': { lat: 7.293308, lng: 125.667908, municipality: 'Panabo City' },
+  'DDN-399': { lat: 7.320821, lng: 125.668614, municipality: 'Panabo City' },
+  'DDN-400': { lat: 7.312217, lng: 125.688231, municipality: 'Panabo City' },
+  'DDN-429': { lat: 7.307471, lng: 125.702746, municipality: 'Panabo City' },
+  'DDN-430': { lat: 7.274260, lng: 125.678783, municipality: 'Panabo City' },
+  'DDN-756': { lat: 7.304127, lng: 125.682994, municipality: 'Panabo City' },
+  'DDN-758': { lat: 7.293512, lng: 125.712846, municipality: 'Panabo City' },
+  'DDN-761': { lat: 7.291958, lng: 125.668823, municipality: 'Panabo City' },
+  'DDN-763': { lat: 7.305050, lng: 125.689640, municipality: 'Panabo City' },
+  'DDN-764': { lat: 7.309127, lng: 125.665852, municipality: 'Panabo City' },
+  'DDN-768': { lat: 7.284526, lng: 125.687476, municipality: 'Panabo City' },
+  'DDN-908': { lat: 7.288113, lng: 125.670530, municipality: 'Panabo City' },
+  'DDN-909': { lat: 7.310239, lng: 125.696477, municipality: 'Panabo City' },
+  'DDN-1475': { lat: 7.320189, lng: 125.565709, municipality: 'Panabo City' },
+  'DDN-1476': { lat: 7.309606, lng: 125.603768, municipality: 'Panabo City' },
+  'DDN-1751': { lat: 7.300470, lng: 125.631770, municipality: 'Panabo City' },
+  'DDN-1806': { lat: 7.314461, lng: 125.682721, municipality: 'Panabo City' },
+  'DDN-1797': { lat: 7.319028, lng: 125.687553, municipality: 'Panabo City' },
+  'DDN-1824': { lat: 7.338700, lng: 125.649243, municipality: 'Panabo City' },
+  'DDN-765': { lat: 7.305605, lng: 125.667983, municipality: 'Panabo City' },
+  // Carmen Corridor (15 Booths)
+  'DDN-397': { lat: 7.355234, lng: 125.706468, municipality: 'Carmen' },
+  'DDN-425': { lat: 7.368167, lng: 125.723424, municipality: 'Carmen' },
+  'DDN-426': { lat: 7.355117, lng: 125.705739, municipality: 'Carmen' },
+  'DDN-427': { lat: 7.356070, lng: 125.711712, municipality: 'Carmen' },
+  'DDN-755': { lat: 7.371467, lng: 125.721702, municipality: 'Carmen' },
+  'DDN-1717': { lat: 7.345307, lng: 125.733234, municipality: 'Carmen' },
+  'DDN-910': { lat: 7.336516, lng: 125.698739, municipality: 'Carmen' },
+  'DDN-1590': { lat: 7.346484, lng: 125.686672, municipality: 'Carmen' },
+  'DDN-428': { lat: 7.355624, lng: 125.705198, municipality: 'Carmen' },
+  'DDN-1780': { lat: 7.337993, lng: 125.723079, municipality: 'Carmen' },
+  'DDN-1779': { lat: 7.348620, lng: 125.722270, municipality: 'Carmen' },
+  'DDN-1783': { lat: 7.368869, lng: 125.631514, municipality: 'Carmen' },
+  'DDN-1823': { lat: 7.359248, lng: 125.630432, municipality: 'Carmen' },
+  'DDN-1782': { lat: 7.358734, lng: 125.682120, municipality: 'Carmen' },
+  'DDN-1781': { lat: 7.349206, lng: 125.677993, municipality: 'Carmen' },
+  // Sto. Tomas Corridor (24 Booths)
+  'DDN-1723': { lat: 7.546910, lng: 125.688077, municipality: 'Sto. Tomas' },
+  'DDN-773': { lat: 7.548439, lng: 125.645542, municipality: 'Sto. Tomas' },
+  'DDN-1741': { lat: 7.561543, lng: 125.616265, municipality: 'Sto. Tomas' },
+  'DDN-754': { lat: 7.532151, lng: 125.651232, municipality: 'Sto. Tomas' },
+  'DDN-767': { lat: 7.522976, lng: 125.627928, municipality: 'Sto. Tomas' },
+  'DDN-1422': { lat: 7.494953, lng: 125.599426, municipality: 'Sto. Tomas' },
+  'DDN-1742': { lat: 7.557742, lng: 125.618332, municipality: 'Sto. Tomas' },
+  'DDN-1703': { lat: 7.483383, lng: 125.596618, municipality: 'Sto. Tomas' },
+  'DDN-1721': { lat: 7.510548, lng: 125.625135, municipality: 'Sto. Tomas' },
+  'DDN-1715': { lat: 7.514462, lng: 125.622125, municipality: 'Sto. Tomas' },
+  'DDN-1474': { lat: 7.534522, lng: 125.618364, municipality: 'Sto. Tomas' },
+  'DDN-771': { lat: 7.527599, lng: 125.617978, municipality: 'Sto. Tomas' },
+  'DDN-1722': { lat: 7.532014, lng: 125.630350, municipality: 'Sto. Tomas' },
+  'DDN-352': { lat: 7.484155, lng: 125.716352, municipality: 'Sto. Tomas' },
+  'DDN-762': { lat: 7.522965, lng: 125.613093, municipality: 'Sto. Tomas' },
+  'DDN-1524': { lat: 7.527528, lng: 125.613392, municipality: 'Sto. Tomas' },
+  'DDN-1716': { lat: 7.510463, lng: 125.600806, municipality: 'Sto. Tomas' },
+  'DDN-1738': { lat: 7.520821, lng: 125.697598, municipality: 'Sto. Tomas' },
+  'DDN-1739': { lat: 7.529198, lng: 125.693183, municipality: 'Sto. Tomas' },
+  'DDN-1740': { lat: 7.553908, lng: 125.624058, municipality: 'Sto. Tomas' },
+  'DDN-1743': { lat: 7.558333, lng: 125.624444, municipality: 'Sto. Tomas' },
+  'DDN-1794': { lat: 7.523546, lng: 125.700598, municipality: 'Sto. Tomas' },
+  'DDN-1799': { lat: 7.485317, lng: 125.592014, municipality: 'Sto. Tomas' },
+  'DDN-1801': { lat: 7.480434, lng: 125.591228, municipality: 'Sto. Tomas' },
+  // Talaingod Corridor (2 Booths)
+  'DDN-1752': { lat: 7.629899, lng: 125.605769, municipality: 'Talaingod' },
+  'DDN-1424': { lat: 7.626863, lng: 125.616652, municipality: 'Talaingod' },
+  // Kapalong Corridor (2 Booths)
+  'DDN-1523': { lat: 7.621407, lng: 125.703117, municipality: 'Kapalong' },
+  'DDN-402': { lat: 7.597889, lng: 125.707191, municipality: 'Kapalong' },
+  // Samal Corridor (31 Booths)
+  'DDN-1281': { lat: 7.131028, lng: 125.711256, municipality: 'Samal' },
+  'DDN-1284': { lat: 7.130260, lng: 125.696882, municipality: 'Samal' },
+  'DDN-1285': { lat: 7.147230, lng: 125.708615, municipality: 'Samal' },
+  'DDN-1286': { lat: 7.080133, lng: 125.705328, municipality: 'Samal' },
+  'DDN-1288': { lat: 7.162784, lng: 125.730500, municipality: 'Samal' },
+  'DDN-1293': { lat: 7.154390, lng: 125.693374, municipality: 'Samal' },
+  'DDN-1294': { lat: 7.135420, lng: 125.692080, municipality: 'Samal' },
+  'DDN-1295': { lat: 7.141375, lng: 125.689222, municipality: 'Samal' },
+  'DDN-1296': { lat: 7.130772, lng: 125.701228, municipality: 'Samal' },
+  'DDN-1299': { lat: 7.139878, lng: 125.688614, municipality: 'Samal' },
+  'DDN-1300': { lat: 7.173820, lng: 125.718752, municipality: 'Samal' },
+  'DDN-1302': { lat: 7.077480, lng: 125.684133, municipality: 'Samal' },
+  'DDN-1303': { lat: 7.098433, lng: 125.705961, municipality: 'Samal' },
+  'DDN-1305': { lat: 7.097374, lng: 125.710370, municipality: 'Samal' },
+  'DDN-1306': { lat: 7.111832, lng: 125.712829, municipality: 'Samal' },
+  'DDN-1308': { lat: 7.144947, lng: 125.724269, municipality: 'Samal' },
+  'DDN-1588': { lat: 7.119867, lng: 125.721334, municipality: 'Samal' },
+  'DDN-1629': { lat: 7.128747, lng: 125.692167, municipality: 'Samal' },
+  'DDN-1631': { lat: 7.018875, lng: 125.768859, municipality: 'Samal' },
+  'DDN-1632': { lat: 7.038510, lng: 125.753050, municipality: 'Samal' },
+  'DDN-1634': { lat: 7.067369, lng: 125.754003, municipality: 'Samal' },
+  'DDN-1679': { lat: 7.061630, lng: 125.721299, municipality: 'Samal' },
+  'DDN-1714': { lat: 7.060608, lng: 125.722195, municipality: 'Samal' },
+  'DDN-1737': { lat: 7.062732, lng: 125.725706, municipality: 'Samal' },
+  'DDN-1757': { lat: 7.026253, lng: 125.766835, municipality: 'Samal' },
+  'DDN-1758': { lat: 7.049746, lng: 125.755539, municipality: 'Samal' },
+  'DDN-1756': { lat: 7.089701, lng: 125.706518, municipality: 'Samal' },
+  'DDN-1759': { lat: 7.002936, lng: 125.762211, municipality: 'Samal' },
+  'DDN-1761': { lat: 7.008400, lng: 125.756400, municipality: 'Samal' },
+  'DDN-1764': { lat: 6.981264, lng: 125.732830, municipality: 'Samal' },
+  'DDN-1765': { lat: 6.990609, lng: 125.733920, municipality: 'Samal' },
 };
 
 const MASTER_REGISTRY_BOOTH_COORDINATES = AUTHENTIC_MASTER_REGISTRY_COORDINATES;
 
-// 1. Raw Tellers Data (78 Active Primary Sales Representatives)
+// 1. Raw Tellers Data (116 Active Primary Sales Representatives from September 2026 Masterlist)
 const RAW_TELLERS = [
-  { id: "DDN005-SR352", name: "Jehramea Marte", address: "Near Baranggay Hall, Salvacion, Sto. Tomas", booth: "DDN-352" },
-  { id: "DDN005-SR754", name: "Belle Amor Quizo", address: "New Katipunan, Feeder Road 3, Sto. Tomas", booth: "DDN-754" },
-  { id: "DDN005-SR762", name: "Davilyn Gelito", address: "Sabungan ni NENE, Tibal.og, Sto. Tomas", booth: "DDN-762" },
-  { id: "DDN005-SR767", name: "Aprilyn V. Cahintong", address: "Feeder Road 1-Azucena Street, Sto. Tomas", booth: "DDN-767" },
-  { id: "DDN005-SR771", name: "Mary Joy L. Pobre", address: "Bilyaran, Feeder Road 2, Sto. Tomas", booth: "DDN-771" },
-  { id: "DDN005-SR773", name: "Cheryl Mae Parame", address: "Purok 3 New Katipunan, Sto. Tomas", booth: "DDN-773" },
-  { id: "DDN005-SR1422", name: "Marcia Cabudlan", address: "Bobongon, Sto. Tomas", booth: "DDN-1422" },
-  { id: "DDN005-SR1474", name: "Joycedyl Buhia", address: "P#9 Kapwa, Tibal.og, Sto. Tomas", booth: "DDN-1474" },
-  { id: "DDN005-SR1524", name: "Mary Joy Blanco", address: "Darluz Subdivision, Sto. Tomas", booth: "DDN-1524" },
-  { id: "DDN005-SR765", name: "JENYVEV H. TURA", address: "BUGTONG LUBI ROAD, BALAGUNAN, Sto. Tomas", booth: "DDN-1703" },
-  { id: "DDN005-SR1703", name: "Trexy Echaverie", address: "BUGTONG LUBI ROAD, BALAGUNAN, Sto. Tomas", booth: "DDN-1703" },
-  { id: "DDN005-SR1715", name: "Sherymae Oyon-Oyon", address: "Purok 1B, Menze, Sto. Tomas", booth: "DDN-1715" },
-  { id: "DDN005-SR1721", name: "Evelyn Refugio", address: "P-20C, Veterans Tibal Og, Sto. Tomas", booth: "DDN-1721" },
-  { id: "DDN005-SR1722", name: "Janice Labisto", address: "P18 Feeder Rd. 3, Sto. Tomas", booth: "DDN-1722" },
-  { id: "DDN005-SR1723", name: "Milojean Edillor Balatayo", address: "P1, Kimamon, Sto. Tomas", booth: "DDN-1723" },
-  { id: "DDN005-SR1738", name: "Marivel Estrada", address: "P-Magsaysay Lunga-og, Sto. Tomas", booth: "DDN-1738" },
-  { id: "DDN005-SR1739", name: "Daisy Mae Senadero Gementiza", address: "Purok Bonifacio, Lungaog, Sto. Tomas", booth: "DDN-1739" },
-  { id: "DDN005-SR1740", name: "Laurence Ibra", address: "P15 Feeder Rd. 8, Tibal-og, Sto. Tomas", booth: "DDN-1740" },
-  { id: "DDN005-SR1741", name: "Ashley Parame", address: "P16 Bulahan, Tibal-og, Sto. Tomas", booth: "DDN-1741" },
-  { id: "DDN005-SR1742", name: "Honey Mae Julito", address: "P16 San Isidro, Tibal-og, Sto. Tomas", booth: "DDN-1742" },
-  { id: "DDN005-SR1743", name: "Michelle Dela Peña", address: "P15 Feeder Rd 9, Tibal-og, Sto. Tomas", booth: "DDN-1743" },
-  { id: "DDN005-SR350", name: "Mary Lovelyn Ramos", address: "Pagsabangan Road, Brgy Mankilam, Tagum", booth: "DDN-350" },
-  { id: "DDN005-SR351", name: "Beverly Alao", address: "Pob. La Filipina, Tagum", booth: "DDN-351" },
-  { id: "DDN005-SR353", name: "Pretty Jane Tandaan", address: "Tipas Street, Tagum", booth: "DDN-353" },
-  { id: "DDN005-SR402", name: "Ruthchelle Joy Dela Cerna", address: "Purok 11C, Ilaboon Maniki, Kapalong", booth: "DDN-402" },
-  { id: "DDN005-SR424", name: "Mary Joy Apoc", address: "Purok 3D, Apokon, Tagum City", booth: "DDN-424" },
-  { id: "DDN005-SR760", name: "Elvie Oñez", address: "Merville Subdivision, Magdum, Tagum City", booth: "DDN-760" },
-  { id: "DDN005-SR766", name: "Analyn Lucida", address: "Near Cemetery, Pagsabangan, Tagum City", booth: "DDN-766" },
-  { id: "DDN005-SR769", name: "Mary Jane Talisic", address: "Davao Medical Center, Apokon, Tagum", booth: "DDN-769" },
-  { id: "DDN005-SR770", name: "Jianalyn Dayaday", address: "Timog Ave, Tagum City", booth: "DDN-770" },
-  { id: "DDN005-SR774", name: "Radin Mayaki Weng", address: "First Oriental Street, Tagum City", booth: "DDN-774" },
-  { id: "DDN005-SR775", name: "Cendy Mae P. Java", address: "Uraya Subd, Circumferential Road, Tagum", booth: "DDN-775" },
-  { id: "DDN005-SR1424", name: "Marjorie Andil", address: "Purok 4B Saw Mill, Sto. Nino Talaingod", booth: "DDN-1424" },
-  { id: "DDN005-SR1523", name: "Annabelle Semblante", address: "Capungagan, Kapalong", booth: "DDN-1523" },
-  { id: "DDN005-SR1752", name: "Mae Ann Paraiso", address: "Nakasaka, Sto. Niño Talaingod", booth: "DDN-1752" },
-  { id: "DDN005-SR778", name: "Dyrah Mercaderos", address: "P. Pagkakaisa, Pagsabangan, Tagum", booth: "DDN-778" },
-  { id: "DDN005-SR1778", name: "Mary Joeline Sanico", address: "P-Banana, Mankilam, Tagum", booth: "DDN-1778" },
-  { id: "DDN005-SR397", name: "Maria Fe N. Gomez", address: "Near Carmen Market, Carmen", booth: "DDN-397" },
-  { id: "DDN005-SR422", name: "Amerita Hipos", address: "Purok Durian, Visayan Village, Tagum", booth: "DDN-422" },
-  { id: "DDN005-SR423", name: "Realiza Migullas", address: "P-Santan, Brgy. Bincungan, Tagum", booth: "DDN-423" },
-  { id: "DDN005-SR425", name: "April Jean Garpao", address: "P7, Baranggay Tuganay, Carmen", booth: "DDN-425" },
-  { id: "DDN005-SR426", name: "Marites Damaulao", address: "Carmen Public Market, Carmen", booth: "DDN-426" },
-  { id: "DDN005-SR427", name: "Marnie Royo", address: "ICARE, Barangay Ising, Carmen", booth: "DDN-427" },
-  { id: "DDN005-SR428", name: "Nobelyn Baya", address: "Ising Carmen Terminal", booth: "DDN-428" },
-  { id: "DDN005-SR755", name: "Roxan Gladys N. Abellanosa", address: "Poblacion, Tuganay, Carmen", booth: "DDN-755" },
-  { id: "DDN005-SR772", name: "Patricia Manova Coquilla", address: "Purok Palmera, Visayan Village, Tagum", booth: "DDN-772" },
-  { id: "DDN005-SR776", name: "Josephine L. Deligero", address: "Aala Road, Provincial Capitol, Tagum City", booth: "DDN-776" },
-  { id: "DDN005-SR777", name: "Glenda Olingay", address: "Bincungan 2, Tagum City", booth: "DDN-777" },
-  { id: "DDN005-SR779", name: "Lea Grace Progella", address: "Mabini St. San Miguel, Tagum", booth: "DDN-779" },
-  { id: "DDN005-SR780", name: "Azenith Tuasoc", address: "Purok Macopa, Visayan Village, Tagum City", booth: "DDN-780" },
-  { id: "DDN005-SR910", name: "May Ann Diana", address: "Brgy. Sto Nino, Carmen", booth: "DDN-910" },
-  { id: "DDN005-SR1477", name: "Melanie Sarawi", address: "P#6 Libuganon, Tagum City", booth: "DDN-1477" },
-  { id: "DDN005-SR1586", name: "Ana May Delos Santos", address: "Purok Sunflower, Bincungan", booth: "DDN-1586" },
-  { id: "DDN005-SR1590", name: "Erma Serdan", address: "Purok Anahaw, Asuncion, Carmen", booth: "DDN-1590" },
-  { id: "DDN005-SR1591", name: "Lenie Orillo", address: "Purok Rose Bincungan, Tagum", booth: "DDN-1591" },
-  { id: "DDN005-SR1717", name: "Shiela Ramirez", address: "P-2B Tuganay", booth: "DDN-1717" },
-  { id: "DDN005-SR1780", name: "Marelyn Baranda", address: "P-5 Taba, Carmen", booth: "DDN-1780" },
-  { id: "DDN005-SR1779", name: "Rowena Ibarra", address: "P-6 Taba, Carmen", booth: "DDN-1779" },
-  { id: "DDN005-SR398", name: "Liza Calibud", address: "Crystal Plain, Barangay Gredu, Panabo City", booth: "DDN-398" },
-  { id: "DDN005-SR399", name: "Charmae Queen Carzon", address: "Purok Villa Felisa Subd., Panabo City", booth: "DDN-399" },
-  { id: "DDN005-SR400", name: "Jocelle Balayo", address: "Adlaon Street, Brgy. Sto.Niño, Panabo City", booth: "DDN-400" },
-  { id: "DDN005-SR429", name: "Rovie Mae Ticong", address: "Purok 16, San Vicente, Panabo City", booth: "DDN-429" },
-  { id: "DDN005-SR430", name: "Jeszele Mae Toliong", address: "Purok Cogon 1, Brgy. J.P. Laurel, Panabo", booth: "DDN-430" },
-  { id: "DDN005-SR756", name: "Rheamine Ligao", address: "Teachers Village, Panabo City", booth: "DDN-756" },
-  { id: "DDN005-SR758", name: "Loverly C. Olivarez", address: "DICT Bulk Packing Entrance, Panabo", booth: "DDN-758" },
-  { id: "DDN005-SR761", name: "Danilyn Bejor", address: "Diamond Street, Crystal Plain, Panabo City", booth: "DDN-761" },
-  { id: "DDN005-SR763", name: "Floreste Alderite", address: "Mabitad Extension Carenderia, Panabo City", booth: "DDN-763" },
-  { id: "DDN005-SR764", name: "Nicmel Tabon", address: "P1-Durian, New Visayas, Panabo City", booth: "DDN-764" },
-  { id: "DDN005-SR768", name: "Almera Digamon", address: "Purok Marang, Cagangohan, Panabo", booth: "DDN-768" },
-  { id: "DDN005-SR908", name: "Joreyna Mae Jamin", address: "Phanosa Village, P-tagumpay, Gredu, Panabo", booth: "DDN-908" },
-  { id: "DDN005-SR909", name: "Jane Lee Decrepito", address: "Tadeco Village Road, San Vicente, Panabo", booth: "DDN-909" },
-  { id: "DDN005-SR1475", name: "Luzviminda Galasatan", address: "P#1 Consolacion, Panabo City", booth: "DDN-1475" },
-  { id: "DDN005-SR1476", name: "May Inahid", address: "P#5 Cacao, Panabo City", booth: "DDN-1476" },
-  { id: "DDN005-SR1750", name: "Yzalou Dumaguing", address: "P7 Cacao, Panabo", booth: "DDN-1750" },
-  { id: "DDN005-SR1751", name: "Shereel Alo Villabas", address: "P2 Katipunan, Panabo", booth: "DDN-1751" },
-  { id: "DDN005-SR1783", name: "Marian Carrillo", address: "Purok 3 Tubod Carmen", booth: "DDN-1783" },
-  { id: "DDN005-SR1784", name: "Aileen Paradero", address: "Purok Alambre San Isidro Tagum City", booth: "DDN-1784" },
-  { id: "DDN005-SR1823", name: "Precious Nica Torrefiel", address: "Purok 3A Upper Tubod Carmen", booth: "DDN-1823" }
+  { id: "DDN005-SR350", name: "MARY LOVELYN RAMOS", address: "CAPITOL ROAD, MANKILAM, Tagum City", booth: "DDN-350", posSerial: "V3A7249S20344", phone: "9269669474" },
+  { id: "DDN005-SR351", name: "BEVERLY ALAO", address: "PUROK 2-B, LA FILIPINA, Tagum City", booth: "DDN-351", posSerial: "V302248820059", phone: "9556421602" },
+  { id: "DDN005-SR353", name: "PRETTY JANE TANDAAN", address: "PUROK DURIAN TIPAZ ST., MAGUGPO EAST, Tagum City", booth: "DDN-353", posSerial: "V302248820755", phone: "9911813063" },
+  { id: "DDN005-SR-422", name: "AMERITA HIPOS", address: "PUROK DURIAN, VISAYAN VILLAGE, Tagum City", booth: "DDN-422", posSerial: "V302248820077", phone: "9977345836" },
+  { id: "DDN005-SR423", name: "REALIZA MIGULLAS", address: "PUROK SANTAN, BINCUNGAN 1, Tagum City", booth: "DDN-423", posSerial: "V302248720160", phone: "9974314925" },
+  { id: "DDN005-SR424", name: "MARYJOY APOC", address: "PRK SUNSHINE, VISAYAN VILLAGE, Tagum City", booth: "DDN-424", posSerial: "V302248820035", phone: "9518178796" },
+  { id: "DDN005-SR760", name: "Elvie Fabon Oñez", address: "PUROK 9, MERVILLE SUB., MAGDUM, Tagum City", booth: "DDN-760", posSerial: "V302244720238", phone: "9947656024" },
+  { id: "DDN005-SR769", name: "Mary Jane Verano", address: "DAVAO REGIONAL MEDICAL CENTER, APOKON RD, APOKON, Tagum City", booth: "DDN-769", posSerial: "V3A7249R20196", phone: "9974900676" },
+  { id: "DDN005-SR770", name: "JIANALYN T. DAYADAY", address: "TIMOG AVE, VISAYAN VILLAGE, Tagum City", booth: "DDN-770", posSerial: "V3A7249S20259", phone: "9817906361" },
+  { id: "DDN005-SR772", name: "Patricia Manova Coquilla", address: "Near Rose pharmacy, Paulino Manigo, VISAYAN VILLAGE, Tagum City", booth: "DDN-772", posSerial: "V3A7249S20263", phone: "9654352383" },
+  { id: "DDN005-SR775", name: "CENDY MAEJOY P.JAVA", address: "URAYA SUBD. ENTRANCE, MANKILAM, Tagum City", booth: "DDN-775", posSerial: "V3A7249R20298", phone: "9639432109" },
+  { id: "DDN005-SR776", name: "JOSEPHINE LARGO", address: "CAPITOL DRIVE, Mankilam, Tagum City", booth: "DDN-776", posSerial: "V302248820606", phone: "9526209305" },
+  { id: "DDN005-SR777", name: "Glenda Olingay", address: "PUROK WALING-WALING, BINCUNGAN, Tagum City", booth: "DDN-777", posSerial: "V3A7249R20075", phone: "9677134266" },
+  { id: "DDN005-SR778", name: "LEA GRACE PROGE;;A", address: "PUROK PAGKAKAISA, PAGSABANGAN, Tagum City", booth: "DDN-778", posSerial: "V3A7249S20044", phone: "" },
+  { id: "DDN005-SR779", name: "JESSEL B. PABAYO", address: "Sampaguita st.prk.6, SAN MIGUEL CAMP 4., Tagum City", booth: "DDN-779", posSerial: "V3A7249R20141", phone: "9243741215" },
+  { id: "DDN005-SR780", name: "AZENITH B. TUASOC", address: "PUROK MACOPA, VISAYAN VILLAGE, Tagum City", booth: "DDN-780", posSerial: "V30224CG20625", phone: "9971007208" },
+  { id: "DDN005-SR1477", name: "MELANIE A. SARAWI", address: "PUROK 6, LIBUGANON, Tagum City", booth: "DDN-1477", posSerial: "V30224CG20594", phone: "9755686527" },
+  { id: "DDN005-SR1586", name: "ANA MAY M. DELO SANTOS", address: "PUROK SUNFLOWER, BINCUNGAN, Tagum City", booth: "DDN-1586", posSerial: "V3A7249R20207", phone: "9051055419" },
+  { id: "DDN005-SR1591", name: "LENIE ORILLO", address: "PUROK ROSE, BINCUNGAN, Tagum City", booth: "DDN-1591", posSerial: "V302244720266", phone: "9705204165" },
+  { id: "DDN005-SR774", name: "RADIN MAYAKI WENG", address: "NEAR EPARK, FIRST ORIENTAL ST, PRK.1B, APOKON, Tagum City", booth: "DDN-774", posSerial: "V30224CG20596", phone: "9924172418" },
+  { id: "DDN005-SR1778", name: "MARY JOELINE SANICO RAMO", address: "Purok Banana, Mankilam, Tagum City", booth: "DDN-1778", posSerial: "V302248820585", phone: "9387083661" },
+  { id: "DDN005-SR1784", name: "AILEEN L. PARADERO", address: "PUROK ALAMBRE, SAN ISIDRO, Tagum City", booth: "DDN-1784", posSerial: "", phone: "" },
+  { id: "DDN005-SR398", name: "LIZA P. CALIBUD", address: "PUROK MAHARLIKA, CRYSTAL PLAIN, GREDU, Panabo City", booth: "DDN-398", posSerial: "V3A7249R20224", phone: "" },
+  { id: "DDN005-SR399", name: "CHARMAE QUEEN CARZON", address: "PUROK 18 UPPER FELISA, NEW VISAYAS, Panabo City", booth: "DDN-399", posSerial: "V3A7249R20265", phone: "9940843620" },
+  { id: "DDN005-SR400", name: "JOCELLE S. BALAYO", address: "PUROK 18, ADLAON ST., STO NIÑO, Panabo City", booth: "DDN-400", posSerial: "V3A7249S20372", phone: "" },
+  { id: "DDN005-SR429", name: "ROVIE MAE TICONG", address: "PUROK 17, SAN VICENTE, Panabo City", booth: "DDN-429", posSerial: "V3A7249R20119", phone: "9098203101" },
+  { id: "DDN005-SR430", name: "JESZELE MAE TOLIONG", address: "COGON 1, JP LAUREL, Panabo City", booth: "DDN-430", posSerial: "V3A7249S20022", phone: "9518096113" },
+  { id: "DDN006-SR756", name: "RHEAMINE LIGAO", address: "MAGSAYSAY ST., PRK ATIS TEACHERS VILLAGE, STO NIÑO, Panabo City", booth: "DDN-756", posSerial: "V30224CG20660", phone: "9670368610" },
+  { id: "DDN007-SR758", name: "LOVERLY OLIVAREZ", address: "DICT Breakbulk packing entrance, SAN PEDRO, Panabo City", booth: "DDN-758", posSerial: "V302248820292", phone: "" },
+  { id: "DDN005-SR761", name: "DANILYN BEJOR", address: "CRYSTAL PLAIN, SUBD., GREDU, Panabo City", booth: "DDN-761", posSerial: "V302248820500", phone: "9518144877" },
+  { id: "DDN007-SR763", name: "FLORESTE ALDERITE", address: "Prk Santol, STO NIÑO, Panabo City", booth: "DDN-763", posSerial: "V302248820065", phone: "9673003896" },
+  { id: "DDN005-SR764", name: "NICMEL SALVO TABON", address: "PUROK 1 DURIAN, NEW VISAYAS, Panabo City", booth: "DDN-764", posSerial: "V3A7249R20221", phone: "9485332608" },
+  { id: "DDN005-SR768", name: "ALMERA DIGAMON", address: "PUROK MARANG, CAGANGOHAN, Panabo City", booth: "DDN-768", posSerial: "V302248820001", phone: "" },
+  { id: "DDN005-SR908", name: "JOREYNA MAE A. JAMIN", address: "PUROK PANHOSA, GREDU, Panabo City", booth: "DDN-908", posSerial: "V302248820167", phone: "9637562177" },
+  { id: "DDN005-SR909", name: "JANE LEE DECREPITO", address: "PUROK 6, SAN VICENTE, Panabo City", booth: "DDN-909", posSerial: "V3A7249S20208", phone: "9070911693" },
+  { id: "DDN005-SR1475", name: "LUZVIMINDA GALASATAN", address: "PUROK 1, CONSOLACION, Panabo City", booth: "DDN-1475", posSerial: "V30224CG20603", phone: "9639409257" },
+  { id: "DDN005-SR1476", name: "MAY A.INAHID", address: "PUROK 5, CACAO, Panabo City", booth: "DDN-1476", posSerial: "V30224CG20587", phone: "9638368099" },
+  { id: "DDN005-SR1751", name: "JUNAMIE ACDAL", address: "PUROK 2, KATIPUNAN, Panabo City", booth: "DDN-1751", posSerial: "V3A7249R20017", phone: "" },
+  { id: "DDN005-SR1806", name: "Arturo Dela Peña", address: "Purok 6 A Peda, San Francisco, Panabo City", booth: "DDN-1806", posSerial: "", phone: "" },
+  { id: "DDN005-SR1797", name: "Jolina Albistros", address: "Orchid St, Salvcaion, Panabo City", booth: "DDN-1797", posSerial: "", phone: "" },
+  { id: "DDN005-SR1824", name: "Anna Carog", address: "PUROK 2 CROSSING PILAR, SOUTHERN DAVAO, Panabo City", booth: "DDN-1824", posSerial: "", phone: "" },
+  { id: "DDN005-SR765", name: "LELET F. LAGROSA", address: "PUROK MANGGA, NEW VISAYAS, Panabo City", booth: "DDN-765", posSerial: "", phone: "" },
+  { id: "DDN005-SR397", name: "Honey Joy Estoque", address: "PUROK 7 PUBLIC MARKET, ISING, ISING, Carmen", booth: "DDN-397", posSerial: "V302244721530", phone: "" },
+  { id: "DDN005-SR425", name: "APRIL JEAN S. GARPAO", address: "PUROK 7, TUGANAY, Carmen", booth: "DDN-425", posSerial: "V302248720169", phone: "9535623248" },
+  { id: "DDN005-SR426", name: "MARITES DAMAULAO", address: "PUROK 7 PUBLIC MARKET, ISING, ISING, Carmen", booth: "DDN-426", posSerial: "V302248820948", phone: "9939425915" },
+  { id: "DDN005-SR427", name: "MARNIE D. ROYO", address: "PUROK 6 I CARE, ISING, Carmen", booth: "DDN-427", posSerial: "V302248720038", phone: "9385582123" },
+  { id: "DDN005-SR755", name: "Roxan Gladys G. Abellanosa", address: "PUROK 5 A POB., TUGANAY, Carmen", booth: "DDN-755", posSerial: "V302248820931", phone: "9538773687" },
+  { id: "DDN005-SR1717", name: "SHEILA ROBILLO RAMIREZ", address: "PUROK 2B, TUGANAY, Carmen", booth: "DDN-1717", posSerial: "V30224CG20610", phone: "9543025522" },
+  { id: "DDN005-SR910", name: "May Ann Diana", address: "PUROK 4A, STO. NIÑO, Carmen", booth: "DDN-910", posSerial: "V3A7249S20262", phone: "9534955156" },
+  { id: "DDN005-SR1590", name: "Erma Serdan", address: "PUROK 2, ASUNCION, Carmen", booth: "DDN-1590", posSerial: "V302244720113", phone: "9461756717" },
+  { id: "DDN005-SR428", name: "Nobelyn Baya", address: "PUROK 7 PUBLIC MARKET, ISING, ISING, Carmen", booth: "DDN-428", posSerial: "V3A7249S20053", phone: "9977293921" },
+  { id: "DDN005-SR1780", name: "Estela Villaraiz Fostanes", address: "P-5  TABA, ISING, Carmen", booth: "DDN-1780", posSerial: "V3A7249S20044", phone: "" },
+  { id: "DDN005-SR1779", name: "Rowena Busain Ibarra", address: "P-6  TABA, ISING, Carmen", booth: "DDN-1779", posSerial: "V302248820822", phone: "" },
+  { id: "DDN005-SR1783", name: "MARIAN CARRILLO", address: "PUROK 3, TUBOD, Carmen", booth: "DDN-1783", posSerial: "", phone: "" },
+  { id: "DDN005-SR1823", name: "Melisa T. LaugLaug", address: "Purok 3A Upper, TUBOD, Carmen", booth: "DDN-1823", posSerial: "", phone: "9940881766" },
+  { id: "DDN005-SR1782", name: "Mary Jane Fernandez", address: "Purok 6, Cebulano, Carmen", booth: "DDN-1782", posSerial: "", phone: "" },
+  { id: "DDN005-SR1781", name: "Merlyn Denoyo", address: "Purok 1A Binangay, Cebulano, Carmen", booth: "DDN-1781", posSerial: "", phone: "" },
+  { id: "DDN005-SR1723", name: "Milojean Edillor Balatayo", address: "Purok 5, Kimamon, Sto. Tomas", booth: "DDN-1723", posSerial: "V302244820077", phone: "9755693282" },
+  { id: "DDN005-SR773", name: "Cheryl Mae P. Parame", address: "Purok 3, New Katipunan, Sto. Tomas", booth: "DDN-773", posSerial: "V3A7249S20269", phone: "9518642719" },
+  { id: "DDN005-SR1741", name: "ASHLEY PARAME", address: "PUROK 16, BULAHAN,FD.RD 7, Tibal-og, Sto. Tomas", booth: "DDN-1741", posSerial: "V30224CG20242", phone: "9398134325" },
+  { id: "DDN005-SR754", name: "BELLE AMOR B. QUIZO", address: "PRK.18, FDR3, Tibal-og, Sto. Tomas", booth: "DDN-754", posSerial: "V302248820655", phone: "9934602693" },
+  { id: "DDN005-SR767", name: "Aprilyn V. Cahintong", address: "Prk 3B, Fd.rd 1, Tibal-og, Sto. Tomas", booth: "DDN-767", posSerial: "V302244720805", phone: "9516857770" },
+  { id: "DDN005-SR1422", name: "Marcia Taghap Cabudlan", address: "Prk 1, BOBONGON, Sto. Tomas", booth: "DDN-1422", posSerial: "V302244720838", phone: "9944401032" },
+  { id: "DDN005-SR1742", name: "Honeymie Julito", address: "PRK 16 San Isidro, Tibal-og, Sto. Tomas", booth: "DDN-1742", posSerial: "V30224CG20469", phone: "9702458100" },
+  { id: "DDN005-SR1703", name: "TREXIE ECHAVERIE", address: "BUGTONG LUBI ROAD, BALAGUNAN, Sto. Tomas", booth: "DDN-1703", posSerial: "V302248820659", phone: "" },
+  { id: "DDN005-SR1721", name: "CHARLYN MAE B. MARAYAN", address: "Veterans, Tibal-og, Sto. Tomas", booth: "DDN-1721", posSerial: "V30224CG20368", phone: "" },
+  { id: "DDN005-SR1715", name: "Sherimae Oyon-Oyon", address: "Purok 1b Menzi, Tibal-og, Sto. Tomas", booth: "DDN-1715", posSerial: "V30224CG20228", phone: "9940878837" },
+  { id: "DDN005-SR1474", name: "Jocedyl Buhia", address: "Purok 9 kapwa street fd rd3, Tibal-og, Sto. Tomas", booth: "DDN-1474", posSerial: "V30224CG20232", phone: "9169669088" },
+  { id: "DDN005-SR771", name: "MARY JOY LATO POBRE", address: "PUROK 6-B FD RD 2 BAGARES AREA, Tibal-og, Sto. Tomas", booth: "DDN-771", posSerial: "V3A7249R20150", phone: "" },
+  { id: "DDN005-SR1722", name: "JANICE LABISTO", address: "PRK 18 FEEDER RD 3, Tibal-og, Sto. Tomas", booth: "DDN-1722", posSerial: "V302244720453", phone: "9265214939" },
+  { id: "DDN005-SR352", name: "Jehramea Marte", address: "NEAR BARANGAY HALL, SALVACION, Sto. Tomas", booth: "DDN-352", posSerial: "V302238420080", phone: "" },
+  { id: "DDN005-SR762", name: "DAVILYN GELITO", address: "SABONGAN NI NENE, FR DR 1, Tibal-og, Sto. Tomas", booth: "DDN-762", posSerial: "V3A7249R20145", phone: "9702444362" },
+  { id: "DDN005-SR1524", name: "MARY JOY BLANCO", address: "DARLUZ SUBDIVISION, Tibal-og, Sto. Tomas", booth: "DDN-1524", posSerial: "V302244721244", phone: "" },
+  { id: "DDN005-SR1716", name: "PRINCESS SOLAMILLO", address: "PRK NARRA, NEW VISAYAS, Sto. Tomas", booth: "DDN-1716", posSerial: "V30224CG20593", phone: "9080832536" },
+  { id: "DDN005-SR1738", name: "MARIVEL ESTRADA", address: "PRK MAGSAYSAY, LUNGAOG, Sto. Tomas", booth: "DDN-1738", posSerial: "V30224CG20333", phone: "9911442761" },
+  { id: "DDN005-SR1739", name: "DAISY MAE S. GEMENTIZA", address: "PUROK BONIFACIO, LUNGAOG, Sto. Tomas", booth: "DDN-1739", posSerial: "V30224CG20692", phone: "9364225065" },
+  { id: "DDN005-SR1740", name: "Laurence Ibra", address: "PRK 15 FD RD 8, Tibal-og, Sto. Tomas", booth: "DDN-1740", posSerial: "V30224CG20328", phone: "9922851806" },
+  { id: "DDN005-SR1743", name: "MICHELLE DELA PEÑA", address: "PRK 15 FD RD 9, Tibal-og, Sto. Tomas", booth: "DDN-1743", posSerial: "V30224CG20342", phone: "9359230307" },
+  { id: "DDN005-SR1794", name: "Rhea Mei Adella Mangarin", address: "Purok Talisay, Talomo, Sto. Tomas", booth: "DDN-1794", posSerial: "", phone: "" },
+  { id: "DDN005-SR1799", name: "Charlyn Dela Vega", address: "Kape-Kape St., Prk 1-A, Balagunan, Sto. Tomas", booth: "DDN-1799", posSerial: "", phone: "" },
+  { id: "DDN005-SR1801", name: "John Denver Lagrama", address: "Purok 1, Balagunan, Sto. Tomas", booth: "DDN-1801", posSerial: "", phone: "" },
+  { id: "DDN005-SR1752", name: "Mae Ann Paraiso", address: "PRK 6 NAKASAKA, STO NIÑO, Talaingod", booth: "DDN-1752", posSerial: "V30224CG20492", phone: "9708905412" },
+  { id: "DDN005-SR1424", name: "Dely T. Macas", address: "PUROK 4B, SAWMILL, STO. NIÑO, Talaingod", booth: "DDN-1424", posSerial: "V30224CG20246", phone: "9506593885" },
+  { id: "DDN005-SR1523", name: "Annabelle Semblante", address: "Purok 4, Capungagan, Kapalong", booth: "DDN-1523", posSerial: "V30224CG20171", phone: "9943261562" },
+  { id: "DDN005-SR402", name: "Ruthchelle Joy D. Lumidin", address: "Purok 11C Ilaboon, Maniki, Kapalong", booth: "DDN-402", posSerial: "V3A7249S20038", phone: "9507836404" },
+  { id: "DDN005-SR1281", name: "GINAROSE CAGAS", address: "PUROK 1, TORIL, Samal", booth: "DDN-1281", posSerial: "V302238420129", phone: "9564855538" },
+  { id: "DDN005-SR1284", name: "ANGEL MAE ESTRADA", address: "ZONE 7 VILLARICA, BABAK, Samal", booth: "DDN-1284", posSerial: "V302238420322", phone: "987730538" },
+  { id: "DDN005-SR1285", name: "REJEAN PREGLO", address: "PUROK 6A, TAMBO, Samal", booth: "DDN-1285", posSerial: "V302238420103", phone: "9562584717" },
+  { id: "DDN005-SR1286", name: "DIANA B. CANILLO SARAGENA", address: "PUROK 1B, PEÑAPLATA, Samal", booth: "DDN-1286", posSerial: "V302238420244", phone: "9065606560" },
+  { id: "DDN005-SR1288", name: "Rene C. Daguit", address: "PUROK 1, LIBUAK, Samal", booth: "DDN-1288", posSerial: "", phone: "" },
+  { id: "DDN005-SR1293", name: "NIÑA ESCALANTE", address: "PUROK 4, TAMBO, Samal", booth: "DDN-1293", posSerial: "V302238420101", phone: "9632811623" },
+  { id: "DDN005-SR1294", name: "JOVILYN B. OCOM", address: "PUROK KAIMITO, MIRANDA, Samal", booth: "DDN-1294", posSerial: "V30224CG20455", phone: "9126249738" },
+  { id: "DDN005-SR1295", name: "JENNIE MAE F. ENRIQUEZ", address: "P-3 KAUSWAGAN, MIRANDA, Samal", booth: "DDN-1295", posSerial: "V30224CG20608", phone: "" },
+  { id: "DDN005-SR1296", name: "JELOU SALVADOR", address: "PUROK 3 BUCARAN, TORIL, Samal", booth: "DDN-1296", posSerial: "V30224CG20331", phone: "9763812037" },
+  { id: "DDN005-SR1299", name: "REJEAN CARACA PREGLO", address: "PUROK 1 CRODUA SAN JUAN, MIRANDA, Samal", booth: "DDN-1299", posSerial: "V30224CG20480", phone: "" },
+  { id: "DDN005-SR1300", name: "Normenin K. Hussain", address: "PUROK 9, SAN ISIDRO, Samal", booth: "DDN-1300", posSerial: "V30224CG20482", phone: "9922502733" },
+  { id: "DDN005-SR1302", name: "Caren Espinosa", address: "PUROK 2, LIMAO, Samal", booth: "DDN-1302", posSerial: "V30224CG20596", phone: "9923940499" },
+  { id: "DDN005-SR1303", name: "Salvacion E Gofredo", address: "PUROK 4, MAMBAGO-A1, Samal", booth: "DDN-1303", posSerial: "V30224CG20664", phone: "9999353314" },
+  { id: "DDN005-SR1305", name: "Janine Alcober Dinampo", address: "PUROK 3, MAMBAGO-A2, Samal", booth: "DDN-1305", posSerial: "V30224CG20471", phone: "" },
+  { id: "DDN005-SR1306", name: "JEMARIE LOPEZ ADENO", address: "PUROK 1, STO. NIÑO, Samal", booth: "DDN-1306", posSerial: "V30224CG20581", phone: "9308672244" },
+  { id: "DDN005-SR1308", name: "BELEN ALFONSO", address: "PUROK 6 TUGUAK, COGON, Samal", booth: "DDN-1308", posSerial: "V302249520442", phone: "9951275628" },
+  { id: "DDN005-SR1588", name: "MARYJEAN BOGHANOY", address: "PUROK 2, STO NIÑO, Samal", booth: "DDN-1588", posSerial: "V30224CG20404", phone: "9539962119" },
+  { id: "DDN005-SR1629", name: "DIOMELYN P. ABAD", address: "PUROK 6 KALIG, KINAWITNON, Samal", booth: "DDN-1629", posSerial: "V30224CG20622", phone: "" },
+  { id: "DDN005-SR1631", name: "Amabelle Gian", address: "PUROK 3, AUMBAY, Samal", booth: "DDN-1631", posSerial: "V30224CG20658", phone: "" },
+  { id: "DDN005-SR1632", name: "ROY MARCELLONES", address: "PUROK 1, TAGBAY, Samal", booth: "DDN-1632", posSerial: "V30224CG20447", phone: "" },
+  { id: "DDN005-SR1634", name: "ILLAINE YBAÑEZ", address: "PUROK 7, GUILON, Samal", booth: "DDN-1634", posSerial: "V30224CG20582", phone: "9498331881" },
+  { id: "DDN005-SR1679", name: "Jasmine Nicole J. Gila", address: "PUROK 4, CAWAG, Samal", booth: "DDN-1679", posSerial: "V30224CG20605", phone: "9311495841" },
+  { id: "DDN005-SR1714", name: "Reisthlle Ann D. Dapiton", address: "PUROK 7, CAWAG, Samal", booth: "DDN-1714", posSerial: "V30224CG20259", phone: "9097906590" },
+  { id: "DDN005-SR1737", name: "Loraine Junatas", address: "PUROK 3B, PARAISO, CAWAG, Samal", booth: "DDN-1737", posSerial: "V30224CG20301", phone: "9758953887" },
+  { id: "DDN005-SR1757", name: "Janilyn Buragay Callano", address: "Purok 6,, Aumbay, Samal", booth: "DDN-1757", posSerial: "V302248220677", phone: "" },
+  { id: "DDN005-SR1758", name: "CHEN A. CANILLO", address: "Purok 5A, Tagbay, Samal", booth: "DDN-1758", posSerial: "V3A7249S21499", phone: "" },
+  { id: "DDN005-SR1756", name: "Analyn Cuenco", address: "PRK 5, MAMBAGO, MAMBAGO, Samal", booth: "DDN-1756", posSerial: "V3A7249S21074", phone: "" },
+  { id: "DDN005-SR1759", name: "Aiza Jane Batucan", address: "PRK KALACHOCHI, TAGBAOBO, Samal", booth: "DDN-1759", posSerial: "V3A7249521452", phone: "" },
+  { id: "DDN005-SR1761", name: "LEZEL IBANEZ", address: "PRK 7, AZUCENA, TAGBAOBO, Samal", booth: "DDN-1761", posSerial: "V3A7249520170", phone: "9093749466" },
+  { id: "DDN005-SR1764", name: "Ikn Dzaia L. Peroso", address: "PRK 16, KAPUTIAN, Samal", booth: "DDN-1764", posSerial: "V30224CG20589", phone: "" },
+  { id: "DDN005-SR1765", name: "Anne Via Feje", address: "PRk 7, TADTAD, TADTAD BADERA, Samal", booth: "DDN-1765", posSerial: "V3A7249R20287", phone: "9948408199" },
 ];
 
-// 2. Relievers Data (4 Active Buffer Relievers)
+// 2. Relievers Data (34 Active Buffer Relievers from September 2026 Masterlist)
 const RAW_RELIEVERS = [
-  { id: "DDN005-REL001", name: "Charlyn Dela Vega", address: "Kape-Kape St., Prk 1-A Balagunan Sto. Tomas", booth: "DDN-1799", role: "Reliever", status: "Active" },
-  { id: "DDN005-REL002", name: "Rhea Mei Adella Mangarin", address: "Purok Talisay Talomo Sto. Tomas", booth: "DDN-1794", role: "Reliever", status: "Active" },
-  { id: "DDN005-REL003", name: "Carog Ann", address: "Purok 2 Crossing Pilar Southern Davao Panabo City", booth: "DDN-1825", role: "Reliever", status: "Active" },
-  { id: "DDN005-REL004", name: "Jolina Albistros", address: "Orchid St. Salvacion Panabo City Davao Del Norte", booth: "DDN-1797", role: "Reliever", status: "Active" }
+  { id: "DDN005-REL001", name: "Princess Solamillo", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9468132286" },
+  { id: "DDN005-REL002", name: "Kei Pagulong", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9919283377" },
+  { id: "DDN005-REL003", name: "Jessa Busaco", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9676822834" },
+  { id: "DDN005-REL004", name: "Yzalou I. Dumaguing", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9510424848" },
+  { id: "DDN005-REL005", name: "Othmarie Lupiba", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9923318041" },
+  { id: "DDN005-REL006", name: "Faith Hermoso", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9282951030" },
+  { id: "DDN005-REL007", name: "Mari Sarol", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9282951030" },
+  { id: "DDN005-REL008", name: "Ellen Riño", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9514630915" },
+  { id: "DDN005-REL009", name: "Rhea Desnacido", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9679345770" },
+  { id: "DDN005-REL010", name: "Angelie Tiedra", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9361565796" },
+  { id: "DDN005-REL011", name: "Noreen D. Bayang", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9096001837" },
+  { id: "DDN005-REL012", name: "Rhea Mae M. Bolilawa", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9485511382" },
+  { id: "DDN005-REL013", name: "Jasnen Parame Aquino", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9757074658" },
+  { id: "DDN005-REL014", name: "Marjory Torino", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9941680208" },
+  { id: "DDN005-REL015", name: "Gina Paula Gemino", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9559806184" },
+  { id: "DDN005-REL016", name: "Jennifer M. Osman", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9945141031" },
+  { id: "DDN005-REL017", name: "Ferlyn Zamora Robello", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9674700611" },
+  { id: "DDN005-REL018", name: "Jeziel R. Simene", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9917297977" },
+  { id: "DDN005-REL019", name: "Karen Batas", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9634312448" },
+  { id: "DDN005-REL020", name: "Elyn T. Rosento", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9169158160" },
+  { id: "DDN005-REL021", name: "Ester Mopon", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9505540780" },
+  { id: "DDN005-REL022", name: "Christly Ann Tuasoc", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9971007208" },
+  { id: "DDN005-REL023", name: "Jane Christine Tuasoc", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "N/A" },
+  { id: "DDN005-REL024", name: "Clouie Mae Hipos", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9304557576" },
+  { id: "DDN005-REL025", name: "Aires Monreal", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9944076355" },
+  { id: "DDN005-REL026", name: "PRECIOUS NICA TORREFIEL", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "N/A" },
+  { id: "DDN005-REL027", name: "Jemma Rose Roco", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9776828684" },
+  { id: "DDN005-REL028", name: "Carolyn Joy Catubigan", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9924119660" },
+  { id: "DDN005-REL029", name: "Pamela Denisse G. Antequeza", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9535591036" },
+  { id: "DDN005-REL030", name: "Bbelen Apatan", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9708905412" },
+  { id: "DDN005-REL031", name: "Laika jeanne Sapine", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9518222585" },
+  { id: "DDN005-REL032", name: "Jeah Rica Linsay", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9453272597" },
+  { id: "DDN005-REL033", name: "Kristina Cassandra D. Lumidin", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9926135202" },
+  { id: "DDN005-REL034", name: "Mae Jean Gementiza", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9460700135" },
 ];
 
-// 3. Inactive Booths Data (2 Inactive Outlets)
-const RAW_INACTIVE_BOOTHS = [
-  { id: "DDN005-SR1802", name: "Junalyn Royo Villaquer", address: "Purok 4, FD RD 1 Northgate Saypon Uno Tibal-og Sto. Tomas", booth: "DDN-1802", role: "Sales Representative", status: "INACTIVE" },
-  { id: "DDN005-SR1806", name: "Arturo Dela Peña", address: "Purok 6 A, Peda St San Francisco Panabo City", booth: "DDN-1806", role: "Sales Representative", status: "INACTIVE" }
-];
-
-// 4. Terminated Tellers Data (2 Terminated Staff)
-const RAW_TERMINATED_TELLERS = [
-  { id: "DDN005-1782", name: "Mary Jane Fernandez", address: "Purok 6 Cebulano Carmen", booth: "DDN-1782", role: "Sales Representative", status: "TERMINATED" },
-  { id: "DDN005-SR1716", name: "Princess Solamillo", address: "Purok Narra, New Visayas, Sto. Tomas", booth: "DDN-1716", role: "Sales Representative", status: "TERMINATED" }
-];
+const RAW_INACTIVE_BOOTHS = [];
+const RAW_TERMINATED_TELLERS = [];
 
 // 5. Collectors Data (5 Collectors)
 const RAW_COLLECTORS = [
@@ -285,7 +435,7 @@ function buildDefaultStore() {
     });
   });
 
-  // Add 78 Primary Active Sales Representatives
+  // Add 116 Primary Active Sales Representatives (September 2026 Masterlist)
   RAW_TELLERS.forEach((t) => {
     const cleanBooth = (t.booth || '').trim();
     const masterCoord = AUTHENTIC_MASTER_REGISTRY_COORDINATES[cleanBooth] || null;
@@ -306,9 +456,9 @@ function buildDefaultStore() {
       lng: masterCoord ? masterCoord.lng : null,
       coordinates: masterCoord ? { lat: masterCoord.lat, lng: masterCoord.lng } : null,
       boothCode: cleanBooth,
-      posSerial: `POS-${cleanBooth}`,
+      posSerial: t.posSerial || `POS-${cleanBooth}`,
       printerSerial: `PRT-${cleanBooth}`,
-      phone: `+63 9${Math.floor(100000000 + Math.random() * 900000000)}`,
+      phone: t.phone || `+63 9${Math.floor(100000000 + Math.random() * 900000000)}`,
       status: 'Active',
       etsStatus: 'Active'
     });
@@ -325,19 +475,19 @@ function buildDefaultStore() {
       lng: masterCoord ? masterCoord.lng : null,
       coordinates: masterCoord ? { lat: masterCoord.lat, lng: masterCoord.lng } : null,
       status: 'Active',
-      posSerial: `POS-${cleanBooth}`,
+      posSerial: t.posSerial || `POS-${cleanBooth}`,
       printerSerial: `PRT-${cleanBooth}`,
       assignedTellerId: t.id,
       assignedTellerName: t.name
     });
   });
 
-  // Add 4 Relievers
+  // Add 34 Relievers (September 2026 Masterlist)
   RAW_RELIEVERS.forEach((r) => {
     const cleanBooth = (r.booth || '').trim();
-    const masterCoord = AUTHENTIC_MASTER_REGISTRY_COORDINATES[cleanBooth] || null;
+    const masterCoord = (cleanBooth && cleanBooth !== '-') ? (AUTHENTIC_MASTER_REGISTRY_COORDINATES[cleanBooth] || null) : null;
     const addrParsed = parseAddress(r.address);
-    const muni = (masterCoord && masterCoord.municipality) ? masterCoord.municipality : addrParsed.municipality;
+    const muni = (masterCoord && masterCoord.municipality) ? masterCoord.municipality : (addrParsed.municipality || 'Davao Sector');
 
     employees.push({
       id: r.id,
@@ -347,15 +497,15 @@ function buildDefaultStore() {
       department: 'dept-tel',
       area: r.address,
       address: r.address,
-      purok: addrParsed.purok,
+      purok: addrParsed.purok || '-',
       municipality: muni,
       lat: masterCoord ? masterCoord.lat : null,
       lng: masterCoord ? masterCoord.lng : null,
       coordinates: masterCoord ? { lat: masterCoord.lat, lng: masterCoord.lng } : null,
-      boothCode: cleanBooth,
-      posSerial: `POS-${cleanBooth}`,
-      printerSerial: `PRT-${cleanBooth}`,
-      phone: `+63 9${Math.floor(100000000 + Math.random() * 900000000)}`,
+      boothCode: cleanBooth || '-',
+      posSerial: 'N/A',
+      printerSerial: 'N/A',
+      phone: r.phone || `+63 9${Math.floor(100000000 + Math.random() * 900000000)}`,
       status: 'Active',
       etsStatus: 'Active'
     });
@@ -1322,8 +1472,92 @@ class Store {
             });
           }
 
-          if (!parsed.masterRegistryVersion) {
-            parsed.masterRegistryVersion = 'MRV-20261006-001';
+          // Ensure all 116 official tellers from September 2026 Masterlist are present
+          if (Array.isArray(parsed.employees) && typeof RAW_TELLERS !== 'undefined') {
+            const cleanBoothId = (code) => {
+              if (!code || typeof code !== 'string') return null;
+              const trimmed = code.trim().toUpperCase();
+              if (trimmed === '-' || trimmed === 'N/A' || trimmed === 'NONE' || trimmed === '' || trimmed === 'UNASSIGNED') return null;
+              let clean = trimmed.replace(/^BOOTH[\s-]*/i, '').replace(/^DDN[\s_]+(\d+)/i, 'DDN-$1');
+              if (/^\d+$/.test(clean)) clean = `DDN-${clean}`;
+              return clean;
+            };
+
+            RAW_TELLERS.forEach(t => {
+              const cleanBooth = (t.booth || '').trim();
+              const masterCoord = AUTHENTIC_MASTER_REGISTRY_COORDINATES[cleanBooth] || null;
+              const addrParsed = parseAddress(t.address);
+              const muni = (masterCoord && masterCoord.municipality) ? masterCoord.municipality : addrParsed.municipality;
+
+              const existingEmp = parsed.employees.find(e => (e.id && e.id === t.id) || (e.name && e.name.toLowerCase() === t.name.toLowerCase()));
+              if (!existingEmp) {
+                parsed.employees.push({
+                  id: t.id,
+                  name: t.name,
+                  gender: 'Female',
+                  role: 'Sales Representative',
+                  department: 'dept-tel',
+                  area: t.address,
+                  address: t.address,
+                  purok: addrParsed.purok,
+                  municipality: muni,
+                  lat: masterCoord ? masterCoord.lat : null,
+                  lng: masterCoord ? masterCoord.lng : null,
+                  coordinates: masterCoord ? { lat: masterCoord.lat, lng: masterCoord.lng } : null,
+                  boothCode: cleanBooth,
+                  posSerial: t.posSerial || `POS-${cleanBooth}`,
+                  printerSerial: `PRT-${cleanBooth}`,
+                  phone: t.phone || `+63 9${Math.floor(100000000 + Math.random() * 900000000)}`,
+                  status: 'Active',
+                  etsStatus: 'Active'
+                });
+                needsSave = true;
+              }
+
+              // Update booth assigned teller if missing
+              if (Array.isArray(parsed.booths)) {
+                const b = parsed.booths.find(b => cleanBoothId(b.id || b.code) === cleanBooth);
+                if (b && (!b.assignedTellerId || b.assignedTellerId === '-')) {
+                  b.assignedTellerId = t.id;
+                  b.assignedTellerName = t.name;
+                  needsSave = true;
+                }
+              }
+            });
+          }
+
+          // Ensure all 34 official relievers from September 2026 Masterlist are present
+          if (Array.isArray(parsed.employees) && typeof RAW_RELIEVERS !== 'undefined') {
+            RAW_RELIEVERS.forEach(r => {
+              const existingRel = parsed.employees.find(e => (e.id && e.id === r.id) || (e.name && e.name.toLowerCase() === r.name.toLowerCase()));
+              if (!existingRel) {
+                parsed.employees.push({
+                  id: r.id,
+                  name: r.name,
+                  gender: 'Female',
+                  role: 'Reliever',
+                  department: 'dept-tel',
+                  area: r.address,
+                  address: r.address,
+                  purok: '-',
+                  municipality: r.address.split(',')[0].trim() || 'Davao Sector',
+                  lat: null,
+                  lng: null,
+                  coordinates: null,
+                  boothCode: '-',
+                  posSerial: 'N/A',
+                  printerSerial: 'N/A',
+                  phone: r.phone || `+63 9${Math.floor(100000000 + Math.random() * 900000000)}`,
+                  status: 'Active',
+                  etsStatus: 'Active'
+                });
+                needsSave = true;
+              }
+            });
+          }
+
+          if (parsed.masterRegistryVersion !== 'MRV-20261006-002') {
+            parsed.masterRegistryVersion = 'MRV-20261006-002';
             parsed.masterRegistryUpdatedAt = new Date().toISOString();
             needsSave = true;
           }
