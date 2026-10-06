@@ -1121,33 +1121,12 @@ class Store {
               }
               seenIds.add(id);
 
-              // Authoritative normalization keys for DDN005 86-Staff Master Data breakdown:
-              // 78 Primary Active Sales Representatives
-              // 4 Buffer Relievers
-              // 2 Inactive Booths
-              // 2 Terminated Tellers
-              const normUpper = normName.toUpperCase();
-              const idUpper = (e.id || '').trim().toUpperCase();
-              const RELIEVER_KEYS = ['CHARLYN DELA VEGA', 'RHEA MEI ADELLA MANGARIN', 'CAROG ANN', 'JOLINA ALBISTROS', 'DDN005-SR1799', 'DDN005-SR1794', 'DDN005-SR1825', 'DDN005-SR1797', 'DDN005-REL001', 'DDN005-REL002', 'DDN005-REL003', 'DDN005-REL004'];
-              const INACTIVE_KEYS = ['JUNALYN ROYO VILLAQUER', 'ARTURO DELA PEÑA', 'ARTURO DELA PENA', 'DDN005-SR1802', 'DDN005-SR1806'];
-              const TERMINATED_KEYS = ['MARY JANE FERNANDEZ', 'PRINCESS SOLAMILLO', 'DDN005-1782', 'DDN005-SR1782', 'DDN005-SR1716'];
-
-              if (RELIEVER_KEYS.includes(normUpper) || RELIEVER_KEYS.includes(idUpper)) {
-                e.role = 'Reliever';
-                e.status = 'ACTIVE';
-                needsSave = true;
-              } else if (INACTIVE_KEYS.includes(normUpper) || INACTIVE_KEYS.includes(idUpper)) {
-                e.status = 'INACTIVE';
-                needsSave = true;
-              } else if (TERMINATED_KEYS.includes(normUpper) || TERMINATED_KEYS.includes(idUpper)) {
-                e.status = 'TERMINATED';
-                needsSave = true;
-              } else {
-                const sUp = (e.status || 'ACTIVE').toUpperCase();
-                if (sUp === 'TERMINATED') e.status = 'TERMINATED';
-                else if (sUp === 'INACTIVE') e.status = 'INACTIVE';
-                else e.status = 'ACTIVE';
-              }
+              // Normalize status field to uppercase canonical values — respect whatever the
+              // Excel import already stored; do NOT override with hardcoded name/ID lists.
+              const sUp = (e.status || 'ACTIVE').toUpperCase();
+              if (sUp === 'TERMINATED') e.status = 'TERMINATED';
+              else if (sUp === 'INACTIVE') e.status = 'INACTIVE';
+              else e.status = 'ACTIVE';
 
               cleanEmployees.push(e);
             });
@@ -1252,10 +1231,10 @@ class Store {
             needsSave = true;
           }
 
-          // Strict Master Registry GPS Sync (Purge fake radial fallback coordinates)
-          if (!parsed._gpsStrictMasterV1) {
-            parsed._gpsStrictMasterV1 = true;
-
+          // GPS Sync from Authoritative AUTHENTIC_MASTER_REGISTRY_COORDINATES dictionary.
+          // Runs on EVERY load (no one-time flag) so that newly-imported Excel GPS data is
+          // always kept in sync. User-pinned coordinates (_userCalibrated) are never touched.
+          if (typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined') {
             const cleanBoothId = (code) => {
               if (!code || typeof code !== 'string') return null;
               const trimmed = code.trim().toUpperCase();
@@ -1274,19 +1253,16 @@ class Store {
                   b.lat = masterCoord.lat;
                   b.lng = masterCoord.lng;
                   b.coordinates = { lat: masterCoord.lat, lng: masterCoord.lng };
-                  if (masterCoord.municipality) {
-                    b.municipality = masterCoord.municipality;
-                  }
-                } else {
-                  // Purge previous fake/radial fallback coordinates
-                  b.lat = null;
-                  b.lng = null;
-                  b.coordinates = null;
+                  if (masterCoord.municipality) b.municipality = masterCoord.municipality;
+                } else if (!b._userCalibrated) {
+                  // Preserve whatever lat/lng was imported from Excel; only null out if truly absent
+                  if (b.lat === undefined || b.lat === '') b.lat = null;
+                  if (b.lng === undefined || b.lng === '') b.lng = null;
+                  if (!b.lat || !b.lng) b.coordinates = null;
                 }
-                needsSave = true;
               });
 
-              // Ensure all 19 authentic Master Registry booths are registered
+              // Ensure all authentic Master Registry booths are registered
               Object.entries(AUTHENTIC_MASTER_REGISTRY_COORDINATES).forEach(([bCode, coord]) => {
                 const exists = parsed.booths.some(b => cleanBoothId(b.id || b.code) === bCode);
                 if (!exists) {
@@ -1314,9 +1290,7 @@ class Store {
               parsed.employees.forEach((e) => {
                 if (e._userCalibrated) return;
                 const rU = (e.role || '').toUpperCase();
-                if (rU.includes('COLLECTOR') || rU.includes('ADMIN')) {
-                  return; // Retain collector/admin territory
-                }
+                if (rU.includes('COLLECTOR') || rU.includes('ADMIN')) return; // Retain collector/admin territory
                 const bCode = e.boothCode || e.booth;
                 const norm = cleanBoothId(bCode);
                 if (norm && AUTHENTIC_MASTER_REGISTRY_COORDINATES[norm]) {
@@ -1324,18 +1298,21 @@ class Store {
                   e.lat = masterCoord.lat;
                   e.lng = masterCoord.lng;
                   e.coordinates = { lat: masterCoord.lat, lng: masterCoord.lng };
-                  if (masterCoord.municipality) {
-                    e.municipality = masterCoord.municipality;
-                  }
-                } else {
-                  // Purge previous fake/radial fallback coordinates
-                  e.lat = null;
-                  e.lng = null;
-                  e.coordinates = null;
+                  if (masterCoord.municipality) e.municipality = masterCoord.municipality;
+                } else if (!e._userCalibrated) {
+                  // Preserve Excel-imported coordinates; only null out if truly absent
+                  if (e.lat === undefined || e.lat === '') e.lat = null;
+                  if (e.lng === undefined || e.lng === '') e.lng = null;
+                  if (!e.lat || !e.lng) e.coordinates = null;
                 }
-                needsSave = true;
               });
             }
+            needsSave = true;
+          }
+          // Remove stale one-time migration flag so the block above runs cleanly going forward
+          if (parsed._gpsStrictMasterV1 !== undefined) {
+            delete parsed._gpsStrictMasterV1;
+            needsSave = true;
           }
 
           if (!parsed.masterRegistryVersion) {

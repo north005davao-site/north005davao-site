@@ -560,7 +560,8 @@ function renderDashboard() {
     'Carmen': 0,
     'Panabo City': 0,
     'Kapalong': 0,
-    'Talaingod': 0
+    'Talaingod': 0,
+    'Samal': 0
   };
   booths.forEach(b => {
     const area = (b.area || b.municipality || '').trim();
@@ -569,6 +570,7 @@ function renderDashboard() {
     else if (area.includes('Carmen')) muniCounts['Carmen']++;
     else if (area.includes('Kapalong')) muniCounts['Kapalong']++;
     else if (area.includes('Talaingod')) muniCounts['Talaingod']++;
+    else if (area.includes('Samal') || area.includes('IGACOS')) muniCounts['Samal']++;
     else muniCounts['Sto. Tomas']++;
   });
 
@@ -689,7 +691,9 @@ function renderDashboardLiveOperations(selectedMuni) {
     'Tagum City': 0,
     'Carmen': 0,
     'Panabo City': 0,
-    'Kapalong': 0
+    'Kapalong': 0,
+    'Talaingod': 0,
+    'Samal': 0
   };
 
   booths.forEach(b => {
@@ -698,6 +702,8 @@ function renderDashboardLiveOperations(selectedMuni) {
     else if (area.includes('Panabo')) muniCounts['Panabo City']++;
     else if (area.includes('Carmen')) muniCounts['Carmen']++;
     else if (area.includes('Kapalong')) muniCounts['Kapalong']++;
+    else if (area.includes('Talaingod')) muniCounts['Talaingod']++;
+    else if (area.includes('Samal') || area.includes('IGACOS')) muniCounts['Samal']++;
     else muniCounts['Sto. Tomas']++;
   });
 
@@ -709,8 +715,10 @@ function renderDashboardLiveOperations(selectedMuni) {
       { key: 'Tagum City', label: 'Tagum City', count: muniCounts['Tagum City'], badgeClass: 'badge-purple' },
       { key: 'Carmen', label: 'Carmen', count: muniCounts['Carmen'], badgeClass: 'badge-success' },
       { key: 'Panabo City', label: 'Panabo City', count: muniCounts['Panabo City'], badgeClass: 'badge-warning' },
-      { key: 'Kapalong', label: 'Kapalong', count: muniCounts['Kapalong'], badgeClass: 'badge-neutral' }
-    ];
+      { key: 'Kapalong', label: 'Kapalong', count: muniCounts['Kapalong'], badgeClass: 'badge-neutral' },
+      { key: 'Talaingod', label: 'Talaingod', count: muniCounts['Talaingod'], badgeClass: 'badge-neutral' },
+      { key: 'Samal', label: 'Samal (IGACOS)', count: muniCounts['Samal'], badgeClass: 'badge-info' }
+    ].filter(p => p.key === 'ALL' || p.count > 0);
 
     container.innerHTML = pillConfigs.map(p => {
       const isSelected = (selectedMuni === p.key || (selectedMuni === 'ALL' && p.key === 'ALL'));
