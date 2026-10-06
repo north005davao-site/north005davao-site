@@ -301,6 +301,9 @@ window.openMobileSidebar = function() {
   if (sidebar) sidebar.classList.add('mobile-open');
   if (backdrop) backdrop.classList.add('active');
   document.body.classList.add('mobile-sidebar-active');
+  if (window.etsMap && typeof window.etsMap.invalidateMapSize === 'function') {
+    window.etsMap.invalidateMapSize();
+  }
 };
 
 window.closeMobileSidebar = function() {
@@ -309,6 +312,9 @@ window.closeMobileSidebar = function() {
   if (sidebar) sidebar.classList.remove('mobile-open');
   if (backdrop) backdrop.classList.remove('active');
   document.body.classList.remove('mobile-sidebar-active');
+  if (window.etsMap && typeof window.etsMap.invalidateMapSize === 'function') {
+    window.etsMap.invalidateMapSize();
+  }
 };
 
 window.toggleMobileSidebar = function() {
@@ -2048,6 +2054,12 @@ window.focusStaffMember = function(empId) {
                    (emp.name && window.etsMap.allMarkerInstances[emp.name.toLowerCase().trim()]);
     if (marker) {
       marker.openPopup();
+    }
+    if (typeof window !== 'undefined' && window.innerWidth <= 1024) {
+      const mapTarget = document.getElementById('ets-map-container') || document.querySelector('.ets-map-card');
+      if (mapTarget && typeof mapTarget.scrollIntoView === 'function') {
+        mapTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
     }
   }
 };

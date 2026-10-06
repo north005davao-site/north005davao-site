@@ -232,15 +232,14 @@
             <span class="mobile-menu-label">Menu</span>
           </button>
 
-          <div class="topbar-branding"
-            style="display: flex; align-items: center; gap: 10px; padding-right: 14px; border-right: 1px solid var(--border-color);">
-            <img src="assets/north-005-logo.png" alt="NORTH-005 Davao del Norte HQ Official Logo"
-              style="width: 36px; height: 36px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.3));">
-            <div>
-              <div class="topbar-title" style="font-size: 13.5px; font-weight: 800; color: var(--text-main); line-height: 1.1;">NORTH-005
-                DAVAO DEL NORTE HQ</div>
-              <div class="topbar-subtitle" style="font-size: 10px; color: var(--text-muted); font-weight: 600;">Control Center &amp; Asset Suite
+          <div class="topbar-branding">
+            <img src="assets/north-005-logo.png" alt="NORTH-005 Davao del Norte HQ Official Logo" class="topbar-logo">
+            <div class="topbar-title-block">
+              <div class="topbar-title">
+                <span class="brand-code">NORTH-005</span>
+                <span class="brand-sub">DAVAO DEL NORTE HQ</span>
               </div>
+              <div class="topbar-subtitle">Control Center &amp; Asset Suite</div>
             </div>
           </div>
           <div class="branch-pill topbar-feed-pill">
@@ -737,13 +736,19 @@
               Samal (CYAN)</span>
           </div>
 
-          <!-- Map and Live Fleet Grid -->
-          <div style="display: grid; grid-template-columns: 3fr 1fr; gap: 20px;">
-            <div class="card" style="padding: 12px; height: 600px; display: flex; flex-direction: column;">
-              <div id="ets-map-container" style="width: 100%; height: 100%; border-radius: var(--radius-sm);"></div>
+          <!-- Map and Live Fleet Grid (Responsive: 2-column desktop, stacked mobile) -->
+          <div class="ets-tracking-grid">
+            <div class="card ets-map-card">
+              <div class="card-header ets-map-header" style="margin-bottom: 8px;">
+                <div class="card-title" style="font-size: 14px; display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                  <span>🗺️ STL BOOTH GPS MAP</span>
+                  <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: var(--success); font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 700;">LIVE INTERACTIVE</span>
+                </div>
+              </div>
+              <div id="ets-map-container" class="ets-map-viewport"></div>
             </div>
 
-            <div class="card" style="display: flex; flex-direction: column; height: 600px;">
+            <div class="card ets-fleet-card">
               <div class="card-header" style="margin-bottom: 8px;">
                 <div class="card-title" style="font-size: 14px;">Fleet Activity Monitor</div>
               </div>
@@ -756,8 +761,7 @@
               <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">
                 Click any staff member to view and track their STL BOOTH:
               </div>
-              <div id="ets-fleet-list"
-                style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px;">
+              <div id="ets-fleet-list" class="ets-fleet-list">
                 <!-- Populated dynamically -->
               </div>
             </div>
