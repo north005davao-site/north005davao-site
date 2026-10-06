@@ -203,6 +203,12 @@ testVerificationBooths.forEach(tb => {
 // Verify no pseudo-booth marker was created for '-'
 assert.strictEqual(window.etsMap.allMarkerInstances['-'], undefined, 'No marker should exist for booth "-"');
 
+// Verify uncalibrated booths without authentic coordinates are NOT rendered as artificial stacked pins
+assert.strictEqual(window.etsMap.allMarkerInstances['DDN-767'], undefined, 'Uncalibrated booth DDN-767 must not have a fake pin');
+assert.strictEqual(window.etsMap.allMarkerInstances['DDN-400'], undefined, 'Uncalibrated booth DDN-400 must not have a fake pin');
+assert.strictEqual(window.etsMap.allMarkerInstances['DDN-426'], undefined, 'Uncalibrated booth DDN-426 must not have a fake pin');
+console.log('✓ Uncalibrated booths are safely omitted from map, preventing stacked caterpillar slinkies.');
+
 // --- TEST 5: CLICKING A STAFF MEMBER IN FLEET MONITOR FOCUSES EXACT BOOTH ---
 console.log('\n--- TEST 5: Fleet Activity Monitor Click Interactivity ---');
 window.focusStaffMember('DDN005-SR754'); // Belle Amor Quizo -> DDN-754
@@ -247,7 +253,37 @@ assert.strictEqual(updated, true);
 const bUpdated = window.appStore.getBooths().find(b => b.id === 'DDN-754');
 assert.strictEqual(bUpdated.lat, 7.524000);
 assert.strictEqual(bUpdated.lng, 125.625000);
-console.log('✓ Recalibrating coordinates persists correctly across store booths and employees');
+assert.strictEqual(bUpdated._userCalibrated, true);
+console.log('✓ Recalibrating coordinates persists correctly across store booths and employees with _userCalibrated: true');
+
+// --- TEST 8: LOCALSTORAGE PURGE OF STALE CATERPILLAR COORDINATES ---
+console.log('\n--- TEST 8: LocalStorage Purge of Stale Caterpillar Coordinates ---');
+const mockStaleData = {
+  employees: [
+    { id: 'DDN005-SR754', name: 'Belle Amor Quizo', boothCode: 'DDN-754', lat: 99.9, lng: 99.9 },
+    { id: 'DDN005-SR767', name: 'Aprilyn V. Cahintong', boothCode: 'DDN-767', lat: 7.5270, lng: 125.6290 } // Old stacked diagonal
+  ],
+  booths: [
+    { id: 'DDN-754', code: 'DDN-754', lat: 99.9, lng: 99.9 },
+    { id: 'DDN-767', code: 'DDN-767', lat: 7.5270, lng: 125.6290 } // Old stacked diagonal
+  ]
+};
+// Pad employees array to pass load sanity check (> 50 employees)
+for (let i = 0; i < 60; i++) {
+  mockStaleData.employees.push({ id: `MOCK-${i}`, name: `Staff ${i}`, role: 'TELLER', boothCode: `MOCK-${i}`, lat: 7.5 + i * 0.001, lng: 125.6 + i * 0.001 });
+  mockStaleData.booths.push({ id: `MOCK-${i}`, code: `MOCK-${i}`, lat: 7.5 + i * 0.001, lng: 125.6 + i * 0.001 });
+}
+localStorage.setItem('apex_omnierp_data_v4_ddn', JSON.stringify(mockStaleData));
+
+// Reload store
+const reloaded = window.appStore.load();
+const b754 = reloaded.booths.find(b => b.id === 'DDN-754');
+const b767 = reloaded.booths.find(b => b.id === 'DDN-767');
+assert.strictEqual(b754.lat, 7.519800, 'DDN-754 must be updated to authentic Master Registry lat');
+assert.strictEqual(b754.lng, 125.615900, 'DDN-754 must be updated to authentic Master Registry lng');
+assert.strictEqual(b767.lat, null, 'Uncalibrated booth DDN-767 must have lat purged to null');
+assert.strictEqual(b767.lng, null, 'Uncalibrated booth DDN-767 must have lng purged to null');
+console.log('✓ LocalStorage migration (_gpsAuthenticV3) successfully purged stale stacked coordinates from cache!');
 
 console.log('\n========================================================================');
 console.log('ALL EST LIVE TRACKING & GPS PIN TESTS PASSED WITH 100% SUCCESS! 🚀');
