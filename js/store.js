@@ -82,24 +82,130 @@ function parseAddress(rawAddress) {
   return { purok: '-', municipality: '-' };
 }
 
+// Authoritative Master Registry GPS Coordinates Dictionary (Source of Truth)
+// Matched primarily by unique Booth Code across all 7 Davao del Norte corridors
+const MASTER_REGISTRY_BOOTH_COORDINATES = {
+  // Sto. Tomas Corridor
+  'DDN-352': { lat: 7.523500, lng: 125.624100, municipality: 'Sto. Tomas' },
+  'DDN-754': { lat: 7.519800, lng: 125.615900, municipality: 'Sto. Tomas' },
+  'DDN-762': { lat: 7.526000, lng: 125.628000, municipality: 'Sto. Tomas' },
+  'DDN-767': { lat: 7.527000, lng: 125.629000, municipality: 'Sto. Tomas' },
+  'DDN-771': { lat: 7.528000, lng: 125.630000, municipality: 'Sto. Tomas' },
+  'DDN-773': { lat: 7.529000, lng: 125.631000, municipality: 'Sto. Tomas' },
+  'DDN-1422': { lat: 7.522000, lng: 125.623000, municipality: 'Sto. Tomas' },
+  'DDN-1474': { lat: 7.525000, lng: 125.627000, municipality: 'Sto. Tomas' },
+  'DDN-1524': { lat: 7.526500, lng: 125.628500, municipality: 'Sto. Tomas' },
+  'DDN-1703': { lat: 7.521000, lng: 125.622000, municipality: 'Sto. Tomas' },
+  'DDN-1715': { lat: 7.523000, lng: 125.624000, municipality: 'Sto. Tomas' },
+  'DDN-1721': { lat: 7.524500, lng: 125.625500, municipality: 'Sto. Tomas' },
+  'DDN-1722': { lat: 7.525500, lng: 125.626500, municipality: 'Sto. Tomas' },
+  'DDN-1723': { lat: 7.527500, lng: 125.628500, municipality: 'Sto. Tomas' },
+  'DDN-1738': { lat: 7.528500, lng: 125.629500, municipality: 'Sto. Tomas' },
+  'DDN-1739': { lat: 7.529500, lng: 125.630500, municipality: 'Sto. Tomas' },
+  'DDN-1740': { lat: 7.530500, lng: 125.631500, municipality: 'Sto. Tomas' },
+  'DDN-1741': { lat: 7.531500, lng: 125.632500, municipality: 'Sto. Tomas' },
+  'DDN-1742': { lat: 7.532500, lng: 125.633500, municipality: 'Sto. Tomas' },
+  'DDN-1743': { lat: 7.533500, lng: 125.634500, municipality: 'Sto. Tomas' },
+  'DDN-358': { lat: 7.524500, lng: 125.626500, municipality: 'Sto. Tomas' },
+  'DDN-759': { lat: 7.528500, lng: 125.631000, municipality: 'Sto. Tomas' },
+  'DDN-901': { lat: 7.525100, lng: 125.628500, municipality: 'Sto. Tomas' },
+  'DDN-1799': { lat: 7.534000, lng: 125.635000, municipality: 'Sto. Tomas' },
+  'DDN-1794': { lat: 7.535000, lng: 125.636000, municipality: 'Sto. Tomas' },
+  'DDN-1802': { lat: 7.536000, lng: 125.637000, municipality: 'Sto. Tomas' },
+  'DDN-1716': { lat: 7.537000, lng: 125.638000, municipality: 'Sto. Tomas' },
+
+  // Tagum City Corridor
+  'DDN-760': { lat: 7.447500, lng: 125.807800, municipality: 'Tagum City' },
+  'DDN-766': { lat: 7.448500, lng: 125.809200, municipality: 'Tagum City' },
+  'DDN-769': { lat: 7.449500, lng: 125.811000, municipality: 'Tagum City' },
+  'DDN-350': { lat: 7.451000, lng: 125.808500, municipality: 'Tagum City' },
+  'DDN-351': { lat: 7.452000, lng: 125.809500, municipality: 'Tagum City' },
+  'DDN-353': { lat: 7.453000, lng: 125.810500, municipality: 'Tagum City' },
+  'DDN-424': { lat: 7.454000, lng: 125.811500, municipality: 'Tagum City' },
+  'DDN-770': { lat: 7.455000, lng: 125.812500, municipality: 'Tagum City' },
+  'DDN-774': { lat: 7.456000, lng: 125.813500, municipality: 'Tagum City' },
+  'DDN-775': { lat: 7.457000, lng: 125.814500, municipality: 'Tagum City' },
+  'DDN-778': { lat: 7.458000, lng: 125.815500, municipality: 'Tagum City' },
+  'DDN-1778': { lat: 7.459000, lng: 125.816500, municipality: 'Tagum City' },
+  'DDN-422': { lat: 7.460000, lng: 125.817500, municipality: 'Tagum City' },
+  'DDN-423': { lat: 7.461000, lng: 125.818500, municipality: 'Tagum City' },
+  'DDN-772': { lat: 7.462000, lng: 125.819500, municipality: 'Tagum City' },
+  'DDN-776': { lat: 7.463000, lng: 125.820500, municipality: 'Tagum City' },
+  'DDN-777': { lat: 7.464000, lng: 125.821500, municipality: 'Tagum City' },
+  'DDN-779': { lat: 7.465000, lng: 125.822500, municipality: 'Tagum City' },
+  'DDN-780': { lat: 7.466000, lng: 125.823500, municipality: 'Tagum City' },
+  'DDN-1477': { lat: 7.467000, lng: 125.824500, municipality: 'Tagum City' },
+  'DDN-1586': { lat: 7.468000, lng: 125.825500, municipality: 'Tagum City' },
+  'DDN-1591': { lat: 7.469000, lng: 125.826500, municipality: 'Tagum City' },
+  'DDN-1784': { lat: 7.470000, lng: 125.827500, municipality: 'Tagum City' },
+
+  // Panabo City Corridor
+  'DDN-398': { lat: 7.307800, lng: 125.683300, municipality: 'Panabo City' },
+  'DDN-399': { lat: 7.309000, lng: 125.685000, municipality: 'Panabo City' },
+  'DDN-400': { lat: 7.310500, lng: 125.686500, municipality: 'Panabo City' },
+  'DDN-429': { lat: 7.311500, lng: 125.687500, municipality: 'Panabo City' },
+  'DDN-430': { lat: 7.312500, lng: 125.688500, municipality: 'Panabo City' },
+  'DDN-756': { lat: 7.313500, lng: 125.689500, municipality: 'Panabo City' },
+  'DDN-758': { lat: 7.314500, lng: 125.690500, municipality: 'Panabo City' },
+  'DDN-761': { lat: 7.315500, lng: 125.691500, municipality: 'Panabo City' },
+  'DDN-763': { lat: 7.316500, lng: 125.692500, municipality: 'Panabo City' },
+  'DDN-764': { lat: 7.317500, lng: 125.693500, municipality: 'Panabo City' },
+  'DDN-768': { lat: 7.318500, lng: 125.694500, municipality: 'Panabo City' },
+  'DDN-908': { lat: 7.319500, lng: 125.695500, municipality: 'Panabo City' },
+  'DDN-909': { lat: 7.320500, lng: 125.696500, municipality: 'Panabo City' },
+  'DDN-1475': { lat: 7.321500, lng: 125.697500, municipality: 'Panabo City' },
+  'DDN-1476': { lat: 7.322500, lng: 125.698500, municipality: 'Panabo City' },
+  'DDN-1750': { lat: 7.323500, lng: 125.699500, municipality: 'Panabo City' },
+  'DDN-1751': { lat: 7.324500, lng: 125.700500, municipality: 'Panabo City' },
+  'DDN-1825': { lat: 7.325000, lng: 125.701000, municipality: 'Panabo City' },
+  'DDN-1797': { lat: 7.326000, lng: 125.702000, municipality: 'Panabo City' },
+  'DDN-1806': { lat: 7.327000, lng: 125.703000, municipality: 'Panabo City' },
+
+  // Carmen Corridor
+  'DDN-397': { lat: 7.358600, lng: 125.706100, municipality: 'Carmen' },
+  'DDN-425': { lat: 7.361000, lng: 125.708000, municipality: 'Carmen' },
+  'DDN-426': { lat: 7.362000, lng: 125.709000, municipality: 'Carmen' },
+  'DDN-427': { lat: 7.363000, lng: 125.710000, municipality: 'Carmen' },
+  'DDN-428': { lat: 7.364000, lng: 125.711000, municipality: 'Carmen' },
+  'DDN-755': { lat: 7.365000, lng: 125.712000, municipality: 'Carmen' },
+  'DDN-910': { lat: 7.366000, lng: 125.713000, municipality: 'Carmen' },
+  'DDN-1590': { lat: 7.367000, lng: 125.714000, municipality: 'Carmen' },
+  'DDN-1717': { lat: 7.368000, lng: 125.715000, municipality: 'Carmen' },
+  'DDN-1780': { lat: 7.369000, lng: 125.716000, municipality: 'Carmen' },
+  'DDN-1779': { lat: 7.370000, lng: 125.717000, municipality: 'Carmen' },
+  'DDN-1783': { lat: 7.371000, lng: 125.718000, municipality: 'Carmen' },
+  'DDN-1823': { lat: 7.372000, lng: 125.719000, municipality: 'Carmen' },
+  'DDN-1782': { lat: 7.373000, lng: 125.720000, municipality: 'Carmen' },
+
+  // Talaingod Corridor
+  'DDN-1424': { lat: 7.653600, lng: 125.641700, municipality: 'Talaingod' },
+  'DDN-1752': { lat: 7.655000, lng: 125.643000, municipality: 'Talaingod' },
+
+  // Kapalong Corridor
+  'DDN-1523': { lat: 7.585500, lng: 125.707200, municipality: 'Kapalong' },
+  'DDN-402': { lat: 7.586500, lng: 125.708200, municipality: 'Kapalong' },
+
+  // Samal Corridor
+  'DDN-2001': { lat: 7.073600, lng: 125.712800, municipality: 'Samal' },
+  'DDN-2002': { lat: 7.085000, lng: 125.719000, municipality: 'Samal' },
+  'DDN-2003': { lat: 7.052000, lng: 125.705000, municipality: 'Samal' }
+};
+
 function getGeoForAddress(address, index = 0) {
   let anchor = GEO_ANCHORS['Sto. Tomas'];
   const addr = (address || '').toLowerCase();
   
-  if (addr.includes('talaingod')) anchor = GEO_ANCHORS['Talaingod'];
+  if (addr.includes('samal')) anchor = { lat: 7.0736, lng: 125.7128 };
+  else if (addr.includes('talaingod')) anchor = GEO_ANCHORS['Talaingod'];
   else if (addr.includes('kapalong')) anchor = GEO_ANCHORS['Kapalong'];
   else if (addr.includes('tagum')) anchor = GEO_ANCHORS['Tagum'];
   else if (addr.includes('carmen')) anchor = GEO_ANCHORS['Carmen'];
   else if (addr.includes('panabo')) anchor = GEO_ANCHORS['Panabo'];
   else if (addr.includes('sto. tomas') || addr.includes('tibal') || addr.includes('feeder')) anchor = GEO_ANCHORS['Sto. Tomas'];
 
-  // Offset slightly for individual pin dispersion
-  const offsetLat = ((index % 9) - 4) * 0.0035;
-  const offsetLng = (Math.floor(index / 9) - 3) * 0.0035;
-
   return {
-    lat: parseFloat((anchor.lat + offsetLat).toFixed(6)),
-    lng: parseFloat((anchor.lng + offsetLng).toFixed(6))
+    lat: parseFloat(anchor.lat.toFixed(6)),
+    lng: parseFloat(anchor.lng.toFixed(6))
   };
 }
 
@@ -268,9 +374,11 @@ function buildDefaultStore() {
 
   // Add 78 Primary Active Sales Representatives
   RAW_TELLERS.forEach((t, idx) => {
-    const geo = getGeoForAddress(t.address, idx);
     const cleanBooth = (t.booth || '').trim();
+    const masterCoord = MASTER_REGISTRY_BOOTH_COORDINATES[cleanBooth];
+    const geo = masterCoord ? { lat: masterCoord.lat, lng: masterCoord.lng } : getGeoForAddress(t.address, idx);
     const addrParsed = parseAddress(t.address);
+    const muni = (masterCoord && masterCoord.municipality) ? masterCoord.municipality : addrParsed.municipality;
 
     employees.push({
       id: t.id,
@@ -281,9 +389,10 @@ function buildDefaultStore() {
       area: t.address,
       address: t.address,
       purok: addrParsed.purok,
-      municipality: addrParsed.municipality,
+      municipality: muni,
       lat: geo.lat,
       lng: geo.lng,
+      coordinates: { lat: geo.lat, lng: geo.lng },
       boothCode: cleanBooth,
       posSerial: `POS-${cleanBooth}`,
       printerSerial: `PRT-${cleanBooth}`,
@@ -295,12 +404,14 @@ function buildDefaultStore() {
     // Register booth
     booths.push({
       id: cleanBooth,
+      code: cleanBooth,
       name: `Station ${cleanBooth} (${t.name})`,
       area: t.address,
       purok: addrParsed.purok,
-      municipality: addrParsed.municipality,
+      municipality: muni,
       lat: geo.lat,
       lng: geo.lng,
+      coordinates: { lat: geo.lat, lng: geo.lng },
       status: 'Active',
       posSerial: `POS-${cleanBooth}`,
       printerSerial: `PRT-${cleanBooth}`,
@@ -311,9 +422,11 @@ function buildDefaultStore() {
 
   // Add 4 Relievers
   RAW_RELIEVERS.forEach((r, idx) => {
-    const geo = getGeoForAddress(r.address, 78 + idx);
     const cleanBooth = (r.booth || '').trim();
+    const masterCoord = MASTER_REGISTRY_BOOTH_COORDINATES[cleanBooth];
+    const geo = masterCoord ? { lat: masterCoord.lat, lng: masterCoord.lng } : getGeoForAddress(r.address, 78 + idx);
     const addrParsed = parseAddress(r.address);
+    const muni = (masterCoord && masterCoord.municipality) ? masterCoord.municipality : addrParsed.municipality;
 
     employees.push({
       id: r.id,
@@ -324,9 +437,10 @@ function buildDefaultStore() {
       area: r.address,
       address: r.address,
       purok: addrParsed.purok,
-      municipality: addrParsed.municipality,
+      municipality: muni,
       lat: geo.lat,
       lng: geo.lng,
+      coordinates: { lat: geo.lat, lng: geo.lng },
       boothCode: cleanBooth,
       posSerial: `POS-${cleanBooth}`,
       printerSerial: `PRT-${cleanBooth}`,
@@ -338,9 +452,11 @@ function buildDefaultStore() {
 
   // Add 2 Inactive Booths
   RAW_INACTIVE_BOOTHS.forEach((ib, idx) => {
-    const geo = getGeoForAddress(ib.address, 82 + idx);
     const cleanBooth = (ib.booth || '').trim();
+    const masterCoord = MASTER_REGISTRY_BOOTH_COORDINATES[cleanBooth];
+    const geo = masterCoord ? { lat: masterCoord.lat, lng: masterCoord.lng } : getGeoForAddress(ib.address, 82 + idx);
     const addrParsed = parseAddress(ib.address);
+    const muni = (masterCoord && masterCoord.municipality) ? masterCoord.municipality : addrParsed.municipality;
 
     employees.push({
       id: ib.id,
@@ -351,9 +467,10 @@ function buildDefaultStore() {
       area: ib.address,
       address: ib.address,
       purok: addrParsed.purok,
-      municipality: addrParsed.municipality,
+      municipality: muni,
       lat: geo.lat,
       lng: geo.lng,
+      coordinates: { lat: geo.lat, lng: geo.lng },
       boothCode: cleanBooth,
       posSerial: `POS-${cleanBooth}`,
       printerSerial: `PRT-${cleanBooth}`,
@@ -364,18 +481,44 @@ function buildDefaultStore() {
 
     booths.push({
       id: cleanBooth,
+      code: cleanBooth,
       name: `Station ${cleanBooth} (${ib.name})`,
       area: ib.address,
       purok: addrParsed.purok,
-      municipality: addrParsed.municipality,
+      municipality: muni,
       lat: geo.lat,
       lng: geo.lng,
+      coordinates: { lat: geo.lat, lng: geo.lng },
       status: 'INACTIVE',
       posSerial: `POS-${cleanBooth}`,
       printerSerial: `PRT-${cleanBooth}`,
       assignedTellerId: ib.id,
       assignedTellerName: ib.name
     });
+  });
+
+  // Register standalone Master Registry booths across all corridors (e.g. Samal, Sunmi validation stations)
+  ['DDN-2001', 'DDN-2002', 'DDN-2003', 'DDN-358', 'DDN-759', 'DDN-901'].forEach(bCode => {
+    if (!booths.some(b => b.id === bCode || b.code === bCode)) {
+      const coord = MASTER_REGISTRY_BOOTH_COORDINATES[bCode];
+      if (coord) {
+        booths.push({
+          id: bCode,
+          code: bCode,
+          name: `Station ${bCode}`,
+          area: coord.municipality,
+          municipality: coord.municipality,
+          lat: coord.lat,
+          lng: coord.lng,
+          coordinates: { lat: coord.lat, lng: coord.lng },
+          status: 'Active',
+          posSerial: `POS-${bCode}`,
+          printerSerial: `PRT-${bCode}`,
+          assignedTellerId: '-',
+          assignedTellerName: '-'
+        });
+      }
+    }
   });
 
   // Add 2 Terminated Tellers
@@ -1197,6 +1340,66 @@ class Store {
             parsed.inventory = fresh.inventory;
             needsSave = true;
           }
+
+          // Upgrade cached coordinates to authoritative Master Registry coordinates
+          if (!parsed._gpsPrecisionV2) {
+            parsed._gpsPrecisionV2 = true;
+            if (Array.isArray(parsed.booths)) {
+              parsed.booths.forEach(b => {
+                const norm = b.id ? b.id.trim().toUpperCase().replace(/^BOOTH[\s-]*/i, '').replace(/^DDN[\s_]+(\d+)/i, 'DDN-$1') : null;
+                if (norm && MASTER_REGISTRY_BOOTH_COORDINATES[norm]) {
+                  const masterCoord = MASTER_REGISTRY_BOOTH_COORDINATES[norm];
+                  b.lat = masterCoord.lat;
+                  b.lng = masterCoord.lng;
+                  b.coordinates = { lat: masterCoord.lat, lng: masterCoord.lng };
+                  if (masterCoord.municipality && (!b.municipality || b.municipality === '-')) {
+                    b.municipality = masterCoord.municipality;
+                  }
+                  needsSave = true;
+                }
+              });
+              ['DDN-2001', 'DDN-2002', 'DDN-2003', 'DDN-358', 'DDN-759', 'DDN-901'].forEach(bCode => {
+                if (!parsed.booths.some(b => b.id === bCode || b.code === bCode)) {
+                  const coord = MASTER_REGISTRY_BOOTH_COORDINATES[bCode];
+                  if (coord) {
+                    parsed.booths.push({
+                      id: bCode,
+                      code: bCode,
+                      name: `Station ${bCode}`,
+                      area: coord.municipality,
+                      municipality: coord.municipality,
+                      lat: coord.lat,
+                      lng: coord.lng,
+                      coordinates: { lat: coord.lat, lng: coord.lng },
+                      status: 'Active',
+                      posSerial: `POS-${bCode}`,
+                      printerSerial: `PRT-${bCode}`,
+                      assignedTellerId: '-',
+                      assignedTellerName: '-'
+                    });
+                    needsSave = true;
+                  }
+                }
+              });
+            }
+            if (Array.isArray(parsed.employees)) {
+              parsed.employees.forEach(e => {
+                const bCode = e.boothCode || e.booth;
+                const norm = bCode ? bCode.trim().toUpperCase().replace(/^BOOTH[\s-]*/i, '').replace(/^DDN[\s_]+(\d+)/i, 'DDN-$1') : null;
+                if (norm && MASTER_REGISTRY_BOOTH_COORDINATES[norm]) {
+                  const masterCoord = MASTER_REGISTRY_BOOTH_COORDINATES[norm];
+                  e.lat = masterCoord.lat;
+                  e.lng = masterCoord.lng;
+                  e.coordinates = { lat: masterCoord.lat, lng: masterCoord.lng };
+                  if (masterCoord.municipality && (!e.municipality || e.municipality === '-')) {
+                    e.municipality = masterCoord.municipality;
+                  }
+                  needsSave = true;
+                }
+              });
+            }
+          }
+
           if (needsSave) {
             this.save(parsed);
           }
@@ -1872,27 +2075,47 @@ class Store {
   // Pin Recalibration Method: Update coordinates of any employee or booth
   updateCoordinates(id, lat, lng) {
     let updated = false;
+    const cleanLat = parseFloat(Number(lat).toFixed(6));
+    const cleanLng = parseFloat(Number(lng).toFixed(6));
+    const coordObj = { lat: cleanLat, lng: cleanLng };
+
     // Check employees
-    const emp = this.data.employees.find(e => e.id === id);
+    const emp = this.data.employees.find(e => e.id === id || e.name === id);
     if (emp) {
-      emp.lat = parseFloat(Number(lat).toFixed(6));
-      emp.lng = parseFloat(Number(lng).toFixed(6));
+      emp.lat = cleanLat;
+      emp.lng = cleanLng;
+      emp.coordinates = coordObj;
       updated = true;
+
+      // Also update linked booth by boothCode
+      const bCode = emp.boothCode || emp.booth;
+      if (bCode && bCode !== '-') {
+        const b = this.data.booths.find(x => x.id === bCode || x.code === bCode);
+        if (b) {
+          b.lat = cleanLat;
+          b.lng = cleanLng;
+          b.coordinates = coordObj;
+        }
+      }
     }
+
     // Check relievers
     if (this.data.relievers) {
-      const reliever = this.data.relievers.find(r => r.id === id);
+      const reliever = this.data.relievers.find(r => r.id === id || r.name === id);
       if (reliever) {
-        reliever.lat = parseFloat(Number(lat).toFixed(6));
-        reliever.lng = parseFloat(Number(lng).toFixed(6));
+        reliever.lat = cleanLat;
+        reliever.lng = cleanLng;
+        reliever.coordinates = coordObj;
         updated = true;
       }
     }
-    // Check booths
-    const booth = this.data.booths.find(b => b.id === id || b.assignedTellerId === id);
+
+    // Check booths by id, code, or assignedTellerId
+    const booth = this.data.booths.find(b => b.id === id || b.code === id || b.assignedTellerId === id);
     if (booth) {
-      booth.lat = parseFloat(Number(lat).toFixed(6));
-      booth.lng = parseFloat(Number(lng).toFixed(6));
+      booth.lat = cleanLat;
+      booth.lng = cleanLng;
+      booth.coordinates = coordObj;
       updated = true;
     }
 
@@ -2464,6 +2687,17 @@ class Store {
           updates.lat = Number(rec.coordinates.lat);
           updates.lng = Number(rec.coordinates.lng);
           updates.coordinates = { lat: Number(rec.coordinates.lat), lng: Number(rec.coordinates.lng) };
+        }
+        if (updates.lat !== undefined) {
+          const targetBCode = updates.booth || updates.boothCode || existing.booth || existing.boothCode;
+          if (targetBCode && targetBCode !== '-') {
+            const b = this.data.booths.find(x => (x.id && x.id.toUpperCase() === targetBCode.toUpperCase()) || (x.code && x.code.toUpperCase() === targetBCode.toUpperCase()));
+            if (b) {
+              b.lat = updates.lat;
+              b.lng = updates.lng;
+              b.coordinates = updates.coordinates;
+            }
+          }
         }
         if (rec.phone !== undefined || rec.contact !== undefined) {
           const ph = (rec.phone || rec.contact || '').trim();

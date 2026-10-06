@@ -78,9 +78,32 @@
   }
 
   /**
+   * Helper: Normalize Booth Code to canonical "DDN-xxx" format.
+   * Returns null for non-booth values ('-', 'N/A', empty, etc.) so roaming collectors/admins are excluded.
+   */
+  function normalizeBoothCode(code) {
+    if (!code || typeof code !== 'string') return null;
+    const trimmed = code.trim().toUpperCase();
+    if (trimmed === '-' || trimmed === 'N/A' || trimmed === 'NONE' || trimmed === '' || trimmed === 'UNASSIGNED') {
+      return null;
+    }
+    // Remove "BOOTH-" or "BOOTH " prefix
+    let clean = trimmed.replace(/^BOOTH[\s-]*/i, '');
+    // Normalize "DDN 760" or "DDN_760" -> "DDN-760"
+    clean = clean.replace(/^DDN[\s_]+(\d+)/i, 'DDN-$1');
+    // If digits only like "760", convert to "DDN-760"
+    if (/^\d+$/.test(clean)) {
+      clean = `DDN-${clean}`;
+    }
+    return clean;
+  }
+
+  /**
    * Robust GPS Coordinate Parser
-   * Supports: numbers, string pairs ("7.5303, 125.6264"), latitude/longitude, lat/lng objects
-   * Validates: -90 <= lat <= 90 and -180 <= lng <= 180
+   * Supports: numbers, string pairs ("7.5303, 125.6264"), latitude/longitude, lat/lng objects, arrays [lat, lng]
+   * Enforces: Latitude = first coordinate, Longitude = second coordinate
+   * Detects and corrects inverted coordinates (e.g. [125.x, 7.x] -> [7.x, 125.x])
+   * Validates: Plausible Davao del Norte geographic bounding box and global bounds (-90..90, -180..180)
    */
   function parseGpsCoordinates(record) {
     if (!record) return { isValid: false, reason: 'GPS UNAVAILABLE' };
@@ -88,15 +111,29 @@
     let rawLat = record.lat !== undefined && record.lat !== null && record.lat !== '' ? record.lat : record.latitude;
     let rawLng = record.lng !== undefined && record.lng !== null && record.lng !== '' ? record.lng : record.longitude;
 
+    // Check record.coordinates if object, array, or string
     if ((rawLat === undefined || rawLng === undefined) && record.coordinates) {
-      rawLat = record.coordinates.lat !== undefined ? record.coordinates.lat : record.coordinates.latitude;
-      rawLng = record.coordinates.lng !== undefined ? record.coordinates.lng : record.coordinates.longitude;
+      if (typeof record.coordinates === 'object' && record.coordinates !== null) {
+        if (Array.isArray(record.coordinates) && record.coordinates.length >= 2) {
+          rawLat = record.coordinates[0];
+          rawLng = record.coordinates[1];
+        } else {
+          rawLat = record.coordinates.lat !== undefined ? record.coordinates.lat : record.coordinates.latitude;
+          rawLng = record.coordinates.lng !== undefined ? record.coordinates.lng : record.coordinates.longitude;
+        }
+      } else if (typeof record.coordinates === 'string' && record.coordinates.trim()) {
+        const parts = record.coordinates.trim().split(/[,;\s]+/).filter(Boolean);
+        if (parts.length >= 2) {
+          rawLat = parts[0];
+          rawLng = parts[1];
+        }
+      }
     }
 
     // Check if GPS is provided as a composite string e.g. "7.5303, 125.6264"
-    const composite = record.gps || record.gps_coordinates || record.gpsCoordinates;
+    const composite = record.gps || record.gps_coordinates || record.gpsCoordinates || record.rawCoordinates || record.coordinatesStr;
     if ((rawLat === undefined || rawLng === undefined) && typeof composite === 'string' && composite.trim()) {
-      const parts = composite.split(/[,;\s]+/).filter(Boolean);
+      const parts = composite.trim().split(/[,;\s]+/).filter(Boolean);
       if (parts.length >= 2) {
         rawLat = parts[0];
         rawLng = parts[1];
@@ -107,18 +144,39 @@
       return { isValid: false, reason: 'GPS UNAVAILABLE' };
     }
 
-    const lat = typeof rawLat === 'number' ? rawLat : parseFloat(String(rawLat).replace(/[^\d.-]/g, ''));
-    const lng = typeof rawLng === 'number' ? rawLng : parseFloat(String(rawLng).replace(/[^\d.-]/g, ''));
+    let lat = typeof rawLat === 'number' ? rawLat : parseFloat(String(rawLat).replace(/[^\d.-]/g, ''));
+    let lng = typeof rawLng === 'number' ? rawLng : parseFloat(String(rawLng).replace(/[^\d.-]/g, ''));
 
     if (isNaN(lat) || isNaN(lng)) {
       return { isValid: false, reason: 'GPS INVALID' };
     }
 
-    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      return { isValid: false, reason: 'GPS INVALID' };
+    // Section 4: Coordinate Inversion Guard.
+    // In Davao del Norte (Region XI, Philippines), Latitude is ~6.0°..9.0° N and Longitude is ~124.5°..127.0° E.
+    // If coordinates were entered inverted as [longitude, latitude] e.g. [125.625, 7.524], lat is > 50 and lng is < 50.
+    if (lat > 50 && lng < 50) {
+      const temp = lat;
+      lat = lng;
+      lng = temp;
     }
 
-    // Coordinate is valid and within legitimate bounds
+    // Reject (0, 0) default coordinates
+    if (lat === 0 && lng === 0) {
+      return { isValid: false, reason: 'GPS INVALID (0,0)' };
+    }
+
+    // Global Latitude/Longitude Range Check
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      return { isValid: false, reason: 'GPS OUT OF GLOBAL BOUNDS' };
+    }
+
+    // Section 6: Plausibility bounds check for Davao del Norte region
+    const isPlausibleDavao = (lat >= 6.0 && lat <= 9.0 && lng >= 124.5 && lng <= 127.0);
+    if (!isPlausibleDavao) {
+      console.warn(`[GPS Validation Warning] Coordinate (${lat}, ${lng}) is outside Davao del Norte corridor.`);
+    }
+
+    // Valid coordinate
     return {
       lat: parseFloat(lat.toFixed(6)),
       lng: parseFloat(lng.toFixed(6)),
@@ -127,6 +185,7 @@
   }
 
   window.parseGpsCoordinates = parseGpsCoordinates;
+  window.normalizeBoothCode = normalizeBoothCode;
   window.getMunicipalityColor = resolveMunicipalityColor;
   window.getMunicipalityColorMap = getStoredMunicipalityColorMap;
 
@@ -237,8 +296,10 @@
     }
 
     /**
-     * Renders STL Booth markers deduplicated by unique Booth Code.
+     * Renders STL Booth markers deduplicated strictly by unique Booth Code.
      * Uses real Master Registry coordinates only.
+     * Never plots collectors/admin (boothCode = '-') as booth markers.
+     * Validates that Latitude is first and Longitude is second.
      */
     renderAllMarkers() {
       if (!this.map) return;
@@ -248,31 +309,52 @@
       this.markers.booths.clearLayers();
       this.allMarkerInstances = {};
 
+      const registeredBooths = store.getBooths() || [];
       const employees = store.getEmployees() || [];
       const relievers = (store.data && store.data.relievers) || [];
       const allStaff = [...employees, ...relievers.filter(r => !employees.some(e => e.id === r.id))];
       const isDraggable = this.calibrationMode;
       const isAdmin = window.authManager && window.authManager.isAdmin();
 
-      // Group staff by unique Booth Code for deduplicated marker placement
+      // Collect all distinct booths keyed strictly by normalized Booth Code
       const boothMap = new Map();
 
-      allStaff.forEach(emp => {
-        const boothCode = (emp.boothCode || emp.booth || '').trim();
-        const key = boothCode || emp.id;
+      // 1. Ingest Master Registry registered booths
+      registeredBooths.forEach(b => {
+        const normCode = normalizeBoothCode(b.id || b.code);
+        if (!normCode) return; // Skip non-booth entries like '-'
 
-        if (!boothMap.has(key)) {
-          boothMap.set(key, {
-            boothCode: boothCode || emp.id,
+        boothMap.set(normCode, {
+          normBoothCode: normCode,
+          rawBoothCode: b.id || b.code || normCode,
+          boothRecord: b,
+          municipality: b.municipality || '',
+          address: b.area || b.address || '',
+          status: b.status || 'Active',
+          staffList: []
+        });
+      });
+
+      // 2. Associate assigned personnel to booths by normalized Booth Code
+      allStaff.forEach(emp => {
+        const normCode = normalizeBoothCode(emp.boothCode || emp.booth);
+        if (!normCode) return; // Skip collectors, admins, and unassigned roaming personnel
+
+        if (!boothMap.has(normCode)) {
+          boothMap.set(normCode, {
+            normBoothCode: normCode,
+            rawBoothCode: emp.boothCode || emp.booth || normCode,
+            boothRecord: null,
             municipality: emp.municipality || '',
             address: emp.address || emp.area || emp.purok || '',
             status: emp.status || 'Active',
-            staffList: [emp],
-            primaryRecord: emp
+            staffList: [emp]
           });
         } else {
-          const entry = boothMap.get(key);
-          entry.staffList.push(emp);
+          const entry = boothMap.get(normCode);
+          if (!entry.staffList.some(s => s.id === emp.id)) {
+            entry.staffList.push(emp);
+          }
           if (!entry.municipality && emp.municipality) entry.municipality = emp.municipality;
           if (!entry.address && (emp.address || emp.area)) entry.address = emp.address || emp.area;
         }
@@ -280,11 +362,16 @@
 
       const bounds = [];
 
-      boothMap.forEach((entry, boothKey) => {
+      boothMap.forEach((entry, normBoothCode) => {
         // Resolve GPS Coordinates from the Master Registry records for this booth
-        let gps = parseGpsCoordinates(entry.primaryRecord);
-        if (!gps.isValid) {
-          // Check other assigned staff records for valid booth GPS
+        // Priority 1: Registered booth record in Master Registry
+        let gps = { isValid: false };
+        if (entry.boothRecord) {
+          gps = parseGpsCoordinates(entry.boothRecord);
+        }
+
+        // Priority 2: Assigned staff records for this booth
+        if (!gps.isValid && entry.staffList.length > 0) {
           for (const s of entry.staffList) {
             const altGps = parseGpsCoordinates(s);
             if (altGps.isValid) {
@@ -294,8 +381,9 @@
           }
         }
 
-        // If no valid GPS coordinates exist in Master Registry, DO NOT place on map!
+        // Section 6: If no valid GPS coordinates exist in Master Registry, DO NOT place on map!
         if (!gps.isValid) {
+          console.warn(`[ETS GPS Validation] Booth: ${normBoothCode} - Missing/invalid GPS coordinate. Marker omitted.`);
           return;
         }
 
@@ -318,14 +406,14 @@
         }
 
         const color = resolveMunicipalityColor(muni);
-        const boothDisplay = entry.boothCode || boothKey;
-        const staffNames = entry.staffList.map(s => s.name).join(', ');
-        const staffDetails = entry.staffList.map(s => {
+        const boothDisplay = normBoothCode;
+        const staffNames = entry.staffList.length > 0 ? entry.staffList.map(s => s.name).join(', ') : 'Unassigned';
+        const staffDetails = entry.staffList.length > 0 ? entry.staffList.map(s => {
           let r = s.role || 'Staff';
           const rU = r.toUpperCase();
           if (rU === 'TELLER' || rU === 'STATION TELLER') r = 'Sales Representative';
           return `<div style="font-size:12px; color:var(--text-main); margin-bottom:2px;">• <strong>${s.name}</strong> <span style="color:#64748b; font-size:11px;">(${r})</span></div>`;
-        }).join('');
+        }).join('') : '<div style="font-size:12px; color:#64748b; font-style:italic;">No staff currently assigned</div>';
 
         const icon = this.createSvgIcon(color, '🏪', isDraggable, `STL BOOTH: ${boothDisplay} (${muni})`);
         const marker = L.marker([lat, lng], {
@@ -335,11 +423,12 @@
 
         marker.bindTooltip(`<strong>STL BOOTH:</strong> ${boothDisplay} • ${staffNames} (${muni})`, { direction: 'top' });
 
+        const primaryStaffId = entry.staffList[0] ? entry.staffList[0].id : (entry.boothRecord ? entry.boothRecord.id : normBoothCode);
         let adminActions = '';
         if (isAdmin) {
           adminActions = `
             <div style="margin-top: 8px; display: flex; gap: 6px;">
-              <button onclick="window.openPrecisionCalibrateModal('${entry.primaryRecord.id}')" style="flex: 1; padding: 6px 10px; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 11.5px; font-weight: 700;">
+              <button onclick="window.openPrecisionCalibrateModal('${primaryStaffId}')" style="flex: 1; padding: 6px 10px; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 11.5px; font-weight: 700;">
                 ✏️ Recalibrate Pin
               </button>
             </div>
@@ -368,13 +457,20 @@
           </div>
         `);
 
-        // Index marker by boothCode and by all associated staff IDs for instant lookup on click
-        this.allMarkerInstances[boothDisplay] = marker;
-        this.allMarkerInstances[boothKey] = marker;
+        // Index marker under canonical normBoothCode, raw variations, and all associated personnel
+        this.allMarkerInstances[normBoothCode] = marker;
+        if (entry.rawBoothCode) this.allMarkerInstances[entry.rawBoothCode] = marker;
+        this.allMarkerInstances[normBoothCode.replace('-', ' ')] = marker; // "DDN 754"
+        this.allMarkerInstances[normBoothCode.replace('DDN-', '')] = marker; // "754"
+
         entry.staffList.forEach(s => {
           this.allMarkerInstances[s.id] = marker;
           if (s.name) this.allMarkerInstances[s.name.toLowerCase().trim()] = marker;
         });
+
+        if (entry.boothRecord && entry.boothRecord.id) {
+          this.allMarkerInstances[entry.boothRecord.id] = marker;
+        }
 
         this.markers.booths.addLayer(marker);
       });

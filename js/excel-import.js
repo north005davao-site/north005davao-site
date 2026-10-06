@@ -677,11 +677,17 @@
     if (rawCoords) {
       const m = rawCoords.match(/(-?\d+\.?\d*)[,\s;]+(-?\d+\.?\d*)/);
       if (m) {
-        const lat = parseFloat(m[1]);
-        const lng = parseFloat(m[2]);
+        let lat = parseFloat(m[1]);
+        let lng = parseFloat(m[2]);
+        // Section 4: Inversion check (Latitude is first ~7.x, Longitude is second ~125.x)
+        if (lat > 50 && lng < 50) {
+          const temp = lat;
+          lat = lng;
+          lng = temp;
+        }
         if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-          parsedLat = lat;
-          parsedLng = lng;
+          parsedLat = parseFloat(lat.toFixed(6));
+          parsedLng = parseFloat(lng.toFixed(6));
         }
       }
     }

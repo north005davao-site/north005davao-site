@@ -2047,14 +2047,25 @@ window.focusStaffMember = function(empId) {
   }
 
   if (window.etsMap) {
-    window.etsMap.focusCoordinates(gps.lat, gps.lng, 16);
     const boothCode = emp.boothCode || emp.booth;
-    const marker = (boothCode && window.etsMap.allMarkerInstances[boothCode]) ||
+    const normBooth = (typeof window.normalizeBoothCode === 'function') ? window.normalizeBoothCode(boothCode) : boothCode;
+    const marker = (normBooth && window.etsMap.allMarkerInstances[normBooth]) ||
+                   (boothCode && window.etsMap.allMarkerInstances[boothCode]) ||
                    window.etsMap.allMarkerInstances[emp.id] ||
                    (emp.name && window.etsMap.allMarkerInstances[emp.name.toLowerCase().trim()]);
+
     if (marker) {
+      if (typeof marker.getLatLng === 'function') {
+        const pos = marker.getLatLng();
+        window.etsMap.focusCoordinates(pos.lat, pos.lng, 16);
+      } else {
+        window.etsMap.focusCoordinates(gps.lat, gps.lng, 16);
+      }
       marker.openPopup();
+    } else {
+      window.etsMap.focusCoordinates(gps.lat, gps.lng, 16);
     }
+
     if (typeof window !== 'undefined' && window.innerWidth <= 1024) {
       const mapTarget = document.getElementById('ets-map-container') || document.querySelector('.ets-map-card');
       if (mapTarget && typeof mapTarget.scrollIntoView === 'function') {
