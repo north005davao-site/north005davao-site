@@ -297,6 +297,96 @@ assert.strictEqual(b767.lat, null, 'DDN-767 without Master Registry GPS must be 
 assert.strictEqual(b767.lng, null, 'DDN-767 without Master Registry GPS must be purged to null');
 console.log('✓ LocalStorage migration (_gpsStrictMasterV1) successfully purged fake coordinates and synchronized Master Registry!');
 
+// --- TEST 9: SMART CACHE DATA INTEGRITY & TTL FALLBACK ---
+console.log('\n--- TEST 9: Smart Cache Data Integrity & TTL Fallback ---');
+const curVer = window.appStore.getMasterRegistryVersion();
+assert.ok(curVer.startsWith('MRV-'), 'Master Registry Version must start with MRV-');
+
+// Render markers to populate cache
+window.etsMap.renderAllMarkers();
+const validCache = window.etsGpsCache.getValidData(curVer);
+assert.ok(validCache, 'Smart cache must return valid data for current version');
+assert.strictEqual(validCache.version, curVer, 'Cache version must match store version');
+assert.strictEqual(validCache.booths.length, 19, 'Cache must contain exactly 19 validated booths');
+
+// Check schema of cached record
+const sampleCached = validCache.booths.find(b => b.boothCode === 'DDN-754');
+assert.ok(sampleCached, 'Sample booth DDN-754 must be present in cache');
+assert.strictEqual(sampleCached.lat, 7.524000);
+assert.strictEqual(sampleCached.lng, 125.625000);
+assert.strictEqual(sampleCached.municipality, 'Sto. Tomas');
+assert.strictEqual(typeof sampleCached.masterRegistryVersion, 'string');
+assert.strictEqual(typeof sampleCached.lastUpdated, 'string');
+
+// Test TTL Expiration
+const originalTimestamp = validCache.timestamp;
+validCache.timestamp = Date.now() - (20 * 60 * 1000); // 20 minutes ago (> 15 min TTL)
+const expiredCheck = window.etsGpsCache.getValidData(curVer);
+assert.strictEqual(expiredCheck, null, 'Expired cache past 15 min TTL must return null');
+validCache.timestamp = originalTimestamp; // Restore
+
+// Test Corrupted / Bad Data Prevention
+const badDataCheck = window.etsGpsCache._isValidCachePayload({
+  version: curVer,
+  timestamp: Date.now(),
+  booths: [{ boothCode: 'BAD-1', lat: 'invalid', lng: 125.6 }]
+}, curVer);
+assert.strictEqual(badDataCheck, false, 'Cache payload with non-numeric coordinates must be rejected');
+
+console.log('✓ Smart Cache validates data integrity, strict coordinates, and enforces 15-minute TTL expiration.');
+
+// --- TEST 10: VERSION-BASED CACHE INVALIDATION & PIN RECALIBRATION ---
+console.log('\n--- TEST 10: Version-Based Cache Invalidation & Pin Recalibration ---');
+const oldVer = window.appStore.getMasterRegistryVersion();
+// Recalibrate DDN-754 to a new precision coordinate
+window.appStore.updateCoordinates('DDN-754', 7.524050, 125.625050);
+const newVer = window.appStore.getMasterRegistryVersion();
+assert.notStrictEqual(oldVer, newVer, 'Recalibration must bump Master Registry Version');
+
+// Old version cache lookup must now fail
+const staleLookup = window.etsGpsCache.getValidData(oldVer);
+assert.strictEqual(staleLookup, null, 'Stale version cache lookup must be rejected');
+
+// Render markers with new version
+window.etsMap.renderAllMarkers();
+const newCache = window.etsGpsCache.getValidData(newVer);
+assert.ok(newCache, 'New cache must be generated for new version');
+const updatedCachedBooth = newCache.booths.find(b => b.boothCode === 'DDN-754');
+assert.strictEqual(updatedCachedBooth.lat, 7.524050);
+assert.strictEqual(updatedCachedBooth.lng, 125.625050);
+console.log('✓ Pin recalibration bumps version and invalidates old cache without requiring browser restart.');
+
+// --- TEST 11: EXCEL IMPORT AUTO-INVALIDATION & REFRESH ---
+console.log('\n--- TEST 11: Excel Import Auto-Invalidation & Pin Refresh ---');
+const preExcelVer = window.appStore.getMasterRegistryVersion();
+const excelSyncRes = window.appStore.syncEmployeesFromExcel({
+  newRecords: [],
+  updateRecords: [
+    { boothCode: 'DDN-754', name: 'Belle Amor Quizo', lat: 7.524000, lng: 125.625000 }
+  ],
+  fileName: 'Master_Registry_Update.xlsx',
+  user: 'Peter John Carrillo'
+});
+const postExcelVer = window.appStore.getMasterRegistryVersion();
+assert.notStrictEqual(preExcelVer, postExcelVer, 'Excel sync must bump Master Registry Version');
+
+// Test that force refresh regenerates cache with new data
+window.etsMap.renderAllMarkers(true);
+const postExcelCache = window.etsGpsCache.getValidData(postExcelVer);
+assert.ok(postExcelCache, 'Cache must be populated after Excel import refresh');
+const restoredBooth = postExcelCache.booths.find(b => b.boothCode === 'DDN-754');
+assert.strictEqual(restoredBooth.lat, 7.524000);
+assert.strictEqual(restoredBooth.lng, 125.625000);
+console.log('✓ Master Registry Excel import automatically bumps version and invalidates cache.');
+
+// --- TEST 12: SECTION 18 validateEtsGpsSync() VERIFICATION ---
+console.log('\n--- TEST 12: validateEtsGpsSync() Full Verification ---');
+const syncAudit = window.validateEtsGpsSync();
+assert.strictEqual(syncAudit.success, true, 'All booths must be synchronized between Master Registry, EST, and Markers');
+assert.strictEqual(syncAudit.discrepancies, 0, 'Zero discrepancies allowed');
+assert.ok(syncAudit.totalChecked >= 19, 'Must check all valid booths');
+console.log(`✓ validateEtsGpsSync() verified ${syncAudit.totalChecked} booths: 100% synchronized across Master Registry, EST, and Map Markers.`);
+
 console.log('\n========================================================================');
 console.log('ALL EST LIVE TRACKING & GPS PIN TESTS PASSED WITH 100% SUCCESS! 🚀');
 console.log('========================================================================');

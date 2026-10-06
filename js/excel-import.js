@@ -1054,9 +1054,9 @@
         window.renderDashboard();
       }
 
-      // Refresh GIS Map Pins
+      // Refresh GIS Map Pins with force cache invalidation
       if (window.etsMap && typeof window.etsMap.renderAllMarkers === 'function') {
-        window.etsMap.renderAllMarkers();
+        window.etsMap.renderAllMarkers(true);
       }
       if (typeof window.renderFleetTrackingList === 'function') {
         window.renderFleetTrackingList();

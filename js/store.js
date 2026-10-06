@@ -458,6 +458,8 @@ function buildDefaultStore() {
   });
 
   return {
+    masterRegistryVersion: 'MRV-20261006-001',
+    masterRegistryUpdatedAt: new Date().toISOString(),
     settings: {
       companyName: 'APEX Mindanao Operations & Gaming Services Corp.',
       branch: 'Davao Del Norte Sector (DDN005)',
@@ -1336,6 +1338,12 @@ class Store {
             }
           }
 
+          if (!parsed.masterRegistryVersion) {
+            parsed.masterRegistryVersion = 'MRV-20261006-001';
+            parsed.masterRegistryUpdatedAt = new Date().toISOString();
+            needsSave = true;
+          }
+
           if (needsSave) {
             this.save(parsed);
           }
@@ -2008,6 +2016,24 @@ class Store {
     return true;
   }
 
+  // Version tracking & smart cache management for Master Registry
+  getMasterRegistryVersion() {
+    return (this.data && this.data.masterRegistryVersion) || 'MRV-20261006-001';
+  }
+
+  bumpMasterRegistryVersion() {
+    const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const suffix = Date.now().toString().slice(-4);
+    const newVersion = `MRV-${todayStr}-${suffix}`;
+    if (!this.data) this.data = {};
+    this.data.masterRegistryVersion = newVersion;
+    this.data.masterRegistryUpdatedAt = new Date().toISOString();
+    if (typeof window !== 'undefined' && window.etsGpsCache && typeof window.etsGpsCache.invalidate === 'function') {
+      window.etsGpsCache.invalidate();
+    }
+    return newVersion;
+  }
+
   // Pin Recalibration Method: Update coordinates of any employee or booth
   updateCoordinates(id, lat, lng) {
     let updated = false;
@@ -2060,6 +2086,7 @@ class Store {
     }
 
     if (updated) {
+      this.bumpMasterRegistryVersion();
       this.save();
     }
     return updated;
@@ -2212,6 +2239,7 @@ class Store {
     const sUp = (emp.status || 'ACTIVE').toUpperCase();
     emp.status = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
     this.data.employees.unshift(emp);
+    this.bumpMasterRegistryVersion();
     this.save();
     return emp;
   }
@@ -2380,6 +2408,7 @@ class Store {
     }
 
     if (result) {
+      this.bumpMasterRegistryVersion();
       this.save();
     }
     return result;
@@ -2417,6 +2446,7 @@ class Store {
       });
     }
 
+    this.bumpMasterRegistryVersion();
     this.save();
   }
 
@@ -2703,6 +2733,9 @@ class Store {
 
     if (!this.data.importHistory) this.data.importHistory = [];
     this.data.importHistory.unshift(historyEntry);
+
+    // Bump Master Registry Version for Smart Caching & sync invalidation
+    this.bumpMasterRegistryVersion();
 
     // Save and notify all listeners
     this.save();

@@ -189,6 +189,167 @@
   window.getMunicipalityColor = resolveMunicipalityColor;
   window.getMunicipalityColorMap = getStoredMunicipalityColorMap;
 
+  // =========================================================================
+  // SMART CACHING LAYER FOR MASTER REGISTRY GPS DATA (Sections 9-16)
+  // =========================================================================
+  const ETS_GPS_CACHE_STORAGE_KEY = 'NORTH005_ETS_GPS_CACHE_V1';
+  const ETS_GPS_CACHE_TTL_MS = 15 * 60 * 1000; // 15 Minutes Safe Expiration TTL
+
+  class EtsGpsCache {
+    constructor() {
+      this.memoryCache = null;
+    }
+
+    /**
+     * Retrieves valid cached booth data if and only if:
+     * 1. Cache exists and is valid JSON
+     * 2. Cache version strictly matches expected current Master Registry Version
+     * 3. Cache timestamp has not exceeded TTL (15 minutes)
+     * 4. Cache structure passes integrity checks
+     */
+    getValidData(expectedVersion) {
+      if (!expectedVersion) return null;
+
+      // 1. Check in-memory cache first for instant performance
+      if (this.memoryCache) {
+        if (this._isValidCachePayload(this.memoryCache, expectedVersion)) {
+          return this.memoryCache;
+        } else {
+          this.invalidate();
+          return null;
+        }
+      }
+
+      // 2. Check persistent storage (sessionStorage or localStorage)
+      try {
+        let raw = null;
+        if (typeof sessionStorage !== 'undefined') {
+          raw = sessionStorage.getItem(ETS_GPS_CACHE_STORAGE_KEY);
+        }
+        if (!raw && typeof localStorage !== 'undefined') {
+          raw = localStorage.getItem(ETS_GPS_CACHE_STORAGE_KEY);
+        }
+        if (!raw) return null;
+
+        const parsed = JSON.parse(raw);
+        if (this._isValidCachePayload(parsed, expectedVersion)) {
+          this.memoryCache = parsed;
+          return parsed;
+        } else {
+          this.invalidate();
+          return null;
+        }
+      } catch (e) {
+        console.warn('[EtsGpsCache] Error reading cache, fallback to Master Registry:', e);
+        this.invalidate();
+        return null;
+      }
+    }
+
+    /**
+     * Strict validation of cache payload:
+     * - Version match
+     * - TTL freshness
+     * - Booth array integrity (only numeric lat/lng within bounds)
+     */
+    _isValidCachePayload(payload, expectedVersion) {
+      if (!payload || typeof payload !== 'object') return false;
+      if (payload.version !== expectedVersion) return false;
+      if (!payload.timestamp || (Date.now() - payload.timestamp > ETS_GPS_CACHE_TTL_MS)) return false;
+      if (!Array.isArray(payload.booths)) return false;
+
+      // Strict validation: every cached booth must have valid numeric coordinates
+      for (const b of payload.booths) {
+        if (!b.boothCode) return false;
+        if (typeof b.lat !== 'number' || typeof b.lng !== 'number') return false;
+        if (isNaN(b.lat) || isNaN(b.lng)) return false;
+        if (b.lat < -90 || b.lat > 90 || b.lng < -180 || b.lng > 180) return false;
+        if (b.lat === 0 && b.lng === 0) return false;
+      }
+      return true;
+    }
+
+    /**
+     * Writes validated Master Registry data to cache.
+     * Prevents caching of bad, non-numeric, or null coordinates.
+     */
+    setData(version, booths, uncoordinated = [], auditSummary = null) {
+      if (!version) return;
+
+      const validatedBooths = [];
+      for (const b of booths) {
+        if (!b || !b.boothCode) continue;
+        const numLat = Number(b.lat);
+        const numLng = Number(b.lng);
+        if (isNaN(numLat) || isNaN(numLng)) continue;
+        if (numLat < -90 || numLat > 90 || numLng < -180 || numLng > 180) continue;
+        if (numLat === 0 && numLng === 0) continue;
+
+        validatedBooths.push({
+          boothCode: b.boothCode,
+          personnel: b.personnel || 'Unassigned',
+          staffList: Array.isArray(b.staffList) ? b.staffList.map(s => ({
+            id: s.id,
+            name: s.name,
+            role: s.role || 'Sales Representative'
+          })) : [],
+          boothRecordId: b.boothRecordId || b.boothCode,
+          municipality: b.municipality || 'Sto. Tomas',
+          location: b.location || b.address || '-',
+          lat: parseFloat(numLat.toFixed(6)),
+          lng: parseFloat(numLng.toFixed(6)),
+          status: b.status || 'Active',
+          masterRegistryVersion: version,
+          lastUpdated: new Date().toISOString()
+        });
+      }
+
+      const payload = {
+        version,
+        timestamp: Date.now(),
+        lastUpdated: new Date().toISOString(),
+        booths: validatedBooths,
+        uncoordinated: (uncoordinated || []).map(u => ({
+          boothCode: u.boothCode,
+          municipality: u.municipality || '-',
+          reason: u.reason || 'GPS DATA MISSING'
+        })),
+        auditSummary: auditSummary || null
+      };
+
+      this.memoryCache = payload;
+
+      try {
+        const str = JSON.stringify(payload);
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem(ETS_GPS_CACHE_STORAGE_KEY, str);
+        }
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(ETS_GPS_CACHE_STORAGE_KEY, str);
+        }
+      } catch (e) {
+        console.warn('[EtsGpsCache] Unable to persist cache:', e);
+      }
+    }
+
+    /**
+     * Explicit cache invalidation
+     */
+    invalidate() {
+      this.memoryCache = null;
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.removeItem(ETS_GPS_CACHE_STORAGE_KEY);
+        }
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem(ETS_GPS_CACHE_STORAGE_KEY);
+        }
+      } catch (e) {}
+    }
+  }
+
+  window.etsGpsCache = new EtsGpsCache();
+
   class EtsMapEngine {
     constructor() {
       this.map = null;
@@ -301,25 +462,138 @@
      * Never plots collectors/admin (boothCode = '-') as booth markers.
      * Validates that Latitude is first and Longitude is second.
      */
-    renderAllMarkers() {
+    /**
+     * Helper to render and bind a single booth marker.
+     * Shared by both Cache-Hit and Cache-Miss pipelines.
+     */
+    _renderMarkerForBooth(boothData, isDraggable, isAdmin) {
+      const { boothCode, lat, lng, municipality, location, status, staffList, boothRecordId } = boothData;
+      const color = resolveMunicipalityColor(municipality);
+      const boothDisplay = boothCode;
+      const staffNames = staffList && staffList.length > 0 ? staffList.map(s => s.name).join(', ') : (boothData.personnel || 'Unassigned');
+      const staffDetails = staffList && staffList.length > 0 ? staffList.map(s => {
+        let r = s.role || 'Staff';
+        const rU = r.toUpperCase();
+        if (rU === 'TELLER' || rU === 'STATION TELLER') r = 'Sales Representative';
+        return `<div style="font-size:12px; color:var(--text-main); margin-bottom:2px;">• <strong>${s.name}</strong> <span style="color:#64748b; font-size:11px;">(${r})</span></div>`;
+      }).join('') : `<div style="font-size:12px; color:var(--text-main); margin-bottom:2px;">• <strong>${staffNames}</strong></div>`;
+
+      const icon = this.createSvgIcon(color, '🏪', isDraggable, `STL BOOTH: ${boothDisplay} (${municipality})`);
+      const marker = L.marker([lat, lng], {
+        icon,
+        draggable: isDraggable
+      });
+
+      marker.bindTooltip(`<strong>STL BOOTH:</strong> ${boothDisplay} • ${staffNames} (${municipality})`, { direction: 'top' });
+
+      const primaryStaffId = (staffList && staffList[0]) ? staffList[0].id : (boothRecordId || boothCode);
+      let adminActions = '';
+      if (isAdmin) {
+        adminActions = `
+          <div style="margin-top: 8px; display: flex; gap: 6px;">
+            <button onclick="window.openPrecisionCalibrateModal('${primaryStaffId}')" style="flex: 1; padding: 6px 10px; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 11.5px; font-weight: 700;">
+              ✏️ Recalibrate Pin
+            </button>
+          </div>
+        `;
+      }
+
+      marker.bindPopup(`
+        <div style="font-family: inherit; min-width: 250px; line-height: 1.4;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; background: ${color}; color: #ffffff; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px;">
+              STL BOOTH: ${boothDisplay}
+            </span>
+            <span style="font-size: 11.5px; font-weight: 700; color: ${color};">
+              ● ${municipality}
+            </span>
+          </div>
+          <div style="margin-bottom: 6px; padding: 6px 8px; background: rgba(0,0,0,0.04); border-radius: 4px;">
+            <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 2px;">Assigned Personnel:</div>
+            ${staffDetails}
+          </div>
+          <div style="font-size: 12px; margin-bottom: 3px;"><strong>Municipality:</strong> <span style="font-weight: 700; color: ${color};">${municipality}</span></div>
+          <div style="font-size: 12px; margin-bottom: 3px;"><strong>Location / Address:</strong> ${location || '-'}</div>
+          <div style="font-size: 12px; margin-bottom: 3px;"><strong>GPS Coordinates:</strong> <span style="font-family: monospace; font-weight: 700; color: #2563eb;">${lat.toFixed(6)}, ${lng.toFixed(6)}</span></div>
+          <div style="font-size: 12px; margin-bottom: 4px;"><strong>Status:</strong> <span style="font-weight: 700; color: #16a34a;">● ${status}</span></div>
+          ${adminActions}
+        </div>
+      `);
+
+      // Index marker under canonical normBoothCode, raw variations, and all associated personnel
+      this.allMarkerInstances[boothCode] = marker;
+      this.allMarkerInstances[boothCode.replace('-', ' ')] = marker; // "DDN 754"
+      this.allMarkerInstances[boothCode.replace('DDN-', '')] = marker; // "754"
+      if (boothData.rawBoothCode) this.allMarkerInstances[boothData.rawBoothCode] = marker;
+      if (boothRecordId) this.allMarkerInstances[boothRecordId] = marker;
+
+      if (staffList) {
+        staffList.forEach(s => {
+          if (s.id) this.allMarkerInstances[s.id] = marker;
+          if (s.name) this.allMarkerInstances[s.name.toLowerCase().trim()] = marker;
+        });
+      }
+
+      this.markers.booths.addLayer(marker);
+      return marker;
+    }
+
+    /**
+     * Renders STL Booth markers deduplicated strictly by unique Booth Code.
+     * Uses real Master Registry coordinates only.
+     * Leverages Smart Caching for instant performance while guaranteeing authoritative Master Registry sync.
+     * Never plots collectors/admin (boothCode = '-') as booth markers.
+     * Validates that Latitude is first and Longitude is second.
+     */
+    renderAllMarkers(forceRefresh = false) {
       if (!this.map) return;
       const store = window.appStore;
       if (!store) return;
 
+      if (forceRefresh && window.etsGpsCache) {
+        window.etsGpsCache.invalidate();
+      }
+
       this.markers.booths.clearLayers();
       this.allMarkerInstances = {};
 
+      const isDraggable = this.calibrationMode;
+      const isAdmin = window.authManager && window.authManager.isAdmin();
+      const currentVersion = store.getMasterRegistryVersion();
+
+      // 1. SMART CACHE CHECK
+      const cached = window.etsGpsCache ? window.etsGpsCache.getValidData(currentVersion) : null;
+      if (cached && !forceRefresh) {
+        // Cache Hit: Render directly from pre-validated Master Registry cache
+        cached.booths.forEach(b => {
+          this._renderMarkerForBooth(b, isDraggable, isAdmin);
+        });
+
+        this.lastAuditSummary = cached.auditSummary || {
+          totalMasterRegistryBooths: (cached.booths.length + (cached.uncoordinated ? cached.uncoordinated.length : 0)),
+          recordsWithValidGps: cached.booths.length,
+          recordsWithInvalidGps: 0,
+          recordsWithMissingGps: cached.uncoordinated ? cached.uncoordinated.length : 0,
+          estMarkersCreated: cached.booths.length,
+          estMarkersMissing: cached.uncoordinated ? cached.uncoordinated.length : 0,
+          validBoothCodes: cached.booths.map(b => b.boothCode),
+          missingBoothCodes: cached.uncoordinated ? cached.uncoordinated.map(u => u.boothCode) : [],
+          invalidBoothCodes: []
+        };
+        console.log(`[EtsGpsCache HIT] Rendered ${cached.booths.length} verified booth markers (Version: ${currentVersion})`);
+        return;
+      }
+
+      // 2. CACHE MISS / REFRESH: Authoritative Parse from Master Registry
       const registeredBooths = store.getBooths() || [];
       const employees = store.getEmployees() || [];
       const relievers = (store.data && store.data.relievers) || [];
       const allStaff = [...employees, ...relievers.filter(r => !employees.some(e => e.id === r.id))];
-      const isDraggable = this.calibrationMode;
-      const isAdmin = window.authManager && window.authManager.isAdmin();
 
       // Collect all distinct booths keyed strictly by normalized Booth Code
       const boothMap = new Map();
 
-      // 1. Ingest Master Registry registered booths
+      // Ingest Master Registry registered booths
       registeredBooths.forEach(b => {
         const normCode = normalizeBoothCode(b.id || b.code);
         if (!normCode) return; // Skip non-booth entries like '-'
@@ -335,7 +609,7 @@
         });
       });
 
-      // 2. Associate assigned personnel to booths by normalized Booth Code
+      // Associate assigned personnel to booths by normalized Booth Code
       allStaff.forEach(emp => {
         const normCode = normalizeBoothCode(emp.boothCode || emp.booth);
         if (!normCode) return; // Skip collectors, admins, and unassigned roaming personnel
@@ -360,7 +634,6 @@
         }
       });
 
-      const bounds = [];
       const auditSummary = {
         totalMasterRegistryBooths: boothMap.size,
         recordsWithValidGps: 0,
@@ -372,6 +645,9 @@
         missingBoothCodes: [],
         invalidBoothCodes: []
       };
+
+      const validBoothsToCache = [];
+      const uncoordinatedBoothsToCache = [];
 
       boothMap.forEach((entry, normBoothCode) => {
         // Resolve GPS Coordinates from the Master Registry records for this booth
@@ -395,7 +671,8 @@
         // Section 11 & 12: If no valid GPS coordinates exist in Master Registry, DO NOT place on map!
         // Record and log the specific Booth Code for diagnostic tracking
         if (!gps.isValid) {
-          if (gps.reason && (gps.reason.includes('INVALID') || gps.reason.includes('BOUNDS'))) {
+          const reason = gps.reason || 'GPS UNAVAILABLE';
+          if (reason.includes('INVALID') || reason.includes('BOUNDS')) {
             auditSummary.recordsWithInvalidGps++;
             auditSummary.invalidBoothCodes.push(normBoothCode);
           } else {
@@ -403,7 +680,11 @@
             auditSummary.missingBoothCodes.push(normBoothCode);
           }
           auditSummary.estMarkersMissing++;
-          console.warn(`[ETS GPS Audit] Booth: ${normBoothCode} - GPS: Missing / Invalid (${gps.reason || 'UNAVAILABLE'}). Marker: Not rendered.`);
+          uncoordinatedBoothsToCache.push({
+            boothCode: normBoothCode,
+            municipality: entry.municipality || '-',
+            reason
+          });
           return;
         }
 
@@ -413,7 +694,6 @@
 
         const lat = gps.lat;
         const lng = gps.lng;
-        bounds.push([lat, lng]);
 
         // Resolve Municipality
         let muni = entry.municipality;
@@ -429,77 +709,30 @@
           else muni = 'Sto. Tomas';
         }
 
-        const color = resolveMunicipalityColor(muni);
-        const boothDisplay = normBoothCode;
-        const staffNames = entry.staffList.length > 0 ? entry.staffList.map(s => s.name).join(', ') : 'Unassigned';
-        const staffDetails = entry.staffList.length > 0 ? entry.staffList.map(s => {
-          let r = s.role || 'Staff';
-          const rU = r.toUpperCase();
-          if (rU === 'TELLER' || rU === 'STATION TELLER') r = 'Sales Representative';
-          return `<div style="font-size:12px; color:var(--text-main); margin-bottom:2px;">• <strong>${s.name}</strong> <span style="color:#64748b; font-size:11px;">(${r})</span></div>`;
-        }).join('') : '<div style="font-size:12px; color:#64748b; font-style:italic;">No staff currently assigned</div>';
+        const boothData = {
+          boothCode: normBoothCode,
+          rawBoothCode: entry.rawBoothCode,
+          lat,
+          lng,
+          municipality: muni,
+          location: entry.address || '-',
+          status: entry.status || 'Active',
+          personnel: entry.staffList.length > 0 ? entry.staffList.map(s => s.name).join(', ') : 'Unassigned',
+          staffList: entry.staffList.map(s => ({ id: s.id, name: s.name, role: s.role })),
+          boothRecordId: entry.boothRecord ? entry.boothRecord.id : null
+        };
 
-        const icon = this.createSvgIcon(color, '🏪', isDraggable, `STL BOOTH: ${boothDisplay} (${muni})`);
-        const marker = L.marker([lat, lng], {
-          icon,
-          draggable: isDraggable
-        });
-
-        marker.bindTooltip(`<strong>STL BOOTH:</strong> ${boothDisplay} • ${staffNames} (${muni})`, { direction: 'top' });
-
-        const primaryStaffId = entry.staffList[0] ? entry.staffList[0].id : (entry.boothRecord ? entry.boothRecord.id : normBoothCode);
-        let adminActions = '';
-        if (isAdmin) {
-          adminActions = `
-            <div style="margin-top: 8px; display: flex; gap: 6px;">
-              <button onclick="window.openPrecisionCalibrateModal('${primaryStaffId}')" style="flex: 1; padding: 6px 10px; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 11.5px; font-weight: 700;">
-                ✏️ Recalibrate Pin
-              </button>
-            </div>
-          `;
-        }
-
-        marker.bindPopup(`
-          <div style="font-family: inherit; min-width: 250px; line-height: 1.4;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-              <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; background: ${color}; color: #ffffff; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px;">
-                STL BOOTH: ${boothDisplay}
-              </span>
-              <span style="font-size: 11.5px; font-weight: 700; color: ${color};">
-                ● ${muni}
-              </span>
-            </div>
-            <div style="margin-bottom: 6px; padding: 6px 8px; background: rgba(0,0,0,0.04); border-radius: 4px;">
-              <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 2px;">Assigned Personnel:</div>
-              ${staffDetails}
-            </div>
-            <div style="font-size: 12px; margin-bottom: 3px;"><strong>Municipality:</strong> <span style="font-weight: 700; color: ${color};">${muni}</span></div>
-            <div style="font-size: 12px; margin-bottom: 3px;"><strong>Location / Address:</strong> ${entry.address || '-'}</div>
-            <div style="font-size: 12px; margin-bottom: 3px;"><strong>GPS Coordinates:</strong> <span style="font-family: monospace; font-weight: 700; color: #2563eb;">${lat.toFixed(6)}, ${lng.toFixed(6)}</span></div>
-            <div style="font-size: 12px; margin-bottom: 4px;"><strong>Status:</strong> <span style="font-weight: 700; color: #16a34a;">● ${entry.status}</span></div>
-            ${adminActions}
-          </div>
-        `);
-
-        // Index marker under canonical normBoothCode, raw variations, and all associated personnel
-        this.allMarkerInstances[normBoothCode] = marker;
-        if (entry.rawBoothCode) this.allMarkerInstances[entry.rawBoothCode] = marker;
-        this.allMarkerInstances[normBoothCode.replace('-', ' ')] = marker; // "DDN 754"
-        this.allMarkerInstances[normBoothCode.replace('DDN-', '')] = marker; // "754"
-
-        entry.staffList.forEach(s => {
-          this.allMarkerInstances[s.id] = marker;
-          if (s.name) this.allMarkerInstances[s.name.toLowerCase().trim()] = marker;
-        });
-
-        if (entry.boothRecord && entry.boothRecord.id) {
-          this.allMarkerInstances[entry.boothRecord.id] = marker;
-        }
-
-        this.markers.booths.addLayer(marker);
+        this._renderMarkerForBooth(boothData, isDraggable, isAdmin);
+        validBoothsToCache.push(boothData);
       });
 
       this.lastAuditSummary = auditSummary;
+
+      // Populate Smart Cache with validated records
+      if (window.etsGpsCache) {
+        window.etsGpsCache.setData(currentVersion, validBoothsToCache, uncoordinatedBoothsToCache, auditSummary);
+      }
+
       console.log(`[ETS GPS Audit Summary] Total Master Registry Booths: ${auditSummary.totalMasterRegistryBooths} | Valid GPS: ${auditSummary.recordsWithValidGps} | Missing GPS: ${auditSummary.recordsWithMissingGps} | Invalid GPS: ${auditSummary.recordsWithInvalidGps} | EST Markers Rendered: ${auditSummary.estMarkersCreated} | Missing Markers: ${auditSummary.estMarkersMissing}`);
     }
 
@@ -524,6 +757,96 @@
   window.etsMap = new EtsMapEngine();
   window.getEtsGpsAuditReport = function() {
     return window.etsMap ? window.etsMap.lastAuditSummary : null;
+  };
+
+  /**
+   * Section 18: GPS Synchronization Validation
+   * Validates that for each booth:
+   * Booth Code, Master Registry GPS, EST GPS (Cache), and Map Marker GPS all match.
+   */
+  window.validateEtsGpsSync = function() {
+    const store = window.appStore;
+    if (!store) return { success: false, reason: 'Store not loaded' };
+    const etsEngine = window.etsMap;
+    const version = store.getMasterRegistryVersion();
+    const registeredBooths = store.getBooths() || [];
+    const employees = store.getEmployees() || [];
+    const results = [];
+    let discrepancies = 0;
+
+    // Check every registered booth that has coordinates in Master Registry
+    registeredBooths.forEach(b => {
+      const bCode = normalizeBoothCode(b.id || b.code);
+      if (!bCode) return;
+
+      const mrGps = parseGpsCoordinates(b);
+      const emp = employees.find(e => normalizeBoothCode(e.boothCode || e.booth) === bCode);
+      const effectiveMrGps = mrGps.isValid ? mrGps : (emp ? parseGpsCoordinates(emp) : { isValid: false });
+
+      if (!effectiveMrGps.isValid) {
+        // Uncoordinated booth - ensure no rogue marker was rendered
+        const marker = etsEngine && etsEngine.allMarkerInstances ? etsEngine.allMarkerInstances[bCode] : null;
+        if (marker) {
+          discrepancies++;
+          results.push({
+            boothCode: bCode,
+            status: 'DISCREPANCY_ORPHAN_MARKER',
+            error: 'Booth has no valid GPS in Master Registry but has a rendered marker!'
+          });
+        }
+        return;
+      }
+
+      const mrLat = effectiveMrGps.lat;
+      const mrLng = effectiveMrGps.lng;
+
+      // Check EST GPS from cache
+      const cached = window.etsGpsCache ? window.etsGpsCache.getValidData(version) : null;
+      let estLat = null;
+      let estLng = null;
+      if (cached && Array.isArray(cached.booths)) {
+        const cBooth = cached.booths.find(cb => cb.boothCode === bCode);
+        if (cBooth) {
+          estLat = cBooth.lat;
+          estLng = cBooth.lng;
+        }
+      } else {
+        estLat = mrLat;
+        estLng = mrLng;
+      }
+
+      // Check Map Marker GPS
+      const marker = etsEngine && etsEngine.allMarkerInstances ? etsEngine.allMarkerInstances[bCode] : null;
+      let markerLat = null;
+      let markerLng = null;
+      if (marker && typeof marker.getLatLng === 'function') {
+        const pos = marker.getLatLng();
+        markerLat = parseFloat(Number(pos.lat).toFixed(6));
+        markerLng = parseFloat(Number(pos.lng).toFixed(6));
+      }
+
+      const match = (markerLat !== null && markerLng !== null) &&
+                    (mrLat === markerLat && mrLng === markerLng) &&
+                    (estLat === null || (mrLat === estLat && mrLng === estLng));
+
+      if (!match) discrepancies++;
+
+      results.push({
+        boothCode: bCode,
+        masterRegistryGps: `${mrLat}, ${mrLng}`,
+        estGps: estLat !== null ? `${estLat}, ${estLng}` : 'N/A',
+        mapMarkerGps: markerLat !== null ? `${markerLat}, ${markerLng}` : 'MISSING_MARKER',
+        status: match ? 'SYNCED' : 'MISMATCH'
+      });
+    });
+
+    return {
+      success: discrepancies === 0,
+      discrepancies,
+      totalChecked: results.length,
+      version,
+      details: results
+    };
   };
 
 })();
