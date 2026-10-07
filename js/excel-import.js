@@ -34,7 +34,7 @@
     { sheetName: 'DDN 05 TALAINGOD', municipality: 'Talaingod' },
     { sheetName: 'DDN 06 KAPALONG', municipality: 'Kapalong' },
     { sheetName: 'DDN 10 SAMAL', municipality: 'Samal' },
-    { sheetName: 'RELIEVERS', municipality: 'Davao Sector', isRelieversSheet: true, isOptional: true }
+    { sheetName: 'RELIEVERS', municipality: 'Sto. Tomas', isRelieversSheet: true, isOptional: true }
   ];
 
   // Global state for current import session
@@ -305,7 +305,7 @@
           sheetsStatus.push({
             targetSheet: 'RELIEVERS',
             actualSheet: sheetName,
-            municipality: 'Davao Sector',
+            municipality: 'Sto. Tomas',
             isRelieversSheet: true,
             found: true,
             recordCount: 0
@@ -313,7 +313,7 @@
           sheetsToProcess.push({
             actualSheet: sheetName,
             targetSheet: 'RELIEVERS',
-            municipality: 'Davao Sector',
+            municipality: 'Sto. Tomas',
             isRelieversSheet: true
           });
         }
@@ -651,8 +651,8 @@
         coordsCol = idx;
       }
 
-      // Municipality / City
-      if (txt.includes('municipality') || txt.includes('city') || txt.includes('town')) {
+      // Municipality / City / Location / Area
+      if (txt.includes('municipality') || txt.includes('city') || txt.includes('town') || txt === 'location' || txt === 'area') {
         muniCol = idx;
       }
 
@@ -819,12 +819,15 @@
     let muniVal = sheetInfo.municipality || '';
     if (headerAnalysis.muniCol !== -1) {
       const rawMuni = getCell(headerAnalysis.muniCol);
-      if (rawMuni) muniVal = rawMuni;
+      if (rawMuni) {
+        const parsed = (typeof parseAddress === 'function' ? parseAddress(rawMuni) : { municipality: rawMuni });
+        muniVal = parsed.municipality || rawMuni;
+      }
     }
     if (!muniVal || muniVal === 'Davao Sector' || muniVal === 'Davao Del Norte' || muniVal === 'N/A' || muniVal === '-') {
       const testText = `${combinedAddress} ${sheetInfo.targetSheet} ${sheetInfo.actualSheet || ''}`.toLowerCase();
-      if (testText.includes('tagum')) muniVal = 'Tagum';
-      else if (testText.includes('panabo')) muniVal = 'Panabo';
+      if (testText.includes('tagum')) muniVal = 'Tagum City';
+      else if (testText.includes('panabo')) muniVal = 'Panabo City';
       else if (testText.includes('carmen')) muniVal = 'Carmen';
       else if (testText.includes('tomas') || testText.includes('salvacion') || testText.includes('tibal.og') || testText.includes('tibal-og')) muniVal = 'Sto. Tomas';
       else if (testText.includes('talaingod')) muniVal = 'Talaingod';

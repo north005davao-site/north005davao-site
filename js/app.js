@@ -178,9 +178,6 @@ function initTheme() {
     document.documentElement.setAttribute('data-theme', newTheme);
     store.setTheme(newTheme);
     if (window.sfx) sfx.playClick();
-    if (typeof revenueChart !== 'undefined' && revenueChart && typeof renderCharts === 'function') {
-      renderCharts();
-    }
   });
 
   const soundBtn = document.getElementById('sound-toggle-btn');
@@ -859,23 +856,37 @@ function parseAddressHelper(rawAddress) {
     };
   }
 
+  // Strip trailing province suffix if present so municipality is not masked
+  const cleanAddr = addr.replace(/,\s*Davao\s+del\s+Norte\s*$/i, '').trim();
+
   const knownMunicipalities = [
     'Sto. Tomas', 'Sto Tomas', 'St. Tomas',
     'Tagum City', 'Tagum',
     'Panabo City', 'Panabo',
     'Carmen', 'Kapalong',
     'Sto. Nino Talaingod', 'Sto. Niño Talaingod', 'Talaingod',
-    'Davao Del Norte', 'Asuncion'
+    'Samal', 'Island Garden City of Samal',
+    'Asuncion'
   ];
+
+  // Check if entire address is a known municipality
+  for (const m of knownMunicipalities) {
+    if (cleanAddr.toLowerCase() === m.toLowerCase()) {
+      return {
+        purok: '-',
+        municipality: m === 'Sto Tomas' || m === 'St. Tomas' ? 'Sto. Tomas' : (m === 'Tagum' ? 'Tagum City' : (m === 'Panabo' ? 'Panabo City' : m))
+      };
+    }
+  }
 
   for (const m of knownMunicipalities) {
     const re = new RegExp('(?:,\\s*|\\s+)' + m.replace('.', '\\.') + '\\s*$', 'i');
-    if (re.test(addr)) {
-      const match = addr.match(re);
-      const purokPart = addr.substring(0, match.index).trim().replace(/[,\/\s]+$/, '');
+    if (re.test(cleanAddr)) {
+      const match = cleanAddr.match(re);
+      const purokPart = cleanAddr.substring(0, match.index).trim().replace(/[,\/\s]+$/, '');
       return {
         purok: purokPart || '-',
-        municipality: m
+        municipality: m === 'Sto Tomas' || m === 'St. Tomas' ? 'Sto. Tomas' : (m === 'Tagum' ? 'Tagum City' : (m === 'Panabo' ? 'Panabo City' : m))
       };
     }
   }
@@ -932,20 +943,20 @@ window.goToRegistryPage = function(page) {
   renderEmployeesTable();
 };
 
-window.updateEmployeeStatus = function(id, newStatus) {
+window.updateEmployeeStatus = function(id, newStatus, empName = null) {
   if (window.sfx) sfx.playClick();
   const normStatus = (newStatus || 'ACTIVE').toUpperCase();
-  window.appStore.updateEmployee(id, { status: normStatus });
+  window.appStore.updateEmployee(id, { status: normStatus, _targetName: empName }, empName);
   renderEmployeesTable();
   if (window.orgChartModule && typeof window.orgChartModule.render === 'function') window.orgChartModule.render();
   if (typeof renderFleetTrackingList === 'function') renderFleetTrackingList();
   if (window.etsMap && typeof window.etsMap.renderAllMarkers === 'function') window.etsMap.renderAllMarkers();
 };
 
-window.updateEmployeePrinter = function(id, newPrinter) {
+window.updateEmployeePrinter = function(id, newPrinter, empName = null) {
   if (window.sfx) sfx.playClick();
   const val = newPrinter === 'WITH PORTABLE PRINTER' ? 'WITH PORTABLE PRINTER' : 'N/A';
-  window.appStore.updateEmployee(id, { printerName: val, printerSerial: val });
+  window.appStore.updateEmployee(id, { printerName: val, printerSerial: val, _targetName: empName }, empName);
   renderEmployeesTable();
   if (typeof renderFleetTrackingList === 'function') renderFleetTrackingList();
 };
@@ -985,7 +996,7 @@ window.handleDeptChangeInModal = function(dept) {
 let pendingDeleteEmployeeId = null;
 let pendingDeleteTargetName = '';
 
-window.requestDeleteEmployee = function(id) {
+window.requestDeleteEmployee = function(id, targetName = null) {
   if (window.authManager && !window.authManager.isAdmin()) {
     alert('Permission Denied: Only Administrators can delete records.');
     return;
@@ -993,12 +1004,19 @@ window.requestDeleteEmployee = function(id) {
   if (window.sfx) sfx.playAlert();
   pendingDeleteEmployeeId = id;
   const store = window.appStore;
-  const emp = store.getEmployees().find(e => e.id === id) || 
-              (store.data.relievers && store.data.relievers.find(r => r.id === id));
+  let emp = null;
+  if (targetName && (id === 'DDN005-SR000' || !id || id === 'N/A')) {
+    emp = store.getEmployees().find(e => e.name && e.name.toLowerCase().trim() === targetName.toLowerCase().trim()) ||
+          (store.data.relievers && store.data.relievers.find(r => r.name && r.name.toLowerCase().trim() === targetName.toLowerCase().trim()));
+  }
+  if (!emp) {
+    emp = store.getEmployees().find(e => e.id === id) || 
+          (store.data.relievers && store.data.relievers.find(r => r.id === id));
+  }
   const booth = (store.data && store.data.booths) ? store.data.booths.find(b => b.id === id || b.id === `BOOTH-${id}` || b.code === id) : null;
   
   const empName = emp ? (emp.name && emp.name !== 'N/A' ? `${emp.name} (${emp.id})` : `Booth ${emp.boothCode || emp.id}`) : (booth ? `Station ${booth.id}` : id);
-  pendingDeleteTargetName = empName;
+  pendingDeleteTargetName = emp ? emp.name : empName;
 
   const msgEl = document.getElementById('delete-confirm-message');
   if (msgEl) {
@@ -1017,7 +1035,7 @@ window.confirmDeleteEmployee = function() {
   if (!pendingDeleteEmployeeId) return;
   const deletedName = pendingDeleteTargetName || pendingDeleteEmployeeId;
   if (window.sfx) sfx.playChime();
-  window.appStore.deleteEmployee(pendingDeleteEmployeeId);
+  window.appStore.deleteEmployee(pendingDeleteEmployeeId, pendingDeleteTargetName);
   pendingDeleteEmployeeId = null;
   pendingDeleteTargetName = '';
   document.getElementById('modal-delete-confirm').classList.remove('active');
@@ -1077,8 +1095,8 @@ window.cancelReactivateTeller = function() {
   if (modal) modal.classList.remove('active');
 };
 
-window.viewEmployeeDetails = function(id) {
-  window.editEmployee(id, true);
+window.viewEmployeeDetails = function(id, empName = null) {
+  window.editEmployee(id, true, empName);
 };
 
 function renderEmployeesTable(customList = null) {
@@ -1275,15 +1293,15 @@ function renderEmployeesTable(customList = null) {
     }
 
     let purok = (rawP !== undefined && rawP !== null && String(rawP).trim() !== '') ? String(rawP).trim() : '-';
-    let muni = (emp.municipality !== undefined && emp.municipality !== null && String(emp.municipality).trim() !== '' && String(emp.municipality).trim() !== '-') 
+    let muni = (emp.municipality !== undefined && emp.municipality !== null && String(emp.municipality).trim() !== '' && String(emp.municipality).trim() !== '-' && String(emp.municipality).trim() !== 'Davao Sector' && String(emp.municipality).trim() !== 'Davao Del Norte') 
       ? String(emp.municipality).trim() 
-      : ((emp.area && emp.area !== '-') ? emp.area : '-');
+      : ((emp.area && emp.area !== '-' && emp.area !== 'Davao Sector' && emp.area !== 'Davao Del Norte') ? emp.area : '-');
 
-    // Only fallback to address parsing if NEITHER purok nor municipality was ever defined on the record
-    if ((emp.purok === undefined || emp.purok === null) && (!muni || muni === '-')) {
+    // Only fallback to address parsing if NEITHER purok nor municipality was ever defined on the record or was generic
+    if ((emp.purok === undefined || emp.purok === null || emp.purok === '-') || (!muni || muni === '-' || muni === 'Davao Sector' || muni === 'Davao Del Norte')) {
       const parsed = parseAddressHelper(emp.address || emp.area || '');
-      purok = parsed.purok;
-      muni = parsed.municipality;
+      if (purok === '-' || !purok) purok = parsed.purok;
+      if (!muni || muni === '-' || muni === 'Davao Sector' || muni === 'Davao Del Norte') muni = parsed.municipality;
     }
 
     // 3. Booth Code (Checks boothCode or booth)
@@ -1316,6 +1334,8 @@ function renderEmployeesTable(customList = null) {
       statusStyle = 'border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.15); color: #ef4444;';
     }
 
+    const safeEmpName = (emp.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
     return `
       <tr>
         <td><code style="font-weight: 700; color: var(--primary); font-size: 12px;">${emp.id}</code></td>
@@ -1335,7 +1355,7 @@ function renderEmployeesTable(customList = null) {
           <span style="font-family: monospace; font-size: 11.5px; color: var(--text-main);">${phoneDisplay}</span>
         </td>
         <td style="text-align: center;">
-          <select class="form-select" style="padding: 3px 8px; font-size: 11px; font-weight: 700; width: auto; border-radius: 4px; display: inline-block; margin: 0 auto; ${statusStyle}" ${!isAdmin ? 'disabled title="Supervisor: View-only"' : `onchange="window.updateEmployeeStatus('${emp.id}', this.value)"`}>
+          <select class="form-select" style="padding: 3px 8px; font-size: 11px; font-weight: 700; width: auto; border-radius: 4px; display: inline-block; margin: 0 auto; ${statusStyle}" ${!isAdmin ? 'disabled title="Supervisor: View-only"' : `onchange="window.updateEmployeeStatus('${emp.id}', this.value, '${safeEmpName}')"`}>
             <option value="ACTIVE" ${statusUpper === 'ACTIVE' ? 'selected' : ''}>ACTIVE</option>
             <option value="INACTIVE" ${statusUpper === 'INACTIVE' ? 'selected' : ''}>INACTIVE</option>
             <option value="UNUSED" ${statusUpper === 'UNUSED' ? 'selected' : ''}>UNUSED</option>
@@ -1346,7 +1366,7 @@ function renderEmployeesTable(customList = null) {
           <code style="font-weight: 700; font-size: 11.5px; color: var(--text-main);">${posDisplay}</code>
         </td>
         <td style="text-align: center;">
-          <select class="form-select" style="padding: 3px 8px; font-size: 11px; font-weight: 700; width: auto; border-radius: 4px; display: inline-block; margin: 0 auto; ${isWithPrinter ? 'border-color: rgba(16, 185, 129, 0.4); color: #10b981; background: rgba(16, 185, 129, 0.1);' : 'color: var(--text-muted);'}" ${!isAdmin ? 'disabled title="Supervisor: View-only"' : `onchange="window.updateEmployeePrinter('${emp.id}', this.value)"`}>
+          <select class="form-select" style="padding: 3px 8px; font-size: 11px; font-weight: 700; width: auto; border-radius: 4px; display: inline-block; margin: 0 auto; ${isWithPrinter ? 'border-color: rgba(16, 185, 129, 0.4); color: #10b981; background: rgba(16, 185, 129, 0.1);' : 'color: var(--text-muted);'}" ${!isAdmin ? 'disabled title="Supervisor: View-only"' : `onchange="window.updateEmployeePrinter('${emp.id}', this.value, '${safeEmpName}')"`}>
             <option value="WITH PORTABLE PRINTER" ${isWithPrinter ? 'selected' : ''}>WITH PORTABLE PRINTER</option>
             <option value="N/A" ${!isWithPrinter ? 'selected' : ''}>N/A</option>
           </select>
@@ -1357,22 +1377,22 @@ function renderEmployeesTable(customList = null) {
               if (isAdmin) {
                 if (statusUpper === 'TERMINATED') {
                   return `
-                    <button class="btn btn-outline-success btn-sm" style="padding: 3px 8px; font-size: 11px; font-weight:700; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid #10b981;" onclick="window.promptReactivateTeller('${emp.id}')" title="Reactivate Teller">
+                    <button class="btn btn-outline-success btn-sm" style="padding: 3px 8px; font-size: 11px; font-weight:700; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid #10b981;" onclick="window.promptReactivateTeller('${emp.id}', '${safeEmpName}')" title="Reactivate Teller">
                       🔄 Reactivate
                     </button>
-                    <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="window.editEmployee('${emp.id}')" title="Edit Terminated Staff Record">
+                    <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="window.editEmployee('${emp.id}', false, '${safeEmpName}')" title="Edit Terminated Staff Record">
                       ✏️ Edit
                     </button>
-                    <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px; color: var(--danger); border-color: rgba(239, 68, 68, 0.4);" onclick="window.requestDeleteEmployee('${emp.id}')" title="Delete Record">
+                    <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px; color: var(--danger); border-color: rgba(239, 68, 68, 0.4);" onclick="window.requestDeleteEmployee('${emp.id}', '${safeEmpName}')" title="Delete Record">
                       🗑️ Delete
                     </button>
                   `;
                 }
                 return `
-                  <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="window.editEmployee('${emp.id}')" title="Edit Staff Member">
+                  <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="window.editEmployee('${emp.id}', false, '${safeEmpName}')" title="Edit Staff Member">
                     ✏️ Edit
                   </button>
-                  <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px; color: var(--danger); border-color: rgba(239, 68, 68, 0.4);" onclick="window.requestDeleteEmployee('${emp.id}')" title="Delete Record">
+                  <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px; color: var(--danger); border-color: rgba(239, 68, 68, 0.4);" onclick="window.requestDeleteEmployee('${emp.id}', '${safeEmpName}')" title="Delete Record">
                     🗑️ Delete
                   </button>
                   <button class="btn btn-primary btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="window.showQrPass('${emp.id}')" title="View Digital Pass">
@@ -1382,7 +1402,7 @@ function renderEmployeesTable(customList = null) {
               } else {
                 // Supervisor: Master Registry is VIEW-ONLY!
                 return `
-                  <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="window.viewEmployeeDetails('${emp.id}')" title="View Staff Details (Read-Only)">
+                  <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="window.viewEmployeeDetails('${emp.id}', '${safeEmpName}')" title="View Staff Details (Read-Only)">
                     👁️ Details
                   </button>
                   <button class="btn btn-primary btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="window.showQrPass('${emp.id}')" title="View Digital Pass">
@@ -1522,31 +1542,9 @@ window.showQrPass = function(id) {
   document.getElementById('modal-qr').classList.add('active');
 };
 
-window.updateEmployeePrinter = function(empId, printerStatus) {
-  const store = window.appStore;
-  const emp = store.data.employees.find(e => e.id === empId) ||
-              (store.data.relievers && store.data.relievers.find(r => r.id === empId));
-  if (!emp) return;
-
-  const finalVal = printerStatus === 'WITH PORTABLE PRINTER' ? 'WITH PORTABLE PRINTER' : 'N/A';
-  emp.printerName = finalVal;
-  emp.printerSerial = finalVal;
-
-  if (store.data.relievers) {
-    const rel = store.data.relievers.find(r => r.id === empId);
-    if (rel) {
-      rel.printerName = finalVal;
-      rel.printerSerial = finalVal;
-    }
-  }
-
-  store.save();
-  if (window.sfx) window.sfx.playChime();
-  renderEmployeesTable();
-};
-
 window.openAddEmployeeModal = function() {
   if (window.sfx) sfx.playClick();
+  window._currentEditingEmployeeTargetName = null;
   document.getElementById('modal-employee-title').textContent = 'Register New Staff Member';
   document.getElementById('emp-form-id').value = '';
   const idDisplay = document.getElementById('emp-form-id-display');
@@ -1567,11 +1565,18 @@ window.openAddEmployeeModal = function() {
   document.getElementById('modal-employee').classList.add('active');
 };
 
-window.editEmployee = function(id) {
+window.editEmployee = function(id, isViewOnly = false, empName = null) {
   if (window.sfx) sfx.playClick();
   const store = window.appStore;
-  let emp = store.getEmployees().find(e => e.id === id) || 
-            (store.data.relievers && store.data.relievers.find(r => r.id === id));
+  let emp = null;
+  if (empName && (id === 'DDN005-SR000' || !id || id === 'N/A')) {
+    emp = store.getEmployees().find(e => e.name && e.name.toLowerCase().trim() === empName.toLowerCase().trim()) || 
+          (store.data.relievers && store.data.relievers.find(r => r.name && r.name.toLowerCase().trim() === empName.toLowerCase().trim()));
+  }
+  if (!emp) {
+    emp = store.getEmployees().find(e => e.id === id) || 
+          (store.data.relievers && store.data.relievers.find(r => r.id === id));
+  }
 
   // If not found in employees or relievers, check booths (e.g. Inactive Booths or booth-keyed items)
   if (!emp && store.data.booths) {
@@ -1601,6 +1606,8 @@ window.editEmployee = function(id) {
     alert(`Staff record with ID "${id}" could not be found.`);
     return;
   }
+
+  window._currentEditingEmployeeTargetName = emp.name;
 
   const parsed = parseAddressHelper(emp.address || emp.area || '');
 
@@ -1644,12 +1651,23 @@ window.editEmployee = function(id) {
 
   // Municipality
   let rawMuni = '';
-  if (emp.municipality && emp.municipality !== '-') {
+  if (emp.municipality && emp.municipality !== '-' && emp.municipality !== 'Davao Sector' && emp.municipality !== 'Davao Del Norte') {
     rawMuni = emp.municipality;
-  } else if (emp.area && emp.area !== '-') {
+  } else if (emp.area && emp.area !== '-' && emp.area !== 'Davao Sector' && emp.area !== 'Davao Del Norte') {
     rawMuni = emp.area;
-  } else if (parsed.municipality && parsed.municipality !== '-') {
+  } else if (parsed.municipality && parsed.municipality !== '-' && parsed.municipality !== 'Davao Sector' && parsed.municipality !== 'Davao Del Norte') {
     rawMuni = parsed.municipality;
+  }
+  if (!rawMuni || rawMuni === 'Davao Sector' || rawMuni === 'Davao Del Norte') {
+    const rawT = `${emp.address || ''} ${emp.area || ''} ${emp.purok || ''}`.toLowerCase();
+    if (rawT.includes('tagum')) rawMuni = 'Tagum City';
+    else if (rawT.includes('panabo')) rawMuni = 'Panabo City';
+    else if (rawT.includes('carmen')) rawMuni = 'Carmen';
+    else if (rawT.includes('tomas')) rawMuni = 'Sto. Tomas';
+    else if (rawT.includes('kapalong')) rawMuni = 'Kapalong';
+    else if (rawT.includes('talaingod')) rawMuni = 'Talaingod';
+    else if (rawT.includes('samal')) rawMuni = 'Samal';
+    else rawMuni = 'Sto. Tomas';
   }
   document.getElementById('emp-form-muni').value = rawMuni;
 
@@ -1807,7 +1825,9 @@ window.saveEmployeeForm = function() {
       if (customId && customId !== origId) {
         payload.id = customId;
       }
-      savedRecord = window.appStore.updateEmployee(origId, payload);
+      const targetName = window._currentEditingEmployeeTargetName || name;
+      payload._targetName = targetName;
+      savedRecord = window.appStore.updateEmployee(origId, payload, targetName);
       if (!savedRecord) {
         alert(`Failed to update record. Staff member "${origId}" could not be found.`);
         _isSavingEmployee = false;

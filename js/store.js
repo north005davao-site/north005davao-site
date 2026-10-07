@@ -33,6 +33,9 @@ function parseAddress(rawAddress) {
     };
   }
 
+  // Strip trailing province suffix if present so municipality is not masked
+  const cleanAddr = addr.replace(/,\s*Davao\s+del\s+Norte\s*$/i, '').trim();
+
   const knownMunicipalities = [
     'Sto. Tomas',
     'Sto Tomas',
@@ -48,18 +51,27 @@ function parseAddress(rawAddress) {
     'Talaingod',
     'Samal',
     'Island Garden City of Samal',
-    'Davao Del Norte',
     'Asuncion'
   ];
 
+  // Check if entire address is a known municipality
+  for (const m of knownMunicipalities) {
+    if (cleanAddr.toLowerCase() === m.toLowerCase()) {
+      return {
+        purok: '-',
+        municipality: m === 'Sto Tomas' || m === 'St. Tomas' ? 'Sto. Tomas' : (m === 'Tagum' ? 'Tagum City' : (m === 'Panabo' ? 'Panabo City' : m))
+      };
+    }
+  }
+
   for (const m of knownMunicipalities) {
     const re = new RegExp('(?:,\\s*|\\s+)' + m.replace('.', '\\.') + '\\s*$', 'i');
-    if (re.test(addr)) {
-      const match = addr.match(re);
-      const purokPart = addr.substring(0, match.index).trim().replace(/[,\/\s]+$/, '');
+    if (re.test(cleanAddr)) {
+      const match = cleanAddr.match(re);
+      const purokPart = cleanAddr.substring(0, match.index).trim().replace(/[,\/\s]+$/, '');
       return {
         purok: purokPart || '-',
-        municipality: m
+        municipality: m === 'Sto Tomas' || m === 'St. Tomas' ? 'Sto. Tomas' : (m === 'Tagum' ? 'Tagum City' : (m === 'Panabo' ? 'Panabo City' : m))
       };
     }
   }
@@ -335,40 +347,40 @@ const RAW_TELLERS = [
 
 // 2. Relievers Data (34 Active Buffer Relievers from September 2026 Masterlist - Official default ID is DDN005-SR000)
 const RAW_RELIEVERS = [
-  { id: "DDN005-SR000", name: "Princess Solamillo", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9468132286" },
-  { id: "DDN005-SR000", name: "Kei Pagulong", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9919283377" },
-  { id: "DDN005-SR000", name: "Jessa Busaco", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9676822834" },
-  { id: "DDN005-SR000", name: "Yzalou I. Dumaguing", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9510424848" },
-  { id: "DDN005-SR000", name: "Othmarie Lupiba", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9923318041" },
-  { id: "DDN005-SR000", name: "Faith Hermoso", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9282951030" },
-  { id: "DDN005-SR000", name: "Mari Sarol", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9282951030" },
-  { id: "DDN005-SR000", name: "Ellen Riño", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9514630915" },
-  { id: "DDN005-SR000", name: "Rhea Desnacido", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9679345770" },
-  { id: "DDN005-SR000", name: "Angelie Tiedra", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9361565796" },
-  { id: "DDN005-SR000", name: "Noreen D. Bayang", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9096001837" },
-  { id: "DDN005-SR000", name: "Rhea Mae M. Bolilawa", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9485511382" },
-  { id: "DDN005-SR000", name: "Jasnen Parame Aquino", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9757074658" },
-  { id: "DDN005-SR000", name: "Marjory Torino", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9941680208" },
-  { id: "DDN005-SR000", name: "Gina Paula Gemino", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9559806184" },
-  { id: "DDN005-SR000", name: "Jennifer M. Osman", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9945141031" },
-  { id: "DDN005-SR000", name: "Ferlyn Zamora Robello", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9674700611" },
-  { id: "DDN005-SR000", name: "Jeziel R. Simene", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9917297977" },
-  { id: "DDN005-SR000", name: "Karen Batas", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9634312448" },
-  { id: "DDN005-SR000", name: "Elyn T. Rosento", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9169158160" },
-  { id: "DDN005-SR000", name: "Ester Mopon", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9505540780" },
-  { id: "DDN005-SR000", name: "Christly Ann Tuasoc", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9971007208" },
-  { id: "DDN005-SR000", name: "Jane Christine Tuasoc", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "N/A" },
-  { id: "DDN005-SR000", name: "Clouie Mae Hipos", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9304557576" },
-  { id: "DDN005-SR000", name: "Aires Monreal", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9944076355" },
-  { id: "DDN005-SR000", name: "PRECIOUS NICA TORREFIEL", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "N/A" },
-  { id: "DDN005-SR000", name: "Jemma Rose Roco", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9776828684" },
-  { id: "DDN005-SR000", name: "Carolyn Joy Catubigan", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9924119660" },
-  { id: "DDN005-SR000", name: "Pamela Denisse G. Antequeza", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9535591036" },
-  { id: "DDN005-SR000", name: "Bbelen Apatan", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9708905412" },
-  { id: "DDN005-SR000", name: "Laika jeanne Sapine", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9518222585" },
-  { id: "DDN005-SR000", name: "Jeah Rica Linsay", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9453272597" },
-  { id: "DDN005-SR000", name: "Kristina Cassandra D. Lumidin", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9926135202" },
-  { id: "DDN005-SR000", name: "Mae Jean Gementiza", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9460700135" },
+  { id: "DDN005-SR000", name: "Princess Solamillo", municipality: "Sto. Tomas", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9468132286" },
+  { id: "DDN005-SR000", name: "Kei Pagulong", municipality: "Sto. Tomas", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9919283377" },
+  { id: "DDN005-SR000", name: "Jessa Busaco", municipality: "Tagum City", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9676822834" },
+  { id: "DDN005-SR000", name: "Yzalou I. Dumaguing", municipality: "Panabo City", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9510424848" },
+  { id: "DDN005-SR000", name: "Othmarie Lupiba", municipality: "Carmen", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9923318041" },
+  { id: "DDN005-SR000", name: "Faith Hermoso", municipality: "Tagum City", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9282951030" },
+  { id: "DDN005-SR000", name: "Mari Sarol", municipality: "Tagum City", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9282951030" },
+  { id: "DDN005-SR000", name: "Ellen Riño", municipality: "Sto. Tomas", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9514630915" },
+  { id: "DDN005-SR000", name: "Rhea Desnacido", municipality: "Carmen", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9679345770" },
+  { id: "DDN005-SR000", name: "Angelie Tiedra", municipality: "Panabo City", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9361565796" },
+  { id: "DDN005-SR000", name: "Noreen D. Bayang", municipality: "Sto. Tomas", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9096001837" },
+  { id: "DDN005-SR000", name: "Rhea Mae M. Bolilawa", municipality: "Sto. Tomas", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9485511382" },
+  { id: "DDN005-SR000", name: "Jasnen Parame Aquino", municipality: "Sto. Tomas", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9757074658" },
+  { id: "DDN005-SR000", name: "Marjory Torino", municipality: "Panabo City", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9941680208" },
+  { id: "DDN005-SR000", name: "Gina Paula Gemino", municipality: "Carmen", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9559806184" },
+  { id: "DDN005-SR000", name: "Jennifer M. Osman", municipality: "Panabo City", address: "PANABO CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9945141031" },
+  { id: "DDN005-SR000", name: "Ferlyn Zamora Robello", municipality: "Carmen", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9674700611" },
+  { id: "DDN005-SR000", name: "Jeziel R. Simene", municipality: "Sto. Tomas", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9917297977" },
+  { id: "DDN005-SR000", name: "Karen Batas", municipality: "Tagum City", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9634312448" },
+  { id: "DDN005-SR000", name: "Elyn T. Rosento", municipality: "Sto. Tomas", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9169158160" },
+  { id: "DDN005-SR000", name: "Ester Mopon", municipality: "Carmen", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9505540780" },
+  { id: "DDN005-SR000", name: "Christly Ann Tuasoc", municipality: "Tagum City", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9971007208" },
+  { id: "DDN005-SR000", name: "Jane Christine Tuasoc", municipality: "Tagum City", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "N/A" },
+  { id: "DDN005-SR000", name: "Clouie Mae Hipos", municipality: "Tagum City", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9304557576" },
+  { id: "DDN005-SR000", name: "Aires Monreal", municipality: "Tagum City", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9944076355" },
+  { id: "DDN005-SR000", name: "PRECIOUS NICA TORREFIEL", municipality: "Carmen", address: "CARMEN, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "N/A" },
+  { id: "DDN005-SR000", name: "Jemma Rose Roco", municipality: "Sto. Tomas", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9776828684" },
+  { id: "DDN005-SR000", name: "Carolyn Joy Catubigan", municipality: "Sto. Tomas", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9924119660" },
+  { id: "DDN005-SR000", name: "Pamela Denisse G. Antequeza", municipality: "Sto. Tomas", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9535591036" },
+  { id: "DDN005-SR000", name: "Bbelen Apatan", municipality: "Tagum City", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9708905412" },
+  { id: "DDN005-SR000", name: "Laika jeanne Sapine", municipality: "Tagum City", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9518222585" },
+  { id: "DDN005-SR000", name: "Jeah Rica Linsay", municipality: "Tagum City", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9453272597" },
+  { id: "DDN005-SR000", name: "Kristina Cassandra D. Lumidin", municipality: "Tagum City", address: "TAGUM CITY, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9926135202" },
+  { id: "DDN005-SR000", name: "Mae Jean Gementiza", municipality: "Sto. Tomas", address: "STO. TOMAS, Davao del Norte", booth: '-', role: 'Reliever', status: 'Active', phone: "9460700135" },
 ];
 
 // 3. Unused Booths (7 Operational Booths without Assigned Tellers from September 2026 Masterlist)
@@ -701,7 +713,18 @@ function buildDefaultStore() {
     const cleanBooth = (r.booth || '').trim();
     const masterCoord = (cleanBooth && cleanBooth !== '-') ? (AUTHENTIC_MASTER_REGISTRY_COORDINATES[cleanBooth] || null) : null;
     const addrParsed = parseAddress(r.address);
-    const muni = (masterCoord && masterCoord.municipality) ? masterCoord.municipality : (addrParsed.municipality || 'Davao Sector');
+    let muni = r.municipality || ((masterCoord && masterCoord.municipality) ? masterCoord.municipality : addrParsed.municipality);
+    if (!muni || muni === 'Davao Sector' || muni === 'Davao Del Norte') {
+      const rawLow = (r.address || '').toLowerCase();
+      if (rawLow.includes('tagum')) muni = 'Tagum City';
+      else if (rawLow.includes('panabo')) muni = 'Panabo City';
+      else if (rawLow.includes('carmen')) muni = 'Carmen';
+      else if (rawLow.includes('tomas')) muni = 'Sto. Tomas';
+      else if (rawLow.includes('kapalong')) muni = 'Kapalong';
+      else if (rawLow.includes('talaingod')) muni = 'Talaingod';
+      else if (rawLow.includes('samal')) muni = 'Samal';
+      else muni = 'Sto. Tomas';
+    }
 
     employees.push({
       id: r.id,
@@ -1464,6 +1487,28 @@ class Store {
                 // Relievers default ID No is DDN005-SR000 for all assigned relievers
                 e.id = 'DDN005-SR000';
                 id = 'DDN005-SR000';
+                // Repair reliever municipality if previously set to Davao Sector or Davao Del Norte
+                const rawM = (e.municipality || '').trim();
+                if (!rawM || rawM === 'Davao Sector' || rawM === 'Davao Del Norte' || rawM === '-') {
+                  const rawSearch = `${e.address || ''} ${e.area || ''} ${e.purok || ''}`.toLowerCase();
+                  if (rawSearch.includes('tagum')) e.municipality = 'Tagum City';
+                  else if (rawSearch.includes('panabo')) e.municipality = 'Panabo City';
+                  else if (rawSearch.includes('carmen')) e.municipality = 'Carmen';
+                  else if (rawSearch.includes('tomas')) e.municipality = 'Sto. Tomas';
+                  else if (rawSearch.includes('kapalong')) e.municipality = 'Kapalong';
+                  else if (rawSearch.includes('talaingod')) e.municipality = 'Talaingod';
+                  else if (rawSearch.includes('samal')) e.municipality = 'Samal';
+                  needsSave = true;
+                }
+                if (e.purok && (e.purok.toUpperCase().includes('STO. TOMAS') || e.purok.toUpperCase().includes('TAGUM') || e.purok.toUpperCase().includes('PANABO') || e.purok.toUpperCase().includes('CARMEN'))) {
+                  e.purok = '-';
+                  needsSave = true;
+                }
+                // Self-heal: If relievers were trapped in INACTIVE due to previous single-ID bug, restore to ACTIVE
+                if ((e.status || '').toUpperCase() === 'INACTIVE') {
+                  e.status = 'ACTIVE';
+                  needsSave = true;
+                }
               } else if (!id || id === 'N/A' || id === '-' || id.startsWith('DDN005-REL') || seenIds.has(id)) {
                 let genId;
                 do {
@@ -1494,8 +1539,19 @@ class Store {
           if (parsed.relievers && Array.isArray(parsed.relievers) && parsed.relievers.length > 0) {
             parsed.relievers.forEach(r => {
               r.id = 'DDN005-SR000';
+              const rawSearch = `${r.municipality || ''} ${r.area || ''} ${r.address || ''}`.toLowerCase();
+              if (!r.municipality || r.municipality === 'Davao Sector' || r.municipality === 'Davao Del Norte') {
+                if (rawSearch.includes('tagum')) r.municipality = 'Tagum City';
+                else if (rawSearch.includes('panabo')) r.municipality = 'Panabo City';
+                else if (rawSearch.includes('carmen')) r.municipality = 'Carmen';
+                else if (rawSearch.includes('tomas')) r.municipality = 'Sto. Tomas';
+                else if (rawSearch.includes('kapalong')) r.municipality = 'Kapalong';
+                else if (rawSearch.includes('talaingod')) r.municipality = 'Talaingod';
+                else if (rawSearch.includes('samal')) r.municipality = 'Samal';
+                needsSave = true;
+              }
               const sUp = (r.status || 'ACTIVE').toUpperCase();
-              r.status = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : (sUp === 'UNUSED' ? 'UNUSED' : 'ACTIVE'));
+              r.status = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'ACTIVE' : (sUp === 'UNUSED' ? 'UNUSED' : 'ACTIVE'));
             });
           } else {
             const relEmployees = (parsed.employees || []).filter(e => (e.role || '').toUpperCase().includes('RELIEVER'));
@@ -2807,7 +2863,7 @@ class Store {
     return emp;
   }
 
-  updateEmployee(id, updates) {
+  updateEmployee(id, updates, targetName) {
     let result = null;
 
     if (updates.status) {
@@ -2816,9 +2872,33 @@ class Store {
     }
 
     const targetId = (updates.id && updates.id.trim()) ? updates.id.trim() : id;
+    const lookupName = targetName || updates._targetName || (id === 'DDN005-SR000' && updates.name ? updates.name : null);
 
-    let idx = this.data.employees ? this.data.employees.findIndex(e => e.id === id) : -1;
-    let rIdx = this.data.relievers ? this.data.relievers.findIndex(r => r.id === id) : -1;
+    let idx = -1;
+    if (this.data.employees) {
+      if (id === 'DDN005-SR000') {
+        if (lookupName) {
+          idx = this.data.employees.findIndex(e => (e.id === 'DDN005-SR000' || (e.role && e.role.toLowerCase().includes('reliev'))) && e.name && e.name.toLowerCase().trim() === lookupName.toLowerCase().trim());
+        }
+      } else {
+        if (lookupName && (!id || id === 'N/A')) {
+          idx = this.data.employees.findIndex(e => e.name && e.name.toLowerCase().trim() === lookupName.toLowerCase().trim());
+        }
+        if (idx === -1) {
+          idx = this.data.employees.findIndex(e => e.id === id);
+        }
+      }
+    }
+
+    let rIdx = -1;
+    if (this.data.relievers) {
+      if (lookupName && (id === 'DDN005-SR000' || !id || id === 'N/A')) {
+        rIdx = this.data.relievers.findIndex(r => r.name && r.name.toLowerCase().trim() === lookupName.toLowerCase().trim());
+      }
+      if (rIdx === -1 && id !== 'DDN005-SR000') {
+        rIdx = this.data.relievers.findIndex(r => r.id === id);
+      }
+    }
 
     // If record is not in employees or relievers, check booths (e.g. Inactive Booth row)
     if (idx === -1 && rIdx === -1 && this.data.booths) {
@@ -2886,7 +2966,7 @@ class Store {
 
     if (this.data.relievers) {
       if (rIdx === -1 && result) {
-        rIdx = this.data.relievers.findIndex(r => (result.id && r.id === result.id) || (result.name && r.name && r.name.toLowerCase() === result.name.toLowerCase()));
+        rIdx = this.data.relievers.findIndex(r => (result.name && r.name && r.name.toLowerCase().trim() === result.name.toLowerCase().trim()) || (result.id && result.id !== 'DDN005-SR000' && r.id === result.id));
       }
       if (rIdx !== -1) {
         this.data.relievers[rIdx] = { ...this.data.relievers[rIdx], ...updates, id: targetId };
@@ -2997,15 +3077,20 @@ class Store {
     return result;
   }
 
-  deleteEmployee(id) {
+  deleteEmployee(id, targetName) {
     if (!id) return;
     const cleanId = String(id).trim();
     const cleanBoothCode = cleanId.replace(/^BOOTH-/, '').toUpperCase();
+    const tName = targetName ? String(targetName).trim().toLowerCase() : null;
 
     // 1. Remove from employees
     if (this.data.employees) {
       this.data.employees = this.data.employees.filter(e => {
         if (!e) return false;
+        if (cleanId === 'DDN005-SR000' && tName) {
+          if ((e.id === 'DDN005-SR000' || (e.role && e.role.toLowerCase().includes('reliev'))) && e.name && e.name.trim().toLowerCase() === tName) return false;
+          return true;
+        }
         if (e.id === cleanId) return false;
         const eBooth = (e.boothCode || e.booth || '').replace(/^BOOTH-/, '').toUpperCase();
         if (eBooth && eBooth === cleanBoothCode && (!e.name || e.name === 'N/A' || e.name === '-')) return false;
@@ -3015,7 +3100,14 @@ class Store {
 
     // 2. Remove from relievers
     if (this.data.relievers) {
-      this.data.relievers = this.data.relievers.filter(r => r && r.id !== cleanId);
+      this.data.relievers = this.data.relievers.filter(r => {
+        if (!r) return false;
+        if (cleanId === 'DDN005-SR000' && tName) {
+          if (r.name && r.name.trim().toLowerCase() === tName) return false;
+          return true;
+        }
+        return r.id !== cleanId;
+      });
     }
 
     // 3. Remove from booths
@@ -3192,8 +3284,8 @@ class Store {
       const targetName = rec.matchName ? rec.matchName.toLowerCase().trim() : (rec.name ? rec.name.toLowerCase().trim() : null);
 
       const idx = this.data.employees.findIndex(e => {
-        if (targetId && e.id && e.id.toLowerCase().trim() === targetId) return true;
         if (targetName && e.name && e.name.toLowerCase().trim() === targetName) return true;
+        if (targetId && targetId !== 'ddn005-sr000' && e.id && e.id.toLowerCase().trim() === targetId) return true;
         return false;
       });
 
