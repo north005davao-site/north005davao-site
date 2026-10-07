@@ -1246,15 +1246,23 @@
              OCR + Short / Cash Advance Payment Tracking System
              =================================================================== -->
         <section id="view-finance" class="view-panel">
-          <div class="view-header">
+          <div class="view-header" style="margin-bottom: 18px;">
             <div class="view-title-group">
               <h2>Expenses & Payment Management</h2>
-              <p>Handwritten Financial OCR, Teller Cash Shortages (Calendar System), Collector Cash Advances & Unified
-                Payment History</p>
+              <p>Teller Cash Shortages (Calendar System), Collector Cash Advances & Unified Payment History</p>
             </div>
             <div class="view-actions" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+              <div style="position:relative; width:260px;">
+                <input type="text" id="ep-search-input" class="form-input"
+                  placeholder="Search staff, booth, status, date..."
+                  style="padding-left:34px; padding-right:26px; font-size:12.5px; height:34px;">
+                <span style="position:absolute; left:11px; top:50%; transform:translateY(-50%); font-size:13px; pointer-events:none; color:var(--text-dim);">🔍</span>
+                <button type="button" id="ep-search-clear-btn"
+                  onclick="document.getElementById('ep-search-input').value=''; window.expensesPayment.searchQuery=''; window.expensesPayment.renderCurrentTab(); this.style.display='none';"
+                  style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:13px; display:none;">✕</button>
+              </div>
               <input type="file" id="ep-image-upload-input" accept="image/*,.pdf" style="display:none;">
-              <button class="btn btn-primary" onclick="document.getElementById('ep-image-upload-input').click()">
+              <button class="btn btn-primary btn-sm" onclick="document.getElementById('ep-image-upload-input').click()">
                 <span class="icon">📸</span> Upload Image File
               </button>
               <button class="btn btn-secondary btn-sm" onclick="window.expensesPayment.openReviewModalFromButton()">
@@ -1263,45 +1271,15 @@
             </div>
           </div>
 
-          <!-- Section 9: Main Search Bar -->
-          <div class="card" style="padding: 16px 20px; margin-bottom: 20px;">
-            <div style="display: flex; gap: 12px; align-items: center;">
-              <div style="flex: 1; position: relative;">
-                <input type="text" id="ep-search-input" class="form-input"
-                  placeholder="Search Expenses, Payments, Tellers, Collectors, Booth Code..."
-                  style="padding-left: 38px; font-size: 13.5px;">
-                <span
-                  style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 15px; pointer-events: none; color: var(--text-dim);">🔍</span>
-              </div>
-              <button class="btn btn-secondary btn-sm"
-                onclick="document.getElementById('ep-search-input').value=''; window.expensesPayment.searchQuery=''; window.expensesPayment.renderCurrentTab();">Clear</button>
-            </div>
-            <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px; padding-left: 4px;">
-              💡 Search across: Employee name (e.g. <code>JUVYLYN</code>, <code>MARK ANTHONY</code>), Role,
-              Classification (<code>SHORT</code>, <code>CASH ADVANCE</code>, <code>PAYMENT</code>,
-              <code>EXPENSE</code>), Date, Booth Code (<code>DDN-1477</code>), Location, Status
-              (<code>FULLY PAID</code>), Remaining balance.
-            </div>
-          </div>
-
-          <!-- Summary Metric Cards -->
+          <!-- Summary Metric Cards (Sleek 3-Card Executive Grid) -->
           <div class="stat-grid"
-            style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 20px;">
-            <div class="stat-card" style="--stat-accent: #3b82f6; padding: 14px 18px;">
-              <div class="stat-header">
-                <span class="stat-label">Operating Expenses</span>
-                <div class="stat-icon-wrap" style="width: 28px; height: 28px; font-size: 14px;">📋</div>
-              </div>
-              <div class="stat-value" id="ep-kpi-expenses" style="font-size: 20px; color: #3b82f6;">₱0.00</div>
-              <div class="stat-sub">Motor, WiFi, Labor, Rent & Supplies</div>
-            </div>
-
+            style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px;">
             <div class="stat-card" style="--stat-accent: #ef4444; padding: 14px 18px;">
               <div class="stat-header">
                 <span class="stat-label">Teller Shortages</span>
                 <div class="stat-icon-wrap" style="width: 28px; height: 28px; font-size: 14px;">📉</div>
               </div>
-              <div class="stat-value" id="ep-kpi-short" style="font-size: 20px; color: #ef4444;">₱0.00</div>
+              <div class="stat-value" id="ep-kpi-short" style="font-size: 22px; color: #ef4444;">₱0.00</div>
               <div class="stat-sub">Station Shortage Obligations</div>
             </div>
 
@@ -1310,7 +1288,7 @@
                 <span class="stat-label">Collector Cash Advances</span>
                 <div class="stat-icon-wrap" style="width: 28px; height: 28px; font-size: 14px;">💼</div>
               </div>
-              <div class="stat-value" id="ep-kpi-ca" style="font-size: 20px; color: #8b5cf6;">₱0.00</div>
+              <div class="stat-value" id="ep-kpi-ca" style="font-size: 22px; color: #8b5cf6;">₱0.00</div>
               <div class="stat-sub">Collector Field Advance Balances</div>
             </div>
 
@@ -1319,18 +1297,14 @@
                 <span class="stat-label">Total Payments Received</span>
                 <div class="stat-icon-wrap" style="width: 28px; height: 28px; font-size: 14px;">💵</div>
               </div>
-              <div class="stat-value" id="ep-kpi-payments" style="font-size: 20px; color: #10b981;">₱0.00</div>
+              <div class="stat-value" id="ep-kpi-payments" style="font-size: 22px; color: #10b981;">₱0.00</div>
               <div class="stat-sub">Settlement Recoveries Credited</div>
             </div>
           </div>
 
           <!-- Visual Tracking Sections Sub-Tabs -->
           <div class="ep-tab-nav">
-            <button class="ep-tab-btn active" data-tab="expenses"
-              onclick="window.expensesPayment.switchTab('expenses')">
-              <span>📋</span> Operating Expenses
-            </button>
-            <button class="ep-tab-btn" data-tab="short-tracker"
+            <button class="ep-tab-btn active" data-tab="short-tracker"
               onclick="window.expensesPayment.switchTab('short-tracker')">
               <span>🗓️</span> Short Tracker (Tellers)
             </button>
@@ -1343,34 +1317,8 @@
             </button>
           </div>
 
-          <!-- TAB 1: OPERATING EXPENSES -->
-          <div id="ep-tab-expenses" class="ep-tab-content active">
-            <div class="card" style="padding:0; overflow:hidden;">
-              <div class="table-wrapper">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th style="width:40px; text-align:center;">#</th>
-                      <th>Date</th>
-                      <th>Expense Item / Description</th>
-                      <th>Staff / Station Allocation</th>
-                      <th>Location Area</th>
-                      <th style="text-align:right;">Amount (PHP)</th>
-                      <th>Notes & Remarks</th>
-                      <th style="text-align:center; width:80px;">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody id="ep-expenses-tbody">
-                    <!-- Populated dynamically -->
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div id="ep-expenses-pagination" style="margin-top:12px;"></div>
-          </div>
-
-          <!-- TAB 2: SHORT TRACKER (TELLER CASH SHORTAGE WITH DEDICATED CALENDAR) -->
-          <div id="ep-tab-short-tracker" class="ep-tab-content">
+          <!-- TAB 1: SHORT TRACKER (TELLER CASH SHORTAGE WITH DEDICATED CALENDAR) -->
+          <div id="ep-tab-short-tracker" class="ep-tab-content active">
             <!-- Teller Selector & Action Header -->
             <div class="card" style="padding: 16px 20px; margin-bottom: 18px;">
               <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">

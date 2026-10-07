@@ -5,7 +5,7 @@
  */
 class ExpensesPaymentController {
   constructor() {
-    this.activeTab = 'expenses';
+    this.activeTab = 'short-tracker';
     this.searchQuery = '';
     this.selectedTeller = '';
     this.selectedTellerId = '';
@@ -133,7 +133,8 @@ class ExpensesPaymentController {
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
         this.searchQuery = (e.target.value || '').trim();
-        this.expensesPage = 1;
+        const clearBtn = document.getElementById('ep-search-clear-btn');
+        if (clearBtn) clearBtn.style.display = this.searchQuery ? 'block' : 'none';
         this.shortLedgerPage = 1;
         this.caLedgerPage = 1;
         this.paymentsPage = 1;
@@ -380,10 +381,9 @@ class ExpensesPaymentController {
       const isShort = item.type === 'SHORT';
       const isCA = item.type === 'CASH ADVANCE';
       const isPay = item.type === 'PAYMENT';
-      let statusBadge = '<span class="badge badge-info" style="font-size:10px;">EXPENSE</span>';
-      if (isShort) statusBadge = '<span class="badge badge-danger" style="font-size:10px;background:#ef4444;color:#fff;">SHORT</span>';
-      else if (isCA) statusBadge = '<span class="badge" style="font-size:10px;background:#8b5cf6;color:#fff;">C.A.</span>';
-      else if (isPay) statusBadge = '<span class="badge badge-success" style="font-size:10px;background:#10b981;color:#fff;">PAYMENT</span>';
+      let statusBadge = '<span class="badge" style="font-size:10px;background:#ef4444;color:#fff;">SHORT</span>';
+      if (isCA) statusBadge = '<span class="badge" style="font-size:10px;background:#8b5cf6;color:#fff;">C.A.</span>';
+      else if (isPay) statusBadge = '<span class="badge" style="font-size:10px;background:#10b981;color:#fff;">PAYMENT</span>';
 
       const violates = isCA && (item.role || '').toUpperCase().includes('TELLER');
       const caWarn = violates ? '<div style="color:#ef4444;font-size:11px;font-weight:700;">TELLERS cannot have CASH ADVANCE!</div>' : '';
@@ -394,11 +394,9 @@ class ExpensesPaymentController {
         '<td><input type="text" class="form-input form-input-sm" value="' + this.escapeHtml(item.description || '') + '" style="min-width:140px;" onchange="window.expensesPayment.updateReviewRow(' + idx + ', \'description\', this.value)"></td>' +
         '<td><input type="text" class="form-input form-input-sm" value="' + this.escapeHtml(item.employee || '') + '" style="min-width:130px;" onchange="window.expensesPayment.updateReviewRow(' + idx + ', \'employee\', this.value)"></td>' +
         '<td><select class="form-select form-select-sm" style="font-size:11.5px;" onchange="window.expensesPayment.updateReviewRow(' + idx + ', \'type\', this.value)">' +
-        '<option value="EXPENSE"' + (item.type === 'EXPENSE' ? ' selected' : '') + '>EXPENSE</option>' +
         '<option value="SHORT"' + (item.type === 'SHORT' ? ' selected' : '') + '>SHORT (Teller)</option>' +
         '<option value="CASH ADVANCE"' + (item.type === 'CASH ADVANCE' ? ' selected' : '') + '>CASH ADVANCE (Collector)</option>' +
         '<option value="PAYMENT"' + (item.type === 'PAYMENT' ? ' selected' : '') + '>PAYMENT</option>' +
-        '<option value="OTHER"' + (item.type === 'OTHER' ? ' selected' : '') + '>OTHER</option>' +
         '</select>' + caWarn + '</td>' +
         '<td><input type="text" class="form-input form-input-sm" value="' + (item.date || '') + '" style="width:105px;" onchange="window.expensesPayment.updateReviewRow(' + idx + ', \'date\', this.value)"></td>' +
         '<td style="text-align:center;">' + statusBadge + '</td>' +
@@ -410,12 +408,11 @@ class ExpensesPaymentController {
 
     const countEl = document.getElementById('ep-review-count');
     if (countEl) countEl.textContent = items.length + ' Records Detected';
-    const expSum = items.filter(i => i.type === 'EXPENSE').reduce((s, i) => s + Number(i.amount || 0), 0);
     const shortSum = items.filter(i => i.type === 'SHORT').reduce((s, i) => s + Number(i.amount || 0), 0);
     const caSum = items.filter(i => i.type === 'CASH ADVANCE').reduce((s, i) => s + Number(i.amount || 0), 0);
     const paySum = items.filter(i => i.type === 'PAYMENT').reduce((s, i) => s + Number(i.amount || 0), 0);
     const sumEl = document.getElementById('ep-review-sums');
-    if (sumEl) sumEl.innerHTML = '<span><b>Expenses:</b> P' + expSum.toFixed(2) + '</span> <span style="color:#ef4444"><b>Shortages:</b> P' + shortSum.toFixed(2) + '</span> <span style="color:#8b5cf6"><b>C.A.:</b> P' + caSum.toFixed(2) + '</span> <span style="color:#10b981"><b>Payments:</b> P' + paySum.toFixed(2) + '</span>';
+    if (sumEl) sumEl.innerHTML = '<span style="color:#ef4444"><b>Shortages:</b> ₱' + shortSum.toFixed(2) + '</span> | <span style="color:#8b5cf6"><b>C.A.:</b> ₱' + caSum.toFixed(2) + '</span> | <span style="color:#10b981"><b>Payments:</b> ₱' + paySum.toFixed(2) + '</span>';
   }
 
   updateReviewRow(idx, field, value) {
@@ -464,12 +461,14 @@ class ExpensesPaymentController {
       id: 'OCR-MANUAL-' + Date.now(),
       date: new Date().toISOString().split('T')[0],
       amount: 100.00,
-      description: 'Manual Added Entry',
+      description: 'Teller Shortage',
       employee: 'Staff Member',
       role: 'Teller',
-      type: 'EXPENSE',
-      classification: 'OTHER',
-      transactionType: 'EXPENSE',
+      type: 'SHORT',
+      classification: 'SHORT',
+      transactionType: 'SHORT_TELLER',
+      isShortage: true,
+      isExpense: false,
       status: 'Verified',
       notes: ''
     });
@@ -670,7 +669,7 @@ class ExpensesPaymentController {
       });
 
       // Hide top header view-actions (Upload image, review OCR)
-      const topActions = document.querySelector('#view-finance .view-actions');
+      const topActions = (typeof document.querySelector === 'function') ? document.querySelector('#view-finance .view-actions') : null;
       if (topActions) topActions.style.display = 'none';
 
       const uploadBtn = document.getElementById('ep-btn-upload-receipt');
@@ -683,15 +682,26 @@ class ExpensesPaymentController {
       // Hide payment record trigger buttons in CA tracker tab
       const caPayBtn = document.getElementById('ep-btn-record-ca-payment');
       if (caPayBtn) caPayBtn.style.display = 'none';
-      document.querySelectorAll('button[onclick*="openPaymentModal"]').forEach(el => el.style.display = 'none');
-      document.querySelectorAll('.ep-record-payment-trigger').forEach(el => el.style.display = 'none');
+      if (typeof document.querySelectorAll === 'function') {
+        document.querySelectorAll('button[onclick*="openPaymentModal"]').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.ep-record-payment-trigger').forEach(el => el.style.display = 'none');
+      }
     } else {
-      const topActions = document.querySelector('#view-finance .view-actions');
+      if (this.activeTab === 'expenses') {
+        this.activeTab = 'short-tracker';
+      }
+      const topActions = (typeof document.querySelector === 'function') ? document.querySelector('#view-finance .view-actions') : null;
       if (topActions) topActions.style.display = 'flex';
 
-      document.querySelectorAll('.ep-tab-btn').forEach(b => {
-        b.style.display = 'inline-flex';
-      });
+      if (typeof document.querySelectorAll === 'function') {
+        document.querySelectorAll('.ep-tab-btn').forEach(b => {
+          b.style.display = 'inline-flex';
+          b.classList.toggle('active', b.getAttribute('data-tab') === this.activeTab);
+        });
+        document.querySelectorAll('.ep-tab-content').forEach(c => {
+          c.classList.toggle('active', c.id === ('ep-tab-' + this.activeTab));
+        });
+      }
       const uploadBtn = document.getElementById('ep-btn-upload-receipt');
       if (uploadBtn) uploadBtn.style.display = 'inline-flex';
       const sampleBtn = document.getElementById('ep-btn-load-sample');
@@ -708,26 +718,27 @@ class ExpensesPaymentController {
   updateKpiCounters() {
     const store = window.appStore;
     const txns = store ? (store.data.transactions || []) : [];
-    let exp = 0, short = 0, ca = 0, pay = 0;
+    let short = 0, ca = 0, pay = 0;
     txns.forEach(t => {
       const a = Number(t.amount) || 0;
-      if (t.classification === 'OTHER' || t.type === 'EXPENSE' || t.isExpense) exp += a;
-      else if (t.classification === 'SHORT' || t.type === 'SHORT' || (t.description && t.description.toUpperCase().includes('SHORT'))) short += a;
+      if (t.classification === 'SHORT' || t.type === 'SHORT' || (t.description && t.description.toUpperCase().includes('SHORT'))) short += a;
       else if (t.classification === 'CA' || t.type === 'CASH ADVANCE' || (t.description && t.description.toUpperCase().includes('CASH ADVANCE'))) ca += a;
       else if (t.classification === 'PAYMENT' || t.type === 'PAYMENT') pay += a;
     });
-    const fmt = v => 'P' + v.toLocaleString('en-US', { minimumFractionDigits: 2 });
-    const e1 = document.getElementById('ep-kpi-expenses'); if (e1) e1.textContent = fmt(exp);
+    const fmt = v => '₱' + v.toLocaleString('en-US', { minimumFractionDigits: 2 });
+    const e1 = document.getElementById('ep-kpi-expenses'); if (e1) e1.textContent = fmt(0);
     const e2 = document.getElementById('ep-kpi-short'); if (e2) e2.textContent = fmt(short);
     const e3 = document.getElementById('ep-kpi-ca'); if (e3) e3.textContent = fmt(ca);
     const e4 = document.getElementById('ep-kpi-payments'); if (e4) e4.textContent = fmt(pay);
   }
 
   renderCurrentTab() {
-    if (this.activeTab === 'expenses') this.renderExpensesTab();
-    else if (this.activeTab === 'short-tracker') this.renderShortTrackerTab();
-    else if (this.activeTab === 'ca-tracker') this.renderCashAdvanceTrackerTab();
+    if (window.authManager && window.authManager.isCollector()) {
+      this.activeTab = 'ca-tracker';
+    }
+    if (this.activeTab === 'ca-tracker') this.renderCashAdvanceTrackerTab();
     else if (this.activeTab === 'payment-history') this.renderPaymentHistoryTab();
+    else this.renderShortTrackerTab();
   }
 
   // =========================================================================
@@ -867,7 +878,8 @@ class ExpensesPaymentController {
       if (activeOrigShort === 0) {
         sb.className = 'badge badge-secondary';
         sb.textContent = 'NO SHORTAGES';
-        sb.removeAttribute('style');
+        if (typeof sb.removeAttribute === 'function') sb.removeAttribute('style');
+        else if (sb.style) sb.style.cssText = '';
       } else if (activeFull) {
         sb.className = 'badge badge-success';
         sb.style.cssText = 'background:#10b981;color:#fff;';
