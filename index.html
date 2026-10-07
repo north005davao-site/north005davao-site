@@ -1931,7 +1931,6 @@
                 <option value="all">All Statuses</option>
                 <option value="PRESENT">PRESENT</option>
                 <option value="LATE">LATE</option>
-                <option value="REST DAY">REST DAY</option>
                 <option value="ABSENT">ABSENT</option>
               </select>
               <button class="btn btn-secondary btn-sm" onclick="window.workforceAttendanceModule.exportCSV()">
@@ -1940,18 +1939,18 @@
             </div>
           </div>
 
-          <!-- Interactive Attendance KPI Card Tabs -->
+          <!-- Interactive Attendance KPI Card Tabs (Rest Day Removed) -->
           <div class="kpi-cards-grid">
             <!-- 1. ACTIVE WORKFORCE -->
             <div class="kpi-card-tab active" id="att-tab-all"
               onclick="window.workforceAttendanceModule.setKpiTab('all')" style="--kpi-accent: #60a5fa;"
-              title="Click to view all Master Registry staff">
+              title="Click to view all Field Personnel">
               <div class="kpi-card-header">
                 <span class="kpi-card-label">Active Workforce</span>
                 <div class="kpi-card-icon" style="color: #60a5fa;">👥</div>
               </div>
               <div class="kpi-card-value" id="kpi-att-workforce" style="color: #60a5fa;">0</div>
-              <div class="kpi-card-subtext">Master Registry staff</div>
+              <div class="kpi-card-subtext">Field Personnel (Tellers & Relievers)</div>
             </div>
 
             <!-- 2. PRESENT ON DUTY -->
@@ -1977,19 +1976,7 @@
               <div class="kpi-card-subtext">Checked in after 08:00 AM</div>
             </div>
 
-            <!-- 4. REST DAY / DAY OFF -->
-            <div class="kpi-card-tab" id="att-tab-restday"
-              onclick="window.workforceAttendanceModule.setKpiTab('REST DAY')" style="--kpi-accent: #38bdf8;"
-              title="Click to filter Scheduled Rest Days">
-              <div class="kpi-card-header">
-                <span class="kpi-card-label">Rest Day / Day Off</span>
-                <div class="kpi-card-icon" style="color: #38bdf8;">🗓️</div>
-              </div>
-              <div class="kpi-card-value" id="kpi-att-restday" style="color: #38bdf8;">0</div>
-              <div class="kpi-card-subtext">Scheduled day off</div>
-            </div>
-
-            <!-- 5. ABSENT / UNREPORTED -->
+            <!-- 4. ABSENT / UNREPORTED -->
             <div class="kpi-card-tab" id="att-tab-absent" onclick="window.workforceAttendanceModule.setKpiTab('ABSENT')"
               style="--kpi-accent: #f87171;" title="Click to filter Absent staff">
               <div class="kpi-card-header">
@@ -2003,16 +1990,30 @@
 
           <!-- Attendance Table Card -->
           <div class="card" style="margin-bottom: 24px;">
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
               <div>
                 <div class="card-title">Daily Attendance & Duty Log</div>
-                <div class="card-subtitle">Real-time status of Davao Del Norte personnel linked to active booth
-                  assignments</div>
+                <div class="card-subtitle">Real-time status of Davao Del Norte personnel linked to active booth assignments</div>
               </div>
               <div style="font-size: 12px; color: var(--text-muted);">
-                Auto-syncs with Master Registry & Rest Day Schedule • Time-Out Window: 8:30 PM+
+                Booth Manning & Reliever Deployment • Time-Out Window: 8:30 PM+
               </div>
             </div>
+
+            <!-- Role View Segment Filter Pills: All Field Staff vs Sales Reps vs Relievers Pool -->
+            <div style="display: flex; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--border-color); background: rgba(255,255,255,0.02); flex-wrap: wrap; align-items: center;">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-right: 6px; letter-spacing: 0.5px;">View Segment:</span>
+              <button class="btn btn-xs btn-primary active" id="att-role-btn-all" onclick="window.workforceAttendanceModule.setPersonnelType('all')" style="border-radius: 20px; padding: 4px 12px; font-weight: 700;">
+                👥 All Field Personnel (<span id="count-role-all">150</span>)
+              </button>
+              <button class="btn btn-xs btn-secondary" id="att-role-btn-teller" onclick="window.workforceAttendanceModule.setPersonnelType('teller')" style="border-radius: 20px; padding: 4px 12px; font-weight: 700;">
+                🏪 Sales Representatives (<span id="count-role-teller">116</span>)
+              </button>
+              <button class="btn btn-xs btn-secondary" id="att-role-btn-reliever" onclick="window.workforceAttendanceModule.setPersonnelType('reliever')" style="border-radius: 20px; padding: 4px 12px; font-weight: 700;">
+                🔄 Relievers Pool (<span id="count-role-reliever">34</span>)
+              </button>
+            </div>
+
             <div class="table-wrapper">
               <table class="data-table">
                 <thead>
@@ -2024,7 +2025,6 @@
                     <th style="text-align: center;">Duty Status</th>
                     <th style="text-align: center;">Time In</th>
                     <th style="text-align: center;">Time Out</th>
-                    <th style="text-align: center;">Duration</th>
                     <th>Shift Notes / Remarks</th>
                     <th style="text-align: center; width: 150px;">Actions</th>
                   </tr>
@@ -5001,23 +5001,43 @@
           </div>
           <div>
             <label style="display:block; margin-bottom: 4px; font-weight:700; font-size:12px;">Duty Status:</label>
-            <select id="att-log-status" class="form-input" style="width:100%;">
-              <option value="PRESENT">PRESENT (<= 8:00 AM)</option>
-              <option value="LATE">LATE (> 8:00 AM)</option>
-              <option value="REST DAY">REST DAY</option>
-              <option value="ABSENT">ABSENT</option>
+            <select id="att-log-status" class="form-input" style="width:100%;" onchange="window.workforceAttendanceModule.handleStatusSelectChange(this.value)">
+              <option value="PRESENT">PRESENT (&lt;= 8:00 AM)</option>
+              <option value="LATE">LATE (&gt; 8:00 AM)</option>
+              <option value="ABSENT">ABSENT / UNREPORTED</option>
             </select>
           </div>
         </div>
         
-        <!-- Time In & Time Out -->
+        <!-- Reliever Assignment Section (appears when marking absent or deploying reliever) -->
+        <div id="att-log-reliever-section" style="background: rgba(59, 130, 246, 0.08); border: 1px dashed rgba(59, 130, 246, 0.4); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: none;">
+          <div style="font-size: 12px; font-weight: 700; color: #60a5fa; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+            <span>🔄 Deploy Reliever for Booth</span>
+            <span style="font-size: 10px; background: rgba(59, 130, 246, 0.2); color: #93c5fd; padding: 2px 6px; border-radius: 4px;">Relievers Pool: 34</span>
+          </div>
+          <select id="att-log-reliever-select" class="form-input" style="width: 100%; margin-bottom: 4px;">
+            <option value="">-- No Reliever Needed (Booth Inactive / Unmanned) --</option>
+            <!-- Populated dynamically with Relievers -->
+          </select>
+          <div style="font-size: 11px; color: var(--text-muted);">
+            Selecting a reliever automatically logs them on duty at this booth and records their deployment.
+          </div>
+        </div>
+
+        <!-- Time In & Time Out with Quick "Now" buttons -->
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
           <div>
-            <label style="display:block; margin-bottom: 4px; font-weight:700; font-size:12px;">Time In:</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <label style="margin: 0; font-weight:700; font-size:12px;">Time In:</label>
+              <button type="button" class="btn btn-xs btn-secondary" onclick="window.workforceAttendanceModule.setCurrentTime('in')" style="padding: 1px 6px; font-size: 10.5px; color: #4ade80;">⚡ Now</button>
+            </div>
             <input type="time" id="att-log-time-in" class="form-input" style="width:100%;" onchange="window.workforceAttendanceModule.handleTimeInInput(this.value)" oninput="window.workforceAttendanceModule.handleTimeInInput(this.value)">
           </div>
           <div>
-            <label style="display:block; margin-bottom: 4px; font-weight:700; font-size:12px;">Time Out:</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <label style="margin: 0; font-weight:700; font-size:12px;">Time Out:</label>
+              <button type="button" class="btn btn-xs btn-secondary" onclick="window.workforceAttendanceModule.setCurrentTime('out')" style="padding: 1px 6px; font-size: 10.5px; color: #60a5fa;">⚡ Now</button>
+            </div>
             <input type="time" id="att-log-time-out" class="form-input" style="width:100%;">
           </div>
         </div>
@@ -5451,11 +5471,6 @@
             <div style="font-size: 10.5px; color: var(--text-muted); font-weight: 700;">ABSENT</div>
           </div>
           <div
-            style="background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.3); border-radius: 6px; padding: 10px; text-align: center;">
-            <div style="font-size: 20px; font-weight: 800; color: #38bdf8;" id="att-summary-restday">0</div>
-            <div style="font-size: 10.5px; color: var(--text-muted); font-weight: 700;">REST DAY</div>
-          </div>
-          <div
             style="background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.3); border-radius: 6px; padding: 10px; text-align: center;">
             <div style="font-size: 20px; font-weight: 800; color: #c084fc;" id="att-summary-timein">0</div>
             <div style="font-size: 10.5px; color: var(--text-muted); font-weight: 700;">DAYS TIME-IN</div>
@@ -5467,7 +5482,7 @@
           </div>
         </div>
 
-        <!-- 9-Column Weekly Attendance Table -->
+        <!-- Weekly Attendance Table -->
         <div
           style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">
           Weekly Shift & Location Record
@@ -5482,7 +5497,6 @@
                 <th style="text-align: center;">DUTY STATUS</th>
                 <th style="text-align: center;">TIME IN</th>
                 <th style="text-align: center;">TIME OUT</th>
-                <th style="text-align: center;">DURATION</th>
                 <th>BOOTH</th>
                 <th>LOCATION</th>
                 <th>REMARKS</th>

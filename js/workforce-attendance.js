@@ -10,7 +10,7 @@
 (function () {
   'use strict';
 
-  const ATTENDANCE_STORAGE_KEY = 'north005_workforce_attendance_v4';
+  const ATTENDANCE_STORAGE_KEY = 'north005_workforce_attendance_v5';
   const SUPERVISOR_REMARKS_KEY = 'north005_supervisor_remarks_v2';
 
   class WorkforceAttendanceModule {
@@ -19,7 +19,8 @@
       this.selectedMunicipality = 'all';
       this.selectedStatus = 'all';
       this.searchQuery = '';
-      this.activeKpiTab = 'all'; // 'all', 'PRESENT', 'LATE', 'REST DAY', 'ABSENT'
+      this.activeKpiTab = 'all'; // 'all', 'PRESENT', 'LATE', 'ABSENT'
+      this.selectedPersonnelType = 'all'; // 'all', 'teller', 'reliever'
 
       // Pagination
       this.currentPage = 1;
@@ -57,6 +58,10 @@
 
     saveRecords() {
       localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(this.records));
+      // Keep v4 updated as mirror for backwards-compatibility with test suites
+      try {
+        localStorage.setItem('north005_workforce_attendance_v4', JSON.stringify(this.records));
+      } catch (e) {}
     }
 
     loadRemarks() {
@@ -72,19 +77,47 @@
       localStorage.setItem(SUPERVISOR_REMARKS_KEY, JSON.stringify(this.remarks));
     }
 
+    /**
+     * Strictly include Sales Representatives (Tellers) and Relievers.
+     * Exclude Operations Administrator, Supervisors, and Collectors.
+     */
     getEmployees() {
       const store = window.appStore;
       if (!store) return [];
       const emps = (typeof store.getEmployees === 'function') ? store.getEmployees() : (store.data ? (store.data.employees || []) : []);
-      return emps.filter(e => e && e.name && !e.name.includes('Buffer Reliever'));
+      let relIndex = 1;
+      return emps.filter(e => {
+        if (!e || !e.name || e.name.includes('Buffer Reliever')) return false;
+        const role = ((e.role || e.position || '') + ' ' + (e.department || '')).toUpperCase();
+        const id = (e.id || '').toUpperCase();
+        // Exclude Operations Administrator, Supervisors, and Collectors
+        if (role.includes('ADMIN') || id.includes('OA001')) return false;
+        if (role.includes('SUPERVISOR')) return false;
+        if (role.includes('COLLECTOR') || id.startsWith('DDN005-SC')) return false;
+        return true;
+      }).map(e => {
+        // Assign distinct sequential ID (DDN005-REL01 - DDN005-REL34) to relievers so each can be individually tracked
+        if (e.id === 'DDN005-SR000' || (e.role || '').toLowerCase().includes('reliever')) {
+          const num = String(relIndex++).padStart(2, '0');
+          return {
+            ...e,
+            id: `DDN005-REL${num}`,
+            originalId: e.id
+          };
+        }
+        return e;
+      });
+    }
+
+    getRelievers() {
+      return this.getEmployees().filter(e => {
+        const r = (e.role || e.position || '').toLowerCase();
+        return r.includes('reliever');
+      });
     }
 
     getAllMasterStaff() {
-      const store = window.appStore;
-      if (!store) return [];
-      const emps = (typeof store.getEmployees === 'function') ? store.getEmployees() : (store.data ? (store.data.employees || []) : []);
-      const rels = (store.data && Array.isArray(store.data.relievers)) ? store.data.relievers : [];
-      return [...emps, ...rels];
+      return this.getEmployees();
     }
 
     /**
@@ -246,45 +279,18 @@
 
       const dayRecords = this.records[dateKey];
 
-      emps.forEach((emp, idx) => {
+      emps.forEach((emp) => {
         if (!dayRecords[emp.id]) {
-          const isTerminated = (emp.status || '').toUpperCase() === 'TERMINATED';
-          const isInactive = (emp.status || '').toUpperCase() === 'INACTIVE';
+          const isReliever = ((emp.role || emp.position || '')).toLowerCase().includes('reliever');
 
-          let status = 'PRESENT';
-          let timeIn = '07:50 AM';
-          let timeOut = '08:35 PM';
-          let notes = 'Regular operational duty completed';
-
-          if (isTerminated || isInactive) {
-            status = 'ABSENT';
-            timeIn = '—';
-            timeOut = '—';
-            notes = isTerminated ? 'Staff terminated' : 'Inactive booth';
-          } else if (idx % 7 === 0) {
-            status = 'REST DAY';
-            timeIn = '—';
-            timeOut = '—';
-            notes = 'Scheduled Weekly Rest Day';
-          } else if (idx % 11 === 0) {
-            status = 'LATE';
-            timeIn = '08:17 AM'; // After 8:00 AM
-            timeOut = '08:32 PM';
-            notes = 'Transit delay (Traffic corridor)';
-          } else if (idx % 29 === 0) {
-            status = 'ABSENT';
-            timeIn = '—';
-            timeOut = '—';
-            notes = 'Unexcused Absence';
-          }
-
+          // True reset: zero fake check-ins. Default unrecorded staff to ABSENT/Unreported.
           dayRecords[emp.id] = {
             employeeId: emp.id,
-            status,
-            timeIn,
-            timeOut,
-            duration: (status === 'REST DAY' || status === 'ABSENT') ? '—' : this.calculateDuration(timeIn, timeOut),
-            notes,
+            status: 'ABSENT',
+            timeIn: '—',
+            timeOut: '—',
+            duration: '—',
+            notes: isReliever ? 'On Standby / Reliever Pool Available' : 'Unreported / Pending Duty Time-In',
             lastUpdated: new Date().toISOString()
           };
         }
@@ -297,12 +303,11 @@
       this.activeKpiTab = tabKey;
       this.currentPage = 1;
 
-      // Update card active classes
+      // Update card active classes (Rest Day removed)
       const cardMap = {
         'all': 'att-tab-all',
         'PRESENT': 'att-tab-present',
         'LATE': 'att-tab-late',
-        'REST DAY': 'att-tab-restday',
         'ABSENT': 'att-tab-absent'
       };
 
@@ -316,6 +321,25 @@
         statusEl.value = tabKey === 'all' ? 'all' : tabKey;
         this.selectedStatus = statusEl.value;
       }
+
+      this.render();
+    }
+
+    setPersonnelType(type) {
+      this.selectedPersonnelType = type;
+      this.currentPage = 1;
+
+      // Update pill buttons active state
+      ['all', 'teller', 'reliever'].forEach(t => {
+        const btn = document.getElementById(`att-role-btn-${t}`);
+        if (btn) {
+          if (t === type) {
+            btn.className = 'btn btn-xs btn-primary active';
+          } else {
+            btn.className = 'btn btn-xs btn-secondary';
+          }
+        }
+      });
 
       this.render();
     }
@@ -416,35 +440,44 @@
       const totalWorkforce = emps.length;
       let presentCount = 0;
       let lateCount = 0;
-      let restDayCount = 0;
       let absentCount = 0;
 
       emps.forEach(emp => {
-        const att = dayRecords[emp.id] || { status: 'PRESENT' };
+        const att = dayRecords[emp.id] || { status: 'ABSENT' };
         if (att.status === 'PRESENT') presentCount++;
         else if (att.status === 'LATE') lateCount++;
-        else if (att.status === 'REST DAY') restDayCount++;
-        else if (att.status === 'ABSENT') absentCount++;
+        else absentCount++;
       });
 
       const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
       setTxt('kpi-att-workforce', totalWorkforce);
       setTxt('kpi-att-present', presentCount);
       setTxt('kpi-att-late', lateCount);
-      setTxt('kpi-att-restday', restDayCount);
       setTxt('kpi-att-absent', absentCount);
+
+      // Segment counts for role filter pills
+      const totalAll = emps.length;
+      const totalTellers = emps.filter(e => !(e.role || e.position || '').toLowerCase().includes('reliever')).length;
+      const totalRelievers = emps.filter(e => (e.role || e.position || '').toLowerCase().includes('reliever')).length;
+      setTxt('count-role-all', totalAll);
+      setTxt('count-role-teller', totalTellers);
+      setTxt('count-role-reliever', totalRelievers);
 
       // Filter employees
       const filtered = emps.filter(emp => {
-        const att = dayRecords[emp.id] || { status: 'PRESENT' };
+        const att = dayRecords[emp.id] || { status: 'ABSENT' };
         const loc = this.getBoothLocation(emp);
 
         if (!isRestrictedStaff) {
+          // Role segment filter (All vs Sales Reps vs Relievers Pool)
+          const isRel = (emp.role || emp.position || '').toLowerCase().includes('reliever');
+          if (this.selectedPersonnelType === 'teller' && isRel) return false;
+          if (this.selectedPersonnelType === 'reliever' && !isRel) return false;
+
           // KPI tab filter
           if (this.activeKpiTab !== 'all') {
             if (this.activeKpiTab === 'PRESENT' && att.status !== 'PRESENT') return false;
             if (this.activeKpiTab === 'LATE' && att.status !== 'LATE') return false;
-            if (this.activeKpiTab === 'REST DAY' && att.status !== 'REST DAY') return false;
             if (this.activeKpiTab === 'ABSENT' && att.status !== 'ABSENT') return false;
           }
 
@@ -484,7 +517,7 @@
       if (paginated.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="10" style="text-align: center; padding: 48px 20px; color: var(--text-muted);">
+            <td colspan="9" style="text-align: center; padding: 48px 20px; color: var(--text-muted);">
               <div style="font-size: 32px; margin-bottom: 8px; opacity: 0.6;">📋</div>
               <div style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 4px;">No Attendance Records Found</div>
               <div style="font-size: 12px;">No workforce duty logs match your current date, filters, or active card tab.</div>
@@ -496,11 +529,10 @@
 
       tbody.innerHTML = paginated.map(emp => {
         const att = dayRecords[emp.id] || {
-          status: 'PRESENT',
-          timeIn: '07:50 AM',
-          timeOut: '08:35 PM',
-          duration: '12.75 hrs',
-          notes: 'Regular operational duty completed'
+          status: 'ABSENT',
+          timeIn: '—',
+          timeOut: '—',
+          notes: 'Unreported / Pending Duty Time-In'
         };
 
         const loc = this.getBoothLocation(emp);
@@ -510,13 +542,9 @@
           badgeHtml = `<span class="badge badge-success" style="padding: 3px 8px; font-size: 11px;">● PRESENT</span>`;
         } else if (att.status === 'LATE') {
           badgeHtml = `<span class="badge badge-warning" style="background:rgba(251,146,60,0.18);color:#fb923c;border:1px solid #fb923c;padding:3px 8px;font-size:11px;font-weight:700;">⏰ LATE</span>`;
-        } else if (att.status === 'REST DAY') {
-          badgeHtml = `<span class="badge" style="background:rgba(56,189,248,0.18);color:#38bdf8;border:1px solid #38bdf8;padding:3px 8px;font-size:11px;font-weight:700;">🗓️ REST DAY</span>`;
         } else {
           badgeHtml = `<span class="badge badge-danger" style="padding: 3px 8px; font-size: 11px;">❌ ABSENT</span>`;
         }
-
-        const duration = att.duration || ((att.status === 'REST DAY' || att.status === 'ABSENT') ? '—' : this.calculateDuration(att.timeIn, att.timeOut));
 
         const proofIndicator = att.imageProof ? `
           <span title="Attendance photo proof verified" style="cursor:pointer;margin-left:4px;color:var(--accent-cyan);" onclick="window.workforceAttendanceModule.viewProof('${att.imageProof}')">📷</span>
@@ -538,20 +566,19 @@
               <div style="font-size: 11px; color: var(--accent-gold); font-weight: 600;">${loc.municipality}</div>
             </td>
             <td style="text-align: center;">${badgeHtml}</td>
-            <td style="text-align: center; font-size: 12px; font-family: monospace; font-weight: 700; color: ${att.status === 'LATE' ? '#fb923c' : '#4ade80'};">${att.timeIn || '—'}</td>
-            <td style="text-align: center; font-size: 12px; font-family: monospace;">${att.timeOut || '—'}</td>
-            <td style="text-align: center; font-size: 12px; color: var(--text-muted);">${duration}</td>
+            <td style="text-align: center; font-size: 12px; font-family: monospace; font-weight: 700; color: ${att.status === 'LATE' ? '#fb923c' : (att.status === 'PRESENT' ? '#4ade80' : 'var(--text-muted)')};">${att.timeIn || '—'}</td>
+            <td style="text-align: center; font-size: 12px; font-family: monospace; color: ${att.timeOut && att.timeOut !== '—' ? 'var(--text-main)' : 'var(--text-muted)'};">${att.timeOut || '—'}</td>
             <td style="font-size: 11.5px; color: var(--text-muted); max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
               ${att.notes || '-'}
             </td>
             <td style="text-align: center; white-space: nowrap;">
               ${!isRestrictedStaff ? `
-                <button class="btn btn-xs btn-secondary" onclick="window.workforceAttendanceModule.openWeeklyTimeline('${emp.id}')" style="padding: 3px 8px; font-size: 11px; margin-right: 4px; color: var(--accent-cyan); font-weight: 700;" title="Review employee's weekly attendance record and evaluation">
+                <button class="btn btn-xs btn-secondary" onclick="window.workforceAttendanceModule.openWeeklyTimeline('${emp.id}')" style="padding: 3px 8px; font-size: 11px; margin-right: 4px; color: var(--accent-cyan); font-weight: 700;" title="Review employee's weekly attendance record">
                   📅 Weekly
                 </button>
               ` : ''}
-              <button class="btn btn-xs btn-primary" onclick="window.workforceAttendanceModule.openLogModal('${emp.id}')" style="padding: 4px 10px; font-size: 11.5px; font-weight: 800; background: var(--accent-gold); color: #000; border-color: var(--accent-gold);" title="Log Daily Personnel Shift">
-                ⏱️ Log Personnel Shift
+              <button class="btn btn-xs btn-primary" onclick="window.workforceAttendanceModule.openLogModal('${emp.id}')" style="padding: 4px 10px; font-size: 11.5px; font-weight: 800; background: var(--accent-gold); color: #000; border-color: var(--accent-gold);" title="Log Daily Personnel Duty / Reliever Deployment">
+                ⏱️ Log Duty
               </button>
             </td>
           </tr>
@@ -688,36 +715,44 @@
       document.getElementById('att-timeline-emp-id').textContent = emp.id;
 
       // Build 7-day schedule: MON to SUN (September 28 – October 4, 2026)
-      const days = [
-        { date: '2026-09-28', day: 'MON', status: 'PRESENT', in: '07:52 AM', out: '08:31 PM', duration: '12.65 hrs', remarks: 'Regular shift completed' },
-        { date: '2026-09-29', day: 'TUE', status: 'PRESENT', in: '07:55 AM', out: '08:34 PM', duration: '12.65 hrs', remarks: 'Regular shift completed' },
-        { date: '2026-09-30', day: 'WED', status: 'LATE',    in: '08:17 AM', out: '08:30 PM', duration: '12.22 hrs', remarks: 'Transit delay' },
-        { date: '2026-10-01', day: 'THU', status: 'ABSENT',  in: '—',        out: '—',        duration: '—',        remarks: 'Unexcused Absence' },
-        { date: '2026-10-02', day: 'FRI', status: 'PRESENT', in: '07:58 AM', out: '08:32 PM', duration: '12.57 hrs', remarks: 'Regular shift completed' },
-        { date: '2026-10-03', day: 'SAT', status: 'REST DAY', in: '—',       out: '—',        duration: '—',        remarks: 'Scheduled Rest Day' },
-        { date: '2026-10-04', day: 'SUN', status: 'REST DAY', in: '—',       out: '—',        duration: '—',        remarks: 'Scheduled Rest Day' }
+      const weekDates = [
+        { date: '2026-09-28', day: 'MON' },
+        { date: '2026-09-29', day: 'TUE' },
+        { date: '2026-09-30', day: 'WED' },
+        { date: '2026-10-01', day: 'THU' },
+        { date: '2026-10-02', day: 'FRI' },
+        { date: '2026-10-03', day: 'SAT' },
+        { date: '2026-10-04', day: 'SUN' }
       ];
 
-      // Sync active record from records if user edited date
-      const curRecord = this.records[this.currentDate] && this.records[this.currentDate][empId];
-      if (curRecord) {
-        const curDayIndex = days.findIndex(d => d.date === this.currentDate);
-        if (curDayIndex !== -1) {
-          days[curDayIndex].status = curRecord.status;
-          days[curDayIndex].in = curRecord.timeIn;
-          days[curDayIndex].out = curRecord.timeOut;
-          days[curDayIndex].remarks = curRecord.notes || (curRecord.status === 'LATE' ? 'Late check-in' : 'Shift recorded');
-          days[curDayIndex].duration = curRecord.duration || this.calculateDuration(curRecord.timeIn, curRecord.timeOut);
+      const days = weekDates.map(w => {
+        const rec = this.records[w.date] && this.records[w.date][empId];
+        if (rec) {
+          return {
+            date: w.date,
+            day: w.day,
+            status: rec.status,
+            in: rec.timeIn || '—',
+            out: rec.timeOut || '—',
+            remarks: rec.notes || (rec.status === 'LATE' ? 'Late check-in' : (rec.status === 'PRESENT' ? 'Regular duty completed' : 'Unreported'))
+          };
         }
-      }
+        return {
+          date: w.date,
+          day: w.day,
+          status: 'ABSENT',
+          in: '—',
+          out: '—',
+          remarks: 'No duty record logged'
+        };
+      });
 
-      // Calculate summary metrics
-      let pres = 0, late = 0, abs = 0, rd = 0, timeInDays = 0, timeOutDays = 0;
+      // Calculate summary metrics (Rest Day removed)
+      let pres = 0, late = 0, abs = 0, timeInDays = 0, timeOutDays = 0;
       days.forEach(d => {
         if (d.status === 'PRESENT') pres++;
         else if (d.status === 'LATE') late++;
-        else if (d.status === 'ABSENT') abs++;
-        else if (d.status === 'REST DAY') rd++;
+        else abs++;
 
         if (d.in && d.in !== '-' && d.in !== '—') timeInDays++;
         if (d.out && d.out !== '-' && d.out !== '—') timeOutDays++;
@@ -727,11 +762,10 @@
       setTxt('att-summary-present', pres);
       setTxt('att-summary-late', late);
       setTxt('att-summary-absent', abs);
-      setTxt('att-summary-restday', rd);
       setTxt('att-summary-timein', timeInDays);
       setTxt('att-summary-timeout', timeOutDays);
 
-      // Render 9-column weekly table
+      // Render 8-column weekly table (Duration removed)
       const tbody = document.getElementById('att-timeline-table-tbody');
       if (tbody) {
         tbody.innerHTML = days.map(d => {
@@ -740,8 +774,6 @@
             badge = '<span class="badge badge-success" style="font-size:10.5px;padding:2px 6px;">● PRESENT</span>';
           } else if (d.status === 'LATE') {
             badge = '<span class="badge badge-warning" style="background:rgba(251,146,60,0.2);color:#fb923c;border:1px solid #fb923c;font-size:10.5px;padding:2px 6px;font-weight:700;">⏰ LATE</span>';
-          } else if (d.status === 'REST DAY') {
-            badge = '<span class="badge" style="background:rgba(56,189,248,0.2);color:#38bdf8;border:1px solid #38bdf8;font-size:10.5px;padding:2px 6px;font-weight:700;">🗓️ REST DAY</span>';
           } else {
             badge = '<span class="badge badge-danger" style="font-size:10.5px;padding:2px 6px;">❌ ABSENT</span>';
           }
@@ -751,9 +783,8 @@
               <td style="font-family:monospace;font-size:11.5px;color:var(--text-muted);white-space:nowrap;">${d.date}</td>
               <td><strong style="color:var(--accent-gold);font-family:monospace;">${d.day}</strong></td>
               <td style="text-align:center;">${badge}</td>
-              <td style="text-align:center;font-family:monospace;font-size:12px;font-weight:700;color:${d.status === 'LATE' ? '#fb923c' : '#4ade80'};">${d.in}</td>
-              <td style="text-align:center;font-family:monospace;font-size:12px;">${d.out}</td>
-              <td style="text-align:center;font-size:11.5px;color:var(--text-muted);">${d.duration}</td>
+              <td style="text-align:center;font-family:monospace;font-size:12px;font-weight:700;color:${d.status === 'LATE' ? '#fb923c' : (d.status === 'PRESENT' ? '#4ade80' : 'var(--text-muted)')};">${d.in}</td>
+              <td style="text-align:center;font-family:monospace;font-size:12px;color:${d.out !== '—' ? 'var(--text-main)' : 'var(--text-muted)'};">${d.out}</td>
               <td><code style="color:#60a5fa;font-weight:700;">${loc.boothCode}</code></td>
               <td style="font-size:11.5px;color:var(--text-main);">${loc.purok}, ${loc.municipality}</td>
               <td style="font-size:11.5px;color:var(--text-muted);">${d.remarks}</td>
@@ -917,7 +948,41 @@
       }
     }
 
-    /* --- SHIFT LOG MODAL --- */
+    /* --- STATUS SELECT CHANGE & QUICK TIME HELPERS --- */
+    handleStatusSelectChange(statusVal) {
+      const relSection = document.getElementById('att-log-reliever-section');
+      const tInEl = document.getElementById('att-log-time-in');
+      const tOutEl = document.getElementById('att-log-time-out');
+
+      if (statusVal === 'ABSENT') {
+        if (relSection) relSection.style.display = 'block';
+        if (tInEl) tInEl.value = '';
+        if (tOutEl) tOutEl.value = '';
+      } else {
+        if (relSection) relSection.style.display = 'none';
+        if (tInEl && !tInEl.value) tInEl.value = statusVal === 'LATE' ? '08:15' : '07:50';
+      }
+    }
+
+    setCurrentTime(type) {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const timeVal = `${hh}:${mm}`;
+
+      if (type === 'in') {
+        const tInEl = document.getElementById('att-log-time-in');
+        if (tInEl) {
+          tInEl.value = timeVal;
+          this.handleTimeInInput(timeVal);
+        }
+      } else {
+        const tOutEl = document.getElementById('att-log-time-out');
+        if (tOutEl) tOutEl.value = timeVal;
+      }
+    }
+
+    /* --- SHIFT / DUTY LOG MODAL --- */
     openLogModal(empId) {
       const auth = window.authManager;
       const isTeller = auth && typeof auth.isTeller === 'function' && auth.isTeller();
@@ -939,9 +1004,9 @@
       const dateKey = this.currentDate;
       const dayRecords = this.records[dateKey] || {};
       const record = dayRecords[emp.id] || {
-        status: 'PRESENT',
-        timeIn: '07:50 AM',
-        timeOut: '08:35 PM',
+        status: 'ABSENT',
+        timeIn: '—',
+        timeOut: '—',
         notes: ''
       };
 
@@ -957,11 +1022,30 @@
         dateInput.readOnly = false;
       }
 
-      document.getElementById('att-log-status').value = record.status || 'PRESENT';
+      const statusSelect = document.getElementById('att-log-status');
+      if (statusSelect) {
+        statusSelect.value = (record.status === 'REST DAY') ? 'ABSENT' : (record.status || 'ABSENT');
+      }
 
-      let tIn = '07:50';
-      let tOut = '20:35';
-      if (record.timeIn && record.timeIn.includes(':')) {
+      // Populate Relievers dropdown in modal for quick coverage deployment
+      const relSelect = document.getElementById('att-log-reliever-select');
+      if (relSelect) {
+        const relievers = this.getRelievers();
+        relSelect.innerHTML = `
+          <option value="">-- No Reliever Needed (Booth Inactive / Unmanned) --</option>
+          ${relievers.map(r => `<option value="${r.id}">${r.name} (${r.id}) - Available Reliever</option>`).join('')}
+        `;
+      }
+
+      const relSection = document.getElementById('att-log-reliever-section');
+      const isAbsent = (record.status || 'ABSENT') === 'ABSENT' || record.status === 'REST DAY';
+      if (relSection) {
+        relSection.style.display = isAbsent ? 'block' : 'none';
+      }
+
+      let tIn = '';
+      let tOut = '';
+      if (record.timeIn && record.timeIn.includes(':') && record.timeIn !== '—') {
         if (record.timeIn.includes('PM') && !record.timeIn.startsWith('12')) {
           const parts = record.timeIn.replace(' PM', '').split(':');
           tIn = `${parseInt(parts[0], 10) + 12}:${parts[1]}`;
@@ -969,7 +1053,7 @@
           tIn = record.timeIn.replace(' AM', '').replace(' PM', '').padStart(5, '0');
         }
       }
-      if (record.timeOut && record.timeOut.includes(':')) {
+      if (record.timeOut && record.timeOut.includes(':') && record.timeOut !== '—') {
         if (record.timeOut.includes('PM') && !record.timeOut.startsWith('12')) {
           const parts = record.timeOut.replace(' PM', '').split(':');
           tOut = `${parseInt(parts[0], 10) + 12}:${parts[1]}`;
@@ -978,8 +1062,8 @@
         }
       }
 
-      document.getElementById('att-log-time-in').value = (record.status === 'REST DAY' || record.status === 'ABSENT') ? '' : tIn;
-      document.getElementById('att-log-time-out').value = (record.status === 'REST DAY' || record.status === 'ABSENT') ? '' : tOut;
+      document.getElementById('att-log-time-in').value = isAbsent ? '' : tIn;
+      document.getElementById('att-log-time-out').value = isAbsent ? '' : tOut;
       document.getElementById('att-log-remarks').value = record.notes || '';
 
       // Reset OCR preview state
@@ -1038,16 +1122,41 @@
         finalStatus = this.detectDutyStatus(formattedIn, false);
       }
 
+      // Background duration calculation for API / test compatibility
       const duration = (finalStatus === 'REST DAY' || finalStatus === 'ABSENT') ? '—' : this.calculateDuration(formattedIn, formattedOut);
 
-      // Save/update the actual attendance record in state & localStorage
+      // Check if a Reliever was assigned to cover this booth
+      const relSelect = document.getElementById('att-log-reliever-select');
+      const assignedRelieverId = (relSelect && relSelect.value) ? relSelect.value : null;
+
+      let finalRemarks = remarks;
+      if (finalStatus === 'ABSENT' && assignedRelieverId) {
+        const relEmp = this.getEmployees().find(e => e.id === assignedRelieverId);
+        const relName = relEmp ? relEmp.name : assignedRelieverId;
+        finalRemarks = remarks ? `${remarks} (Relieved by ${relName})` : `Absent — Relieved by ${relName}`;
+
+        // Automatically mark the reliever as PRESENT covering this booth
+        const curEmp = this.getEmployees().find(e => e.id === empId);
+        const curLoc = this.getBoothLocation(curEmp);
+        this.records[dateVal][assignedRelieverId] = {
+          employeeId: assignedRelieverId,
+          status: 'PRESENT',
+          timeIn: '07:50 AM',
+          timeOut: '08:35 PM',
+          duration: '12.75 hrs',
+          notes: `Covering ${curLoc.boothCode} (${curLoc.purok}) for absent Sales Rep ${curEmp ? curEmp.name : empId}`,
+          lastUpdated: new Date().toISOString()
+        };
+      }
+
+      // Save/update the attendance record
       this.records[dateVal][empId] = {
         employeeId: empId,
         status: finalStatus,
         timeIn: formattedIn,
         timeOut: formattedOut,
         duration: duration,
-        notes: remarks || `${finalStatus} on ${dateVal}`,
+        notes: finalRemarks || `${finalStatus} on ${dateVal}`,
         imageProof: this.currentUploadedImage || (this.records[dateVal][empId] ? this.records[dateVal][empId].imageProof : ''),
         lastUpdated: new Date().toISOString()
       };
@@ -1063,14 +1172,14 @@
           timeIn: formattedIn,
           timeOut: formattedOut,
           duration: duration,
-          notes: remarks,
+          notes: finalRemarks,
           imageProof: this.currentUploadedImage
         });
       }
 
       this.closeLogModal();
       this.render();
-      if (typeof alert === 'function') alert('Duty shift log updated successfully.');
+      if (typeof alert === 'function') alert('Duty log and attendance record updated successfully.');
     }
 
     exportCSV() {
@@ -1078,11 +1187,11 @@
       const dateKey = this.currentDate;
       const dayRecords = this.records[dateKey] || {};
 
-      let csv = 'Emp ID,Employee Name,Role,Booth Code,Purok,Municipality,Duty Status,Time In,Time Out,Duration,Shift Notes\n';
+      let csv = 'Emp ID,Employee Name,Role,Booth Code,Purok,Municipality,Duty Status,Time In,Time Out,Shift Notes\n';
       emps.forEach(emp => {
-        const att = dayRecords[emp.id] || { status: 'PRESENT', timeIn: '07:50 AM', timeOut: '08:35 PM', duration: '12.75 hrs', notes: 'Regular' };
+        const att = dayRecords[emp.id] || { status: 'ABSENT', timeIn: '—', timeOut: '—', notes: 'Unreported' };
         const loc = this.getBoothLocation(emp);
-        csv += `"${emp.id}","${emp.name}","${emp.role || ''}","${loc.boothCode}","${loc.purok}","${loc.municipality}","${att.status}","${att.timeIn}","${att.timeOut}","${att.duration || '12.75 hrs'}","${(att.notes || '').replace(/"/g, '""')}"\n`;
+        csv += `"${emp.id}","${emp.name}","${emp.role || ''}","${loc.boothCode}","${loc.purok}","${loc.municipality}","${att.status}","${att.timeIn}","${att.timeOut}","${(att.notes || '').replace(/"/g, '""')}"\n`;
       });
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
