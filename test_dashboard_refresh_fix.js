@@ -218,6 +218,22 @@ if (!stylesCss.includes('.app-splash-overlay')) {
 }
 console.log('✓ Confirmed Fast Branded Splash Loader with official NORTH-005 logo and styles active');
 
+// 10. Verify Fast In-Page Module Transition Loader (Sidebar & In-App Navigation)
+if (!indexHtml.includes('id="module-loading-overlay"')) {
+  console.error('❌ index.html is missing #module-loading-overlay element!');
+  process.exit(1);
+}
+if (!stylesCss.includes('.module-loading-overlay')) {
+  console.error('❌ styles.css is missing .module-loading-overlay styles!');
+  process.exit(1);
+}
+const appJsCode = fs.readFileSync(path.join(__dirname, 'js/app.js'), 'utf8');
+if (!appJsCode.includes('triggerModuleLoadingAnimation')) {
+  console.error('❌ js/app.js is missing triggerModuleLoadingAnimation function!');
+  process.exit(1);
+}
+console.log('✓ Confirmed Fast In-Page Module Transition Loader with NORTH-005 logo active across sidebar & in-app navigation');
+
 console.log('\n======================================================');
-console.log('🎉 ALL DASHBOARD REFRESH, 123 BOOTHS & SPLASH TESTS PASSED!');
+console.log('🎉 ALL DASHBOARD REFRESH, 123 BOOTHS & MODULE LOADER TESTS PASSED!');
 console.log('======================================================\n');

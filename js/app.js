@@ -421,7 +421,54 @@ function initNavigation() {
   initMobileSidebarGestures();
 }
 
-window.switchView = function(viewId, updateHistory = true) {
+// Module Friendly Display Names for In-Page Transition Loader
+const MODULE_NAMES = {
+  'view-dashboard': 'Control Center Dashboard',
+  'view-employees': 'Master Registry',
+  'view-tracking': 'ETS Live GPS Tracking',
+  'view-pipelines': 'Sales & Collection Pipeline',
+  'view-finance': 'Expenses & Payment',
+  'view-outlet-rentals': 'Outlet Rentals & Load Allowance',
+  'view-user-management': 'User & Access Management',
+  'view-workforce-attendance': 'Attendance / Workforce Monitoring',
+  'view-org-chart': 'Organizational Charts',
+  'view-employee-documents': 'Employee Documents & 201 Files',
+  'view-thermal-paper': 'Thermal Paper Daily Summary',
+  'view-audit-discrepancy': 'Audit & Discrepancy Engine',
+  'view-inventory': 'Thermal & Equipment Inventory',
+  'view-settings': 'System Settings'
+};
+
+let moduleTransitionTimer = null;
+let moduleHideTimer = null;
+function triggerModuleLoadingAnimation(viewId) {
+  const overlay = document.getElementById('module-loading-overlay');
+  const titleEl = document.getElementById('module-loading-title');
+  if (!overlay) return;
+
+  const modTitle = MODULE_NAMES[viewId] || 'Module';
+  if (titleEl) {
+    titleEl.textContent = `Loading ${modTitle}...`;
+  }
+
+  if (moduleTransitionTimer) clearTimeout(moduleTransitionTimer);
+  if (moduleHideTimer) clearTimeout(moduleHideTimer);
+
+  overlay.style.display = 'flex';
+  void overlay.offsetWidth; // Force reflow
+  overlay.classList.add('active');
+
+  moduleTransitionTimer = setTimeout(() => {
+    overlay.classList.remove('active');
+    moduleHideTimer = setTimeout(() => {
+      if (!overlay.classList.contains('active')) {
+        overlay.style.display = 'none';
+      }
+    }, 180);
+  }, 210);
+}
+
+window.switchView = function(viewId, updateHistory = true, skipAnimation = false) {
   // Automatically close mobile sidebar drawer on navigation
   if (typeof window.closeMobileSidebar === 'function') {
     window.closeMobileSidebar();
@@ -442,6 +489,13 @@ window.switchView = function(viewId, updateHistory = true) {
 
   if (window.sfx) sfx.playClick();
   
+  // Trigger Fast In-Page Module Transition (180ms-250ms) with official NORTH-005 logo
+  const currentActivePanel = document.querySelector('.view-panel.active');
+  const currentViewId = currentActivePanel ? currentActivePanel.id : null;
+  if (!skipAnimation && currentViewId && currentViewId !== viewId) {
+    triggerModuleLoadingAnimation(viewId);
+  }
+
   // Update sidebar active classes
   document.querySelectorAll('.sidebar-nav .nav-item').forEach(item => {
     if (item.getAttribute('data-view') === viewId) {

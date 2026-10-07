@@ -3003,6 +3003,136 @@ button, input, select, textarea {
   transform: scale(0.95);
 }
 
+/* ===================================================================
+   IN-PAGE MODULE TRANSITION LOADER (Sidebar & In-App Navigation)
+   Features centered mini NORTH-005 logo pulse with dynamic module title
+   =================================================================== */
+#viewport {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.module-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(10, 14, 23, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.module-loading-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.module-loading-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 24px 34px;
+  background: rgba(17, 24, 39, 0.94);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 18px;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7), 0 0 25px rgba(245, 158, 11, 0.18);
+  transform: scale(0.95);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  min-width: 280px;
+}
+
+.module-loading-overlay.active .module-loading-card {
+  transform: scale(1);
+}
+
+.module-logo-spinner {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.module-logo-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: #fbbf24;
+  border-right-color: #d97706;
+  border-bottom-color: rgba(245, 158, 11, 0.15);
+  animation: moduleRingSpin 0.75s linear infinite;
+}
+
+@keyframes moduleRingSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.module-logo-icon {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(245, 158, 11, 0.5));
+  animation: moduleLogoPulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes moduleLogoPulse {
+  0% { transform: scale(0.94); }
+  100% { transform: scale(1.06); }
+}
+
+.module-loading-title {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.module-loading-sub {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #fbbf24;
+  margin-bottom: 14px;
+}
+
+.module-loading-line {
+  width: 160px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.module-loading-pulse {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, #d97706, #fbbf24, #10b981);
+  border-radius: 9999px;
+  box-shadow: 0 0 8px #fbbf24;
+  animation: moduleProgress 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes moduleProgress {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+
 
 
 
