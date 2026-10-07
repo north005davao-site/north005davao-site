@@ -103,6 +103,28 @@
 </head>
 
 <body>
+  <!-- ===================================================================
+       FAST BOOT & BRANDED SPLASH LOADER
+       Features official NORTH-005 DAVAO DEL NORTE HQ Logo & Telemetry Fade
+       =================================================================== -->
+  <div id="app-splash-loader" class="app-splash-overlay" aria-hidden="false">
+    <div class="splash-card">
+      <div class="splash-logo-wrap">
+        <div class="splash-logo-pulse"></div>
+        <img src="assets/north-005-logo.png" alt="NORTH-005 Davao del Norte HQ" class="splash-logo-img">
+      </div>
+      <div class="splash-brand-block">
+        <div class="splash-brand-title">NORTH-005</div>
+        <div class="splash-brand-sub">DAVAO DEL NORTE HQ</div>
+        <div class="splash-tagline">OPERATIONS CONTROL CENTER &amp; ASSET SUITE</div>
+      </div>
+      <div class="splash-loader-bar">
+        <div class="splash-loader-progress"></div>
+      </div>
+      <div class="splash-status-text" id="splash-status-text">Synchronizing Master Registry &amp; Field Telemetry...</div>
+    </div>
+  </div>
+
   <div id="app-layout">
 
     <!-- SIDEBAR -->
@@ -239,7 +261,7 @@
           </button>
 
           <div class="topbar-branding">
-            <img src="assets/north-005-logo.png" alt="NORTH-005 Davao del Norte HQ Official Logo" class="topbar-logo">
+            <img src="assets/north-005-logo.png" alt="NORTH-005 Davao del Norte HQ Official Logo" class="topbar-logo" onclick="window.location.reload()" title="Click to Refresh System Telemetry">
             <div class="topbar-title-block">
               <div class="topbar-title">
                 <span class="brand-code">NORTH-005</span>

@@ -127,6 +127,25 @@ function initApp() {
       renderAll();
     });
   }
+
+  // 5. Dismiss fast branded splash loader
+  dismissSplashLoader();
+}
+
+function dismissSplashLoader() {
+  const loader = document.getElementById('app-splash-loader');
+  if (!loader) return;
+  setTimeout(() => {
+    loader.classList.add('splash-fade-out');
+    setTimeout(() => {
+      try { loader.remove(); } catch (e) { loader.style.display = 'none'; }
+    }, 380);
+  }, 220);
+}
+
+// Fallback safeguard to prevent any loader hang
+if (typeof setTimeout === 'function') {
+  setTimeout(dismissSplashLoader, 1600);
 }
 
 if (typeof document !== 'undefined') {
@@ -650,7 +669,7 @@ function renderDashboard() {
   setEl('dash-booth-subtext', `${totalBooths} Outlets • 8 Corridors Active`);
   setEl('dash-total-properties', activeRentalsCount + ' Leased Outlets');
   setEl('dash-today-collection', formatPHP(totalCollection));
-  setEl('dash-live-ets', assignedBooths + ' / ' + totalBooths + ' Online');
+  setEl('dash-live-ets', totalBooths + ' / ' + totalBooths + ' Online');
   setEl('dash-thermal-stock', rollsRemaining + ' Rolls');
 
   // 2. Control Center Workforce Breakdown

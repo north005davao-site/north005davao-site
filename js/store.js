@@ -1697,12 +1697,24 @@ class Store {
 
             const PHANTOM_BOOTHS = new Set(['DDN-2001', 'DDN-2002', 'DDN-2003', 'DDN-358', 'DDN-759', 'DDN-901']);
             const origBoothsCount = parsed.booths.length;
+
+            // Authoritative Master Registry list: strictly 123 authentic outlets (116 assigned + 7 unused)
+            const authenticBoothCodes = new Set([
+              ...Object.keys(AUTHENTIC_MASTER_REGISTRY_COORDINATES).map(c => cleanBoothId(c)),
+              ...((typeof RAW_UNUSED_BOOTHS !== 'undefined' ? RAW_UNUSED_BOOTHS : []).map(u => cleanBoothId(u.boothCode)))
+            ]);
+
+            const seenBooths = new Set();
             parsed.booths = parsed.booths.filter(b => {
               if (!b) return false;
               const norm = cleanBoothId(b.id || b.code);
               if (!norm) return false;
               if (PHANTOM_BOOTHS.has(norm)) return false;
-              if ((b.status || '').toUpperCase() === 'INACTIVE' && (!b.assignedTellerName || b.assignedTellerName === '-' || b.assignedTellerName === 'N/A' || b.assignedTellerName === 'Unassigned')) return false;
+              // Purge any rogue booths outside authentic 123 outlets
+              if (authenticBoothCodes.size > 0 && !authenticBoothCodes.has(norm)) return false;
+              // Deduplicate any repeated booth records
+              if (seenBooths.has(norm)) return false;
+              seenBooths.add(norm);
               return true;
             });
             if (parsed.booths.length !== origBoothsCount) needsSave = true;

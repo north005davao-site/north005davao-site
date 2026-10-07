@@ -178,6 +178,46 @@ if (!indexHtml.includes('dash-booth-muni-samal')) {
 }
 console.log('✓ Confirmed index.html contains dash-wf-relievers and dash-booth-muni-samal');
 
+// 8. Verify Booths Count is exactly 123 (never 126 or 123/126)
+const totalStoreBooths = store.getBooths().length;
+if (totalStoreBooths !== 123) {
+  console.error(`❌ Expected exactly 123 booths in store, got ${totalStoreBooths}`);
+  process.exit(1);
+}
+console.log(`✓ Store booths strictly equals 123 outlets: verified`);
+
+// Test rogue booth sanitizer: inject 3 rogue/phantom booths (simulating stale 126 localStorage)
+store.data.booths.push({ id: 'DDN-9999', code: 'DDN-9999', name: 'Rogue 1', status: 'Active' });
+store.data.booths.push({ id: 'DDN-9998', code: 'DDN-9998', name: 'Rogue 2', status: 'Active' });
+store.data.booths.push({ id: 'DDN-9997', code: 'DDN-9997', name: 'Rogue 3', status: 'Active' });
+console.log('Injected 3 rogue booths to simulate 126 count. Total now:', store.data.booths.length);
+store.save();
+
+// Now trigger store.load() (simulating browser refresh)
+store.load();
+const sanitizedBooths = store.getBooths().length;
+if (sanitizedBooths !== 123) {
+  console.error(`❌ Rogue booth sanitizer failed! Expected 123 after load(), got ${sanitizedBooths}`);
+  process.exit(1);
+}
+console.log('✓ Rogue booth sanitizer verified: 126 booths in localStorage cleanly purged down to 123 authentic outlets!');
+
+// 9. Verify Fast Branded Splash Loader & Logo Animation
+if (!indexHtml.includes('id="app-splash-loader"')) {
+  console.error('❌ index.html is missing #app-splash-loader overlay!');
+  process.exit(1);
+}
+if (!indexHtml.includes('assets/north-005-logo.png')) {
+  console.error('❌ index.html is missing official logo link!');
+  process.exit(1);
+}
+const stylesCss = fs.readFileSync(path.join(__dirname, 'css/styles.css'), 'utf8');
+if (!stylesCss.includes('.app-splash-overlay')) {
+  console.error('❌ styles.css is missing .app-splash-overlay styles!');
+  process.exit(1);
+}
+console.log('✓ Confirmed Fast Branded Splash Loader with official NORTH-005 logo and styles active');
+
 console.log('\n======================================================');
-console.log('🎉 ALL DASHBOARD REFRESH & USER DELETION CHECKS PASSED!');
+console.log('🎉 ALL DASHBOARD REFRESH, 123 BOOTHS & SPLASH TESTS PASSED!');
 console.log('======================================================\n');
