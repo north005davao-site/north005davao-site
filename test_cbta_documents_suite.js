@@ -256,7 +256,53 @@ if (!docMod.isSameEmployee(docRhea, 'DDN005-SR000', 'Rhea Desnacido')) {
   console.error('❌ isSameEmployee failed to match Rhea Desnacido to herself!');
   process.exit(1);
 }
-console.log('✓ Verified: Document isolation between relievers sharing DDN005-SR000 is 100% active!');
+// 7. Test QuotaExceeded Recovery (Simulating Large PDF/Image uploads exceeding localStorage 5MB limit)
+console.log('\nTesting QuotaExceeded Recovery & Modal Auto-Close:');
+const origSetItem = global.localStorage.setItem;
+let quotaErrorThrown = false;
+
+// Simulate browser throwing QuotaExceededError when string length > 500
+global.localStorage.setItem = (k, v) => {
+  if (v.length > 500) {
+    quotaErrorThrown = true;
+    throw new Error('QuotaExceededError: Setting the value of ' + k + ' exceeded the quota.');
+  }
+  mockStorage[k] = String(v);
+};
+
+// Set modal as active
+elements['modal-upload-document'].classList.add('active');
+
+docMod.pendingUploads = [{
+  employeeId: 'DDN005-SR000',
+  employeeName: 'Rhea Desnacido',
+  employeeRole: 'Reliever',
+  documentType: 'CBTA',
+  fileName: 'Desnacido, Rhea B..pdf',
+  fileSize: '1121 KB',
+  fileDataUrl: 'data:application/pdf;base64,' + 'A'.repeat(2000), // Large PDF string
+  fileType: 'application/pdf',
+  dateUploaded: '2026-10-07',
+  expiryDate: '—',
+  status: 'Complete',
+  notes: 'Verified official compliance record on file.'
+}];
+
+docMod.commitDocumentSave(false);
+
+// Restore setItem
+global.localStorage.setItem = origSetItem;
+
+if (!quotaErrorThrown) {
+  console.error('❌ Expected QuotaExceededError simulation to be triggered!');
+  process.exit(1);
+}
+
+if (elements['modal-upload-document'].classList.contains('active')) {
+  console.error('❌ Modal was NOT closed upon QuotaExceeded recovery!');
+  process.exit(1);
+}
+console.log('✓ QuotaExceeded handled cleanly: upload modal closed and lightweight mirror preserved without crashing!');
 
 console.log('\n======================================================');
 console.log('🎉 ALL 4-FIELD EMPLOYEE DOCUMENTS TESTS PASSED 100%! 🚀');

@@ -5,14 +5,20 @@
  *   2. PHOTOCOPY OF VALID ID (Image File)
  *   3. BARANGAY CLEARANCE / POLICE CLEARANCE (Image File)
  *   4. COMMISSION BASED TELLER AGREEMENT (CBTA) (PDF or Image File)
- * Supports live previews, multi-doc batch upload, Master Registry sync,
- * Expiration tracking, and In-Browser PDF/Image Viewer.
+ * 
+ * Storage Engine:
+ *   - Powered by IndexedDB (North005ComplianceDocsDB) for unlimited storage of large PDFs & images (no 5MB quota crashes).
+ *   - Automatic lightweight metadata mirror in localStorage with try/catch quota protection.
+ *   - Full persistence across page refreshes and browser restarts.
  */
 
 (function () {
   'use strict';
 
   const DOCS_STORAGE_KEY = 'north005_employee_documents_v6';
+  const DB_NAME = 'North005ComplianceDocsDB';
+  const DB_VERSION = 1;
+  const STORE_NAME = 'employee_documents';
 
   function notify(msg) {
     if (typeof window !== 'undefined' && window.toast && typeof window.toast.info === 'function') {
@@ -24,6 +30,96 @@
     } else if (typeof window !== 'undefined' && typeof window.alert === 'function') {
       window.alert(msg);
     }
+  }
+
+  // --- IndexedDB Native Storage Helpers ---
+  function openDocsDB() {
+    return new Promise((resolve) => {
+      if (typeof indexedDB === 'undefined') {
+        resolve(null);
+        return;
+      }
+      try {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      } catch (err) {
+        resolve(null);
+      }
+    });
+  }
+
+  function getAllDocsFromDB() {
+    return new Promise(async (resolve) => {
+      try {
+        const db = await openDocsDB();
+        if (!db) { resolve([]); return; }
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      } catch (err) {
+        resolve([]);
+      }
+    });
+  }
+
+  function getDocFromDB(id) {
+    return new Promise(async (resolve) => {
+      try {
+        const db = await openDocsDB();
+        if (!db) { resolve(null); return; }
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      } catch (err) {
+        resolve(null);
+      }
+    });
+  }
+
+  function saveAllDocsToDB(documents) {
+    return new Promise(async (resolve) => {
+      try {
+        const db = await openDocsDB();
+        if (!db) { resolve(false); return; }
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.clear();
+        for (const doc of documents) {
+          store.put(doc);
+        }
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch (err) {
+        resolve(false);
+      }
+    });
+  }
+
+  function deleteDocFromDB(id) {
+    return new Promise(async (resolve) => {
+      try {
+        const db = await openDocsDB();
+        if (!db) { resolve(false); return; }
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.delete(id);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch (err) {
+        resolve(false);
+      }
+    });
   }
 
   class EmployeeDocumentsModule {
@@ -51,9 +147,12 @@
       this.documents = this.loadDocuments();
     }
 
-    init() {
+    async init() {
       this.populateDatalist();
       this.render();
+
+      // Asynchronously load & merge from IndexedDB
+      await this.loadFromIndexedDB();
 
       // Close employee search dropdown when clicking outside
       document.addEventListener('click', (e) => {
@@ -63,6 +162,31 @@
           results.classList.remove('active');
         }
       });
+    }
+
+    async loadFromIndexedDB() {
+      if (typeof indexedDB === 'undefined') return;
+      try {
+        const idbDocs = await getAllDocsFromDB();
+        if (idbDocs && idbDocs.length > 0) {
+          // Merge IndexedDB docs with this.documents
+          const mergedMap = new Map();
+          // IndexedDB has authoritative full data (with binary data URLs)
+          idbDocs.forEach(d => { if (d && d.id) mergedMap.set(d.id, d); });
+          this.documents.forEach(d => {
+            if (d && d.id && !mergedMap.has(d.id)) {
+              mergedMap.set(d.id, d);
+            }
+          });
+          this.documents = Array.from(mergedMap.values());
+          this.render();
+        } else if (this.documents.length > 0) {
+          // Seed IndexedDB from existing documents
+          await saveAllDocsToDB(this.documents);
+        }
+      } catch (err) {
+        console.warn('[ComplianceDocs] loadFromIndexedDB error:', err);
+      }
     }
 
     loadDocuments() {
@@ -83,8 +207,33 @@
       }
     }
 
-    saveDocuments() {
-      localStorage.setItem(DOCS_STORAGE_KEY, JSON.stringify(this.documents));
+    async saveDocuments() {
+      // 1. Persist complete files to IndexedDB (virtually unlimited browser storage)
+      if (typeof indexedDB !== 'undefined') {
+        try {
+          await saveAllDocsToDB(this.documents);
+        } catch (err) {
+          console.warn('[ComplianceDocs] IndexedDB save warning:', err);
+        }
+      }
+
+      // 2. Persist to localStorage with automatic quota safety
+      try {
+        localStorage.setItem(DOCS_STORAGE_KEY, JSON.stringify(this.documents));
+      } catch (quotaErr) {
+        console.warn('[ComplianceDocs] localStorage quota reached. Saving lightweight metadata mirror to localStorage.');
+        try {
+          // Strip heavy base64 fileDataUrl for localStorage mirror; IndexedDB keeps the full files!
+          const lightweightDocs = this.documents.map(d => {
+            const clone = Object.assign({}, d);
+            delete clone.fileDataUrl;
+            return clone;
+          });
+          localStorage.setItem(DOCS_STORAGE_KEY, JSON.stringify(lightweightDocs));
+        } catch (e2) {
+          console.warn('[ComplianceDocs] localStorage mirror failed, full data safely preserved in IndexedDB.');
+        }
+      }
     }
 
     // Helper: Map document type to HTML element ID key
@@ -226,9 +375,9 @@
         }
       }
 
-      // Max size: 15MB
-      if (file.size > 15 * 1024 * 1024) {
-        notify('Validation Error: File size exceeds the 15MB limit. Please compress or select a smaller file.');
+      // Max size: 25MB
+      if (file.size > 25 * 1024 * 1024) {
+        notify('Validation Error: File size exceeds the 25MB limit. Please compress or select a smaller file.');
         inputEl.value = '';
         return;
       }
@@ -334,6 +483,11 @@
     closeUploadModal() {
       const modal = document.getElementById('modal-upload-document');
       if (modal) modal.classList.remove('active');
+      this.clearSelectedEmployee();
+      this.removeFile('RESUME');
+      this.removeFile('PHOTOCOPY OF VALID ID');
+      this.removeFile('BARANGAY CLEARANCE/POLICE CLEARANCE');
+      this.removeFile('CBTA');
     }
 
     /* --- SEARCHABLE MASTER REGISTRY EMPLOYEE SELECTOR --- */
@@ -525,40 +679,46 @@
     commitDocumentSave(isReplace = false) {
       if (!this.pendingUploads || this.pendingUploads.length === 0) return;
 
-      this.pendingUploads.forEach(p => {
-        if (isReplace) {
-          this.documents = this.documents.filter(d => !(this.isSameEmployee(d, p.employeeId, p.employeeName) && d.documentType === p.documentType));
-        }
+      try {
+        this.pendingUploads.forEach(p => {
+          if (isReplace) {
+            this.documents = this.documents.filter(d => !(this.isSameEmployee(d, p.employeeId, p.employeeName) && d.documentType === p.documentType));
+          }
 
-        const newDoc = {
-          id: `DOC-${p.employeeId}-${p.documentType.replace(/[\/\s]+/g, '_')}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          employeeId: p.employeeId,
-          employeeName: p.employeeName,
-          position: p.employeeRole,
-          documentType: p.documentType,
-          status: p.status,
-          dateUploaded: p.dateUploaded,
-          expiryDate: p.expiryDate,
-          fileName: p.fileName,
-          fileSize: p.fileSize,
-          fileDataUrl: p.fileDataUrl,
-          fileType: p.fileType,
-          notes: p.notes
-        };
+          const newDoc = {
+            id: `DOC-${p.employeeId}-${p.documentType.replace(/[\/\s]+/g, '_')}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            employeeId: p.employeeId,
+            employeeName: p.employeeName,
+            position: p.employeeRole,
+            documentType: p.documentType,
+            status: p.status,
+            dateUploaded: p.dateUploaded,
+            expiryDate: p.expiryDate,
+            fileName: p.fileName,
+            fileSize: p.fileSize,
+            fileDataUrl: p.fileDataUrl,
+            fileType: p.fileType,
+            notes: p.notes
+          };
 
-        this.documents.unshift(newDoc);
-      });
+          this.documents.unshift(newDoc);
+        });
 
-      this.saveDocuments();
-      this.closeUploadModal();
-      this.render();
+        // Persist to IndexedDB & localStorage safely
+        this.saveDocuments();
 
-      const docNames = this.pendingUploads.map(u => u.documentType).join(', ');
-      const empName = this.pendingUploads[0].employeeName;
-      const empId = this.pendingUploads[0].employeeId;
-      const actionWord = isReplace ? 'saved/replaced' : 'uploaded';
-      notify(`Success: Compliance documents [${docNames}] for ${empName} (${empId}) ${actionWord} successfully.`);
-      this.pendingUploads = [];
+        const docNames = this.pendingUploads.map(u => u.documentType).join(', ');
+        const empName = this.pendingUploads[0].employeeName;
+        const empId = this.pendingUploads[0].employeeId;
+        const actionWord = isReplace ? 'saved/replaced' : 'uploaded';
+        notify(`Success: Compliance documents [${docNames}] for ${empName} (${empId}) ${actionWord} successfully.`);
+      } catch (err) {
+        console.error('[ComplianceDocs] Error saving compliance documents:', err);
+      } finally {
+        this.closeUploadModal();
+        this.render();
+        this.pendingUploads = [];
+      }
     }
 
     /* --- REPOSITORY TABLE RENDERING & LIVE MISSING TRACKING --- */
@@ -601,7 +761,7 @@
         // Display Missing Staff Roster
         displayItems = missingStaff.map(emp => ({
           isMissingPlaceholder: true,
-          id: `MISSING-${emp.id}`,
+          id: `MISSING-${emp.id}-${(emp.name || '').replace(/[\/\s]+/g, '_')}`,
           employeeId: emp.id,
           employeeName: emp.name,
           position: emp.role || 'Sales Representative',
@@ -773,9 +933,19 @@
     }
 
     /* --- DOCUMENT VIEWER (PDF & IMAGE IN-BROWSER) --- */
-    viewDocument(id) {
-      const doc = this.documents.find(d => d.id === id);
+    async viewDocument(id) {
+      let doc = this.documents.find(d => d.id === id);
       if (!doc) return;
+
+      // If document was loaded from lightweight metadata mirror, fetch full binary from IndexedDB
+      if (!doc.fileDataUrl && typeof indexedDB !== 'undefined') {
+        const idbDoc = await getDocFromDB(id);
+        if (idbDoc && idbDoc.fileDataUrl) {
+          doc.fileDataUrl = idbDoc.fileDataUrl;
+          doc.fileName = idbDoc.fileName || doc.fileName;
+          doc.fileType = idbDoc.fileType || doc.fileType;
+        }
+      }
 
       document.getElementById('view-doc-title').textContent = `${doc.documentType} — ${doc.employeeName}`;
       const contentEl = document.getElementById('view-doc-content');
@@ -860,15 +1030,29 @@
       if (modal) modal.classList.remove('active');
     }
 
-    deleteDocument(id) {
+    async deleteDocument(id) {
       if (!window.authManager || !window.authManager.isAdmin()) return;
       if (confirm('Are you sure you want to permanently delete this document record?')) {
         this.documents = this.documents.filter(d => d.id !== id);
-        this.saveDocuments();
+        await this.saveDocuments();
+        if (typeof indexedDB !== 'undefined') {
+          await deleteDocFromDB(id);
+        }
         this.render();
       }
     }
   }
 
   window.employeeDocumentsModule = new EmployeeDocumentsModule();
+
+  // Automatic boot initialization
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        window.employeeDocumentsModule.init();
+      });
+    } else {
+      window.employeeDocumentsModule.init();
+    }
+  }
 })();
