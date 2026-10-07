@@ -302,7 +302,47 @@ if (elements['modal-upload-document'].classList.contains('active')) {
   console.error('❌ Modal was NOT closed upon QuotaExceeded recovery!');
   process.exit(1);
 }
-console.log('✓ QuotaExceeded handled cleanly: upload modal closed and lightweight mirror preserved without crashing!');
+// 8. Test Enhancement A (On-File Badges) & Enhancement B (View Modal Checklist & Quick Action)
+console.log('\nTesting Enhancement A (Visual On-File Badges inside Upload Modal):');
+
+// Select Rhea Desnacido who now has a CBTA saved
+docMod.selectEmployee('DDN005-SR000', 'Rhea Desnacido');
+
+const cbtaStatusHtml = elements['doc-status-cbta'].innerHTML;
+const resumeStatusHtml = elements['doc-status-resume'].innerHTML;
+console.log('CBTA Status:', cbtaStatusHtml);
+console.log('Resume Status:', resumeStatusHtml);
+
+if (!cbtaStatusHtml.includes('On File: Desnacido, Rhea B..pdf')) {
+  console.error('❌ Expected CBTA to show "On File: Desnacido, Rhea B..pdf" badge!');
+  process.exit(1);
+}
+if (!resumeStatusHtml.includes('Pending submission')) {
+  console.error('❌ Expected Resume to show "Pending submission" badge!');
+  process.exit(1);
+}
+console.log('✓ Enhancement A verified: Existing documents clearly badged as On File, remaining fields shown as Pending submission!');
+
+console.log('\nTesting Enhancement B (Viewer Modal Checklist & Quick Action):');
+// Ensure view elements are present in test mock
+if (!elements['view-doc-footer-action']) elements['view-doc-footer-action'] = { innerHTML: '' };
+if (!elements['view-doc-content']) elements['view-doc-content'] = { innerHTML: '' };
+
+const rheaDoc = docMod.documents.find(d => d.employeeName === 'Rhea Desnacido');
+docMod.viewDocument(rheaDoc.id);
+
+const viewerContent = elements['view-doc-content'].innerHTML;
+const viewerFooterAction = elements['view-doc-footer-action'].innerHTML;
+
+if (!viewerContent.includes('Compliance Checklist for Rhea Desnacido')) {
+  console.error('❌ Expected viewer modal to contain Compliance Checklist!');
+  process.exit(1);
+}
+if (!viewerFooterAction.includes('Upload Remaining Documents')) {
+  console.error('❌ Expected viewer footer action to have "Upload Remaining Documents" button!');
+  process.exit(1);
+}
+console.log('✓ Enhancement B verified: Viewer modal displays 4-doc checklist and 1-click "Upload Remaining Documents" button!');
 
 console.log('\n======================================================');
 console.log('🎉 ALL 4-FIELD EMPLOYEE DOCUMENTS TESTS PASSED 100%! 🚀');

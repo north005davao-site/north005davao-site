@@ -437,10 +437,19 @@
       const fileInput = document.getElementById(`doc-file-${key}`);
       if (fileInput) fileInput.value = '';
 
-      const statusEl = document.getElementById(`doc-status-${key}`);
-      if (statusEl) {
-        statusEl.textContent = 'No file selected';
-        statusEl.style.color = 'var(--text-muted)';
+      const empIdEl = document.getElementById('doc-selected-emp-id');
+      const empNameEl = document.getElementById('doc-selected-emp-name');
+      const empId = empIdEl ? empIdEl.value : '';
+      const empName = empNameEl ? empNameEl.value : '';
+
+      if (empId) {
+        this.updateSingleDocBadge(empId, empName, docType);
+      } else {
+        const statusEl = document.getElementById(`doc-status-${key}`);
+        if (statusEl) {
+          statusEl.textContent = 'No file selected';
+          statusEl.style.color = 'var(--text-muted)';
+        }
       }
 
       const previewBox = document.getElementById(`doc-preview-box-${key}`);
@@ -565,6 +574,9 @@
 
       const resultsContainer = document.getElementById('doc-emp-search-results');
       if (resultsContainer) resultsContainer.classList.remove('active');
+
+      // Enhancement A: Scan employee's documents and update the 4 upload field badges
+      this.updateExistingDocBadges(emp.id, emp.name);
     }
 
     clearSelectedEmployee() {
@@ -579,6 +591,85 @@
         input.style.display = 'block';
         input.focus();
       }
+
+      // Reset all 4 upload field badges
+      this.clearExistingDocBadges();
+    }
+
+    /* --- VISUAL ON-FILE BADGE INDICATORS (ENHANCEMENT A) --- */
+    updateExistingDocBadges(empId, empName) {
+      const docTypes = ['RESUME', 'PHOTOCOPY OF VALID ID', 'BARANGAY CLEARANCE/POLICE CLEARANCE', 'CBTA'];
+      docTypes.forEach(type => this.updateSingleDocBadge(empId, empName, type));
+    }
+
+    updateSingleDocBadge(empId, empName, type) {
+      const key = this.getFieldKey(type);
+      const cardEl = document.getElementById(`doc-card-${key}`);
+      const statusEl = document.getElementById(`doc-status-${key}`);
+      const uploadBtn = (cardEl && typeof cardEl.querySelector === 'function') ? cardEl.querySelector('.btn-secondary') : null;
+
+      // If user has already chosen a new file in this session buffer, keep the ready status
+      if (this.fileBuffers[type] && this.fileBuffers[type].fileDataUrl) {
+        if (statusEl) {
+          statusEl.textContent = '✓ Ready to save';
+          statusEl.style.color = '#4ade80';
+        }
+        return;
+      }
+
+      const defaultBtn = (type === 'CBTA') ? '📁 UPLOAD FILE (PDF / IMAGE)' : '📁 UPLOAD IMAGE FILE';
+      const existing = this.documents.find(d => this.isSameEmployee(d, empId, empName) && d.documentType === type);
+
+      if (existing) {
+        if (statusEl) {
+          statusEl.innerHTML = `<span style="color: #4ade80; font-weight: 700;">✅ On File: ${existing.fileName || 'Verified'}</span>`;
+        }
+        if (cardEl && cardEl.style) {
+          cardEl.style.borderColor = 'rgba(74, 222, 128, 0.4)';
+          cardEl.style.background = 'rgba(74, 222, 128, 0.04)';
+        }
+        if (uploadBtn) {
+          uploadBtn.textContent = '📁 REPLACE FILE (OPTIONAL)';
+        }
+      } else {
+        if (statusEl) {
+          statusEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">⚪ Pending submission</span>`;
+        }
+        if (cardEl && cardEl.style) {
+          cardEl.style.borderColor = (key === 'cbta') ? 'rgba(245, 158, 11, 0.3)' : 'var(--border-color)';
+          cardEl.style.background = 'rgba(255, 255, 255, 0.02)';
+        }
+        if (uploadBtn) {
+          uploadBtn.textContent = defaultBtn;
+        }
+      }
+    }
+
+    clearExistingDocBadges() {
+      const docTypes = [
+        { type: 'RESUME', key: 'resume', defaultBtn: '📁 UPLOAD IMAGE FILE' },
+        { type: 'PHOTOCOPY OF VALID ID', key: 'validid', defaultBtn: '📁 UPLOAD IMAGE FILE' },
+        { type: 'BARANGAY CLEARANCE/POLICE CLEARANCE', key: 'clearance', defaultBtn: '📁 UPLOAD IMAGE FILE' },
+        { type: 'CBTA', key: 'cbta', defaultBtn: '📁 UPLOAD FILE (PDF / IMAGE)' }
+      ];
+
+      docTypes.forEach(({ key, defaultBtn }) => {
+        const cardEl = document.getElementById(`doc-card-${key}`);
+        const statusEl = document.getElementById(`doc-status-${key}`);
+        const uploadBtn = (cardEl && typeof cardEl.querySelector === 'function') ? cardEl.querySelector('.btn-secondary') : null;
+
+        if (statusEl) {
+          statusEl.textContent = 'No file selected';
+          statusEl.style.color = 'var(--text-muted)';
+        }
+        if (cardEl) {
+          cardEl.style.borderColor = (key === 'cbta') ? 'rgba(245, 158, 11, 0.3)' : 'var(--border-color)';
+          cardEl.style.background = 'rgba(255, 255, 255, 0.02)';
+        }
+        if (uploadBtn) {
+          uploadBtn.textContent = defaultBtn;
+        }
+      });
     }
 
     /* --- INITIATE SAVE & CONFIRMATION FLOW (SUPPORTS BATCH UPLOADS) --- */
@@ -983,6 +1074,12 @@
           filePreviewHtml = `<div style="margin-top:10px; font-size:12px; color:var(--text-muted); font-style:italic;">No digital file attachment stored.</div>`;
         }
 
+        const allEmpDocs = this.documents.filter(d => this.isSameEmployee(d, doc.employeeId, doc.employeeName));
+        const resumeDoc = allEmpDocs.find(d => d.documentType === 'RESUME');
+        const validIdDoc = allEmpDocs.find(d => d.documentType === 'PHOTOCOPY OF VALID ID');
+        const clearanceDoc = allEmpDocs.find(d => d.documentType === 'BARANGAY CLEARANCE/POLICE CLEARANCE');
+        const cbtaDoc = allEmpDocs.find(d => d.documentType === 'CBTA');
+
         contentEl.innerHTML = `
           <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px;">
@@ -1014,11 +1111,49 @@
             </div>
             ${filePreviewHtml}
           </div>
-          <div style="font-size: 12.5px; color: var(--text-muted); background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 6px;">
+          <div style="font-size: 12.5px; color: var(--text-muted); background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 6px; margin-bottom: 14px;">
             <strong>Verification Details:</strong><br>
             ${doc.notes || 'No special notes recorded.'}
           </div>
+
+          <!-- Enhancement B: Overall Compliance Checklist for this Staff -->
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 14px;">
+            <div style="font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center;">
+              <span>📋 Compliance Checklist for ${doc.employeeName}</span>
+              <span style="color: var(--accent-gold);">${allEmpDocs.length}/4 Uploaded</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11.5px;">
+              <div style="padding: 6px 10px; border-radius: 4px; background: ${resumeDoc ? 'rgba(74,222,128,0.08)' : 'rgba(255,255,255,0.02)'}; border: 1px solid ${resumeDoc ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.06)'};">
+                <strong>1. Resume:</strong> ${resumeDoc ? '<span style="color:#4ade80;">✅ On File</span>' : '<span style="color:var(--text-muted);">⚪ Pending</span>'}
+              </div>
+              <div style="padding: 6px 10px; border-radius: 4px; background: ${validIdDoc ? 'rgba(74,222,128,0.08)' : 'rgba(255,255,255,0.02)'}; border: 1px solid ${validIdDoc ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.06)'};">
+                <strong>2. Valid ID:</strong> ${validIdDoc ? '<span style="color:#4ade80;">✅ On File</span>' : '<span style="color:var(--text-muted);">⚪ Pending</span>'}
+              </div>
+              <div style="padding: 6px 10px; border-radius: 4px; background: ${clearanceDoc ? 'rgba(74,222,128,0.08)' : 'rgba(255,255,255,0.02)'}; border: 1px solid ${clearanceDoc ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.06)'};">
+                <strong>3. Clearance:</strong> ${clearanceDoc ? '<span style="color:#4ade80;">✅ On File</span>' : '<span style="color:var(--text-muted);">⚪ Pending</span>'}
+              </div>
+              <div style="padding: 6px 10px; border-radius: 4px; background: ${cbtaDoc ? 'rgba(74,222,128,0.08)' : 'rgba(255,255,255,0.02)'}; border: 1px solid ${cbtaDoc ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.06)'};">
+                <strong>4. CBTA:</strong> ${cbtaDoc ? '<span style="color:#4ade80;">✅ On File</span>' : '<span style="color:var(--text-muted);">⚪ Pending</span>'}
+              </div>
+            </div>
+          </div>
         `;
+      }
+
+      // Enhancement B: Populate modal footer quick action to upload remaining files
+      const footerActionEl = document.getElementById('view-doc-footer-action');
+      if (footerActionEl) {
+        const isAdmin = window.authManager && window.authManager.isAdmin();
+        if (isAdmin) {
+          const safeName = (doc.employeeName || '').replace(/'/g, "\\'");
+          footerActionEl.innerHTML = `
+            <button class="btn btn-primary" onclick="window.employeeDocumentsModule.closeViewModal(); window.employeeDocumentsModule.openUploadModalForEmp('${doc.employeeId}', '${safeName}')" style="background: var(--accent-gold); border-color: var(--accent-gold); color: #000; font-weight: 800; padding: 6px 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;">
+              <span>➕</span> Upload Remaining Documents
+            </button>
+          `;
+        } else {
+          footerActionEl.innerHTML = '';
+        }
       }
 
       const modal = document.getElementById('modal-view-document');
