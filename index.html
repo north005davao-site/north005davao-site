@@ -129,7 +129,7 @@
         <div class="nav-item" data-view="view-employees">
           <span class="icon">👥</span>
           <span>Master Registry</span>
-          <span class="nav-badge" id="sidebar-emp-count">11</span>
+          <span class="nav-badge" id="sidebar-emp-count">150</span>
         </div>
         <div class="nav-item" data-view="view-tracking">
           <span class="icon">📍</span>
@@ -253,12 +253,12 @@
             <span>Live Sector Feed Active</span>
           </div>
           <div class="branch-pill topbar-corridors-pill" style="font-size: 11px; color: var(--text-muted);">
-            Corridors: Sto. Tomas • Tagum City • Carmen • Panabo City • Kapalong • Talaingod
+            Corridors: Sto. Tomas • Tagum City • Carmen • Panabo City • Kapalong • Talaingod • Samal
           </div>
         </div>
 
         <div class="topbar-right">
-          <div class="live-clock" id="clock-display">2026-09-17 22:00:00 PST</div>
+          <div class="live-clock" id="clock-display">-- PST</div>
 
           <div class="theme-dropdown-container">
             <label for="theme-picker" style="font-size: 12px; color: var(--text-muted);">Theme:</label>
@@ -322,10 +322,9 @@
                 <span class="stat-label">Workforce</span>
                 <div class="stat-icon-wrap">👥</div>
               </div>
-              <div class="stat-value" id="dash-total-employees">81 Active</div>
+              <div class="stat-value" id="dash-total-employees">158 Personnel</div>
               <div class="stat-sub">
-                <span style="color: var(--primary); font-weight: 600;">Master Registry →</span> 78 Sales Reps • 3
-                Relievers
+                <span style="color: var(--primary); font-weight: 600;">Master Registry →</span> <span id="dash-emp-subtext">116 Sales Reps • 34 Relievers</span>
               </div>
             </div>
 
@@ -336,9 +335,9 @@
                 <span class="stat-label">Booths</span>
                 <div class="stat-icon-wrap">🏪</div>
               </div>
-              <div class="stat-value" id="dash-active-booths">78 Outlets</div>
+              <div class="stat-value" id="dash-active-booths">123 Outlets</div>
               <div class="stat-sub">
-                <span style="color: var(--info); font-weight: 600;">Master Registry →</span> 6 Municipalities Active
+                <span style="color: var(--info); font-weight: 600;">Master Registry →</span> <span id="dash-booth-subtext">123 Outlets • 8 Corridors Active</span>
               </div>
             </div>
 
@@ -350,10 +349,9 @@
                 <span class="stat-label">Outlet Rentals & Load</span>
                 <div class="stat-icon-wrap" style="color: #f59e0b;">🏪</div>
               </div>
-              <div class="stat-value" id="dash-total-properties">Active Outlets</div>
+              <div class="stat-value" id="dash-total-properties">0 Leased Outlets</div>
               <div class="stat-sub">
-                <span style="color: #f59e0b; font-weight: 600;">Outlet Rentals & Load →</span> Monthly Leases & POS
-                Allowances
+                <span style="color: #f59e0b; font-weight: 600;">Outlet Rentals & Load →</span> Monthly Leases & POS Allowances
               </div>
             </div>
 
@@ -364,9 +362,9 @@
                 <span class="stat-label">Collection</span>
                 <div class="stat-icon-wrap">💰</div>
               </div>
-              <div class="stat-value" id="dash-today-collection">₱301,500</div>
-              <div class="stat-sub">
-                <span class="stat-trend-up">↑ +14.2%</span> Across Davao Del Norte Circuits
+              <div class="stat-value" id="dash-today-collection">₱0.00</div>
+              <div class="stat-sub" id="dash-coll-subtext">
+                <span class="stat-trend-neutral" style="color: var(--text-dim);">● Synchronized</span> Davao Del Norte Circuits
               </div>
             </div>
 
@@ -377,8 +375,8 @@
                 <span class="stat-label">ETS Tracking</span>
                 <div class="stat-icon-wrap">📍</div>
               </div>
-              <div class="stat-value" id="dash-live-ets">78 / 78 Online</div>
-              <div class="stat-sub">
+              <div class="stat-value" id="dash-live-ets">123 / 123 Online</div>
+              <div class="stat-sub" id="dash-ets-subtext">
                 <span class="stat-trend-up">● 100% Signal</span> GPS Beacons Transmitting
               </div>
             </div>
@@ -390,8 +388,8 @@
                 <span class="stat-label">Thermal Paper Stock</span>
                 <div class="stat-icon-wrap">🧾</div>
               </div>
-              <div class="stat-value" id="dash-thermal-stock">467 Rolls</div>
-              <div class="stat-sub">
+              <div class="stat-value" id="dash-thermal-stock">0 Rolls</div>
+              <div class="stat-sub" id="dash-thermal-subtext">
                 <span style="color: #06b6d4; font-weight: 600;">Daily Allocation →</span> Running Stock Tracked
               </div>
             </div>
@@ -407,20 +405,20 @@
                 <span
                   style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Workforce
                   Distribution</span>
-                <span class="badge badge-info" style="font-size: 11px;"><span id="dash-wf-total">81</span> Staff</span>
+                <span class="badge badge-info" style="font-size: 11px;"><span id="dash-wf-total">158</span> Staff</span>
               </div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
                 <div style="background: var(--bg-surface-elevated); padding: 8px 10px; border-radius: 6px;">
                   <div style="color: var(--text-dim); font-size: 10.5px;">Tellers</div>
-                  <div style="font-weight: 700; font-size: 14px; color: #60a5fa;" id="dash-wf-tellers">76</div>
+                  <div style="font-weight: 700; font-size: 14px; color: #60a5fa;" id="dash-wf-tellers">150</div>
                 </div>
                 <div style="background: var(--bg-surface-elevated); padding: 8px 10px; border-radius: 6px;">
                   <div style="color: var(--text-dim); font-size: 10.5px;">Collectors</div>
-                  <div style="font-weight: 700; font-size: 14px; color: #38bdf8;" id="dash-wf-collectors">3</div>
+                  <div style="font-weight: 700; font-size: 14px; color: #38bdf8;" id="dash-wf-collectors">5</div>
                 </div>
                 <div style="background: var(--bg-surface-elevated); padding: 8px 10px; border-radius: 6px;">
                   <div style="color: var(--text-dim); font-size: 10.5px;">Supervisors</div>
-                  <div style="font-weight: 700; font-size: 14px; color: #a78bfa;" id="dash-wf-supervisors">1</div>
+                  <div style="font-weight: 700; font-size: 14px; color: #a78bfa;" id="dash-wf-supervisors">2</div>
                 </div>
                 <div style="background: var(--bg-surface-elevated); padding: 8px 10px; border-radius: 6px;">
                   <div style="color: var(--text-dim); font-size: 10.5px;">Admins</div>
@@ -429,7 +427,7 @@
               </div>
               <div
                 style="margin-top: 10px; font-size: 11px; display: flex; justify-content: space-between; color: var(--text-dim);">
-                <span>Active: <strong style="color: var(--success);" id="dash-wf-active">81</strong></span>
+                <span>Active: <strong style="color: var(--success);" id="dash-wf-active">158</strong></span>
                 <span>Terminated: <strong style="color: var(--danger);" id="dash-wf-terminated">0</strong></span>
               </div>
             </div>
@@ -441,19 +439,19 @@
                 <span
                   style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Sector
                   Corridors</span>
-                <span class="badge badge-success" style="font-size: 11px;"><span id="dash-booth-total">78</span>
+                <span class="badge badge-success" style="font-size: 11px;"><span id="dash-booth-total">123</span>
                   Outlets</span>
               </div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px;">
                 <div
                   style="display: flex; justify-content: space-between; padding: 4px 6px; background: var(--bg-surface-elevated); border-radius: 4px;">
                   <span style="color: var(--text-dim);">Sto. Tomas</span>
-                  <strong style="color: #60a5fa;" id="dash-booth-muni-stomas">21 Outlets</strong>
+                  <strong style="color: #60a5fa;" id="dash-booth-muni-stomas">26 Outlets</strong>
                 </div>
                 <div
                   style="display: flex; justify-content: space-between; padding: 4px 6px; background: var(--bg-surface-elevated); border-radius: 4px;">
                   <span style="color: var(--text-dim);">Tagum City</span>
-                  <strong style="color: #a78bfa;" id="dash-booth-muni-tagum">32 Outlets</strong>
+                  <strong style="color: #a78bfa;" id="dash-booth-muni-tagum">23 Outlets</strong>
                 </div>
                 <div
                   style="display: flex; justify-content: space-between; padding: 4px 6px; background: var(--bg-surface-elevated); border-radius: 4px;">
@@ -463,7 +461,7 @@
                 <div
                   style="display: flex; justify-content: space-between; padding: 4px 6px; background: var(--bg-surface-elevated); border-radius: 4px;">
                   <span style="color: var(--text-dim);">Panabo City</span>
-                  <strong style="color: #facc15;" id="dash-booth-muni-panabo">8 Outlets</strong>
+                  <strong style="color: #facc15;" id="dash-booth-muni-panabo">21 Outlets</strong>
                 </div>
                 <div
                   style="display: flex; justify-content: space-between; padding: 4px 6px; background: var(--bg-surface-elevated); border-radius: 4px;">
@@ -473,7 +471,7 @@
                 <div
                   style="display: flex; justify-content: space-between; padding: 4px 6px; background: var(--bg-surface-elevated); border-radius: 4px;">
                   <span style="color: var(--text-dim);">Talaingod</span>
-                  <strong style="color: var(--text-dim);" id="dash-booth-muni-talaingod">0 Outlets</strong>
+                  <strong style="color: var(--text-dim);" id="dash-booth-muni-talaingod">2 Outlets</strong>
                 </div>
               </div>
             </div>

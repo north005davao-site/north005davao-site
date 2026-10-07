@@ -100,8 +100,12 @@ function formatPHPShort(num) {
   });
 }
 
-// Initialization on DOM Ready
-document.addEventListener('DOMContentLoaded', () => {
+// Initialization on DOM Ready or Immediate if already loaded
+let appInitialized = false;
+function initApp() {
+  if (appInitialized) return;
+  appInitialized = true;
+
   // 1. Initialize Universal Router FIRST so the target module is activated immediately
   initRouter();
 
@@ -118,10 +122,20 @@ document.addEventListener('DOMContentLoaded', () => {
   renderAll();
 
   // 4. Subscribe to store updates
-  window.appStore.subscribe(() => {
-    renderAll();
-  });
-});
+  if (window.appStore && typeof window.appStore.subscribe === 'function') {
+    window.appStore.subscribe(() => {
+      renderAll();
+    });
+  }
+}
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+  } else if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    initApp();
+  }
+}
 
 function renderAll() {
   try { if (typeof renderDashboard === 'function') renderDashboard(); } catch (e) { console.error('Dashboard render error:', e); }
@@ -163,8 +177,10 @@ function initTheme() {
     const newTheme = e.target.value;
     document.documentElement.setAttribute('data-theme', newTheme);
     store.setTheme(newTheme);
-    sfx.playClick();
-    if (revenueChart) renderCharts();
+    if (window.sfx) sfx.playClick();
+    if (typeof revenueChart !== 'undefined' && revenueChart && typeof renderCharts === 'function') {
+      renderCharts();
+    }
   });
 
   const soundBtn = document.getElementById('sound-toggle-btn');
@@ -256,26 +272,28 @@ function resolveCurrentRoute() {
 }
 
 function initRouter() {
-  // Handle browser Back / Forward buttons
-  window.addEventListener('popstate', (event) => {
-    let targetView = null;
-    if (event.state && event.state.viewId) {
-      targetView = event.state.viewId;
-    } else {
-      targetView = resolveCurrentRoute();
-    }
-    if (targetView) {
-      window.switchView(targetView, false);
-    }
-  });
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    // Handle browser Back / Forward buttons
+    window.addEventListener('popstate', (event) => {
+      let targetView = null;
+      if (event.state && event.state.viewId) {
+        targetView = event.state.viewId;
+      } else {
+        targetView = resolveCurrentRoute();
+      }
+      if (targetView && typeof window.switchView === 'function') {
+        window.switchView(targetView, false);
+      }
+    });
 
-  // Handle hash changes
-  window.addEventListener('hashchange', () => {
-    const targetView = resolveCurrentRoute();
-    if (targetView) {
-      window.switchView(targetView, false);
-    }
-  });
+    // Handle hash changes
+    window.addEventListener('hashchange', () => {
+      const targetView = resolveCurrentRoute();
+      if (targetView && typeof window.switchView === 'function') {
+        window.switchView(targetView, false);
+      }
+    });
+  }
 
   // Resolve and activate initial route from current URL or pre-activated view
   const initialView = window.__INITIAL_ROUTE_VIEW__ || resolveCurrentRoute();
@@ -440,9 +458,7 @@ window.switchView = function(viewId, updateHistory = true) {
   } else if (viewId === 'view-employees') {
     renderEmployeesTable();
   } else if (viewId === 'view-dashboard') {
-    setTimeout(() => {
-      renderCharts();
-    }, 100);
+    renderDashboard();
   } else if (viewId === 'view-finance') {
     if (window.expensesPayment) {
       window.expensesPayment.init();
@@ -628,8 +644,13 @@ function renderDashboard() {
   };
 
   // 1. Top KPI Summary Cards
+  const countRelievers = employees.filter(e => (e.role || '').toUpperCase().includes('RELIEVER')).length;
+  const countSalesReps = Math.max(0, countTellers - countRelievers);
+
   setEl('dash-total-employees', totalStaff + ' Personnel');
-  setEl('dash-active-booths', assignedBooths + ' / ' + totalBooths + ' Outlets');
+  setEl('dash-emp-subtext', `${countSalesReps} Sales Reps • ${countRelievers} Relievers`);
+  setEl('dash-active-booths', totalBooths + ' Outlets');
+  setEl('dash-booth-subtext', `${totalBooths} Outlets • 8 Corridors Active`);
   setEl('dash-total-properties', activeRentalsCount + ' Leased Outlets');
   setEl('dash-today-collection', formatPHP(totalCollection));
   setEl('dash-live-ets', assignedBooths + ' / ' + totalBooths + ' Online');
