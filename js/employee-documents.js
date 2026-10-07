@@ -1,15 +1,18 @@
 /**
  * NORTH-005 OmniERP — Employee Documents & Compliance Repository Module
- * Dedicated to COMMISSION BASED TELLER AGREEMENT (CBTA)
- * Supports PDF & Images (JPG, PNG, WEBP), Live Previews, Master Registry Synchronization,
- * Automatic "Missing CBTA" Tracking for Active Tellers & Relievers,
+ * 4 Document Upload Fields:
+ *   1. RESUME (Image File)
+ *   2. PHOTOCOPY OF VALID ID (Image File)
+ *   3. BARANGAY CLEARANCE / POLICE CLEARANCE (Image File)
+ *   4. COMMISSION BASED TELLER AGREEMENT (CBTA) (PDF or Image File)
+ * Supports live previews, multi-doc batch upload, Master Registry sync,
  * Expiration tracking, and In-Browser PDF/Image Viewer.
  */
 
 (function () {
   'use strict';
 
-  const DOCS_STORAGE_KEY = 'north005_employee_documents_v5';
+  const DOCS_STORAGE_KEY = 'north005_employee_documents_v6';
 
   function notify(msg) {
     if (typeof window !== 'undefined' && window.toast && typeof window.toast.info === 'function') {
@@ -34,23 +37,14 @@
       this.currentPage = 1;
       this.pageSize = 10;
 
-      // Pending upload state (for confirmation and replace modals)
-      this.pendingUpload = {
-        employeeId: null,
-        employeeName: null,
-        employeeRole: null,
-        documentType: 'CBTA',
-        fileName: null,
-        fileSize: null,
-        fileDataUrl: null,
-        fileType: null,
-        dateUploaded: null,
-        expiryDate: null,
-        notes: null
-      };
+      // Pending uploads array (supports uploading multiple documents at once)
+      this.pendingUploads = [];
 
-      // Temporary in-modal file buffer for CBTA
+      // Temporary in-modal file buffers for all 4 document types
       this.fileBuffers = {
+        'RESUME': null,
+        'PHOTOCOPY OF VALID ID': null,
+        'BARANGAY CLEARANCE/POLICE CLEARANCE': null,
         'CBTA': null
       };
 
@@ -74,20 +68,16 @@
     loadDocuments() {
       try {
         const stored = localStorage.getItem(DOCS_STORAGE_KEY);
-        if (!stored) {
-          // Check if previous version stored any valid CBTA documents
-          const v4Stored = localStorage.getItem('north005_employee_documents_v4');
-          if (v4Stored) {
-            const parsed = JSON.parse(v4Stored);
-            // Migrate only genuine CBTA documents, purge legacy mock types (Resume/Clearance)
-            const cbtaOnly = parsed.filter(d => d && (d.documentType === 'CBTA' || (d.fileName && d.fileName.toUpperCase().includes('CBTA'))));
-            return cbtaOnly;
-          }
-          return [];
+        if (stored) {
+          return JSON.parse(stored);
         }
-        const parsed = JSON.parse(stored);
-        // Ensure only CBTA documents are present
-        return Array.isArray(parsed) ? parsed.filter(d => d && d.documentType === 'CBTA') : [];
+        // Check v5 for any existing CBTA records
+        const v5Stored = localStorage.getItem('north005_employee_documents_v5');
+        if (v5Stored) {
+          const parsed = JSON.parse(v5Stored);
+          return Array.isArray(parsed) ? parsed : [];
+        }
+        return [];
       } catch (e) {
         return [];
       }
@@ -95,6 +85,15 @@
 
     saveDocuments() {
       localStorage.setItem(DOCS_STORAGE_KEY, JSON.stringify(this.documents));
+    }
+
+    // Helper: Map document type to HTML element ID key
+    getFieldKey(docType) {
+      if (docType === 'RESUME') return 'resume';
+      if (docType === 'PHOTOCOPY OF VALID ID') return 'validid';
+      if (docType === 'BARANGAY CLEARANCE/POLICE CLEARANCE') return 'clearance';
+      if (docType === 'CBTA') return 'cbta';
+      return 'cbta';
     }
 
     // Returns all active employees in Master Registry
@@ -105,7 +104,7 @@
       return emps.filter(e => e && e.name && !e.name.includes('Buffer Reliever'));
     }
 
-    // Returns the 150 active field personnel who legally require CBTA: Tellers / Sales Reps & Relievers
+    // Returns the 150 active field personnel: Tellers / Sales Reps & Relievers
     getFieldPersonnel() {
       const emps = this.getEmployees();
       return emps.filter(e => {
@@ -128,6 +127,9 @@
         <option value="${e.id}">
         <option value="${e.role || ''}">
       `).concat([
+        '<option value="RESUME">',
+        '<option value="PHOTOCOPY OF VALID ID">',
+        '<option value="BARANGAY CLEARANCE/POLICE CLEARANCE">',
         '<option value="CBTA">',
         '<option value="Commission Based Teller Agreement">'
       ]).join('');
@@ -187,23 +189,27 @@
       this.render();
     }
 
-    /* --- DEDICATED CBTA FILE UPLOAD LOGIC (PDF & IMAGES) --- */
+    /* --- FOUR DEDICATED UPLOAD FIELDS LOGIC --- */
     handleFileSelected(docType, inputEl) {
       const file = inputEl.files && inputEl.files[0];
       if (!file) return;
 
-      const validTypes = [
-        'image/jpeg', 'image/png', 'image/webp', 'image/jpg',
-        'application/pdf'
-      ];
-
+      const key = this.getFieldKey(docType);
       const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-      const isImage = validTypes.includes(file.type) || /\.(jpe?g|png|webp)$/i.test(file.name);
+      const isImage = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type) || /\.(jpe?g|png|webp)$/i.test(file.name);
 
-      if (!isPdf && !isImage) {
-        notify('Validation Error: Only PDF documents (.pdf) or image files (.jpg, .jpeg, .png, .webp) are supported.');
-        inputEl.value = '';
-        return;
+      if (docType === 'CBTA') {
+        if (!isPdf && !isImage) {
+          notify('Validation Error: Only PDF documents (.pdf) or image files (.jpg, .jpeg, .png, .webp) are supported.');
+          inputEl.value = '';
+          return;
+        }
+      } else {
+        if (!isImage) {
+          notify(`Validation Error: Only image files (.jpg, .jpeg, .png, .webp) are supported for ${docType}.`);
+          inputEl.value = '';
+          return;
+        }
       }
 
       // Max size: 15MB
@@ -216,22 +222,23 @@
       const reader = new FileReader();
       reader.onload = (e) => {
         const dataUrl = e.target.result;
-        this.fileBuffers['CBTA'] = {
+        this.fileBuffers[docType] = {
+          docType: docType,
           fileName: file.name,
           fileSize: `${Math.round(file.size / 1024)} KB`,
           fileDataUrl: dataUrl,
-          fileType: isPdf ? 'application/pdf' : file.type
+          fileType: isPdf ? 'application/pdf' : (file.type || 'image/jpeg')
         };
 
         // Update UI status
-        const statusEl = document.getElementById('doc-status-cbta');
+        const statusEl = document.getElementById(`doc-status-${key}`);
         if (statusEl) {
           statusEl.textContent = '✓ Ready to save';
           statusEl.style.color = '#4ade80';
         }
 
-        const previewIcon = document.getElementById('doc-preview-icon-cbta');
-        const previewImg = document.getElementById('doc-preview-img-cbta');
+        const previewIcon = document.getElementById(`doc-preview-icon-${key}`);
+        const previewImg = document.getElementById(`doc-preview-img-${key}`);
 
         if (isPdf) {
           if (previewIcon) previewIcon.style.display = 'flex';
@@ -244,38 +251,39 @@
           }
         }
 
-        const filenameEl = document.getElementById('doc-filename-cbta');
+        const filenameEl = document.getElementById(`doc-filename-${key}`);
         if (filenameEl) filenameEl.textContent = file.name;
 
-        const filesizeEl = document.getElementById('doc-filesize-cbta');
+        const filesizeEl = document.getElementById(`doc-filesize-${key}`);
         if (filesizeEl) filesizeEl.textContent = `${Math.round(file.size / 1024)} KB`;
 
-        const previewBox = document.getElementById('doc-preview-box-cbta');
+        const previewBox = document.getElementById(`doc-preview-box-${key}`);
         if (previewBox) previewBox.style.display = 'flex';
 
-        const removeBtn = document.getElementById('doc-remove-cbta');
+        const removeBtn = document.getElementById(`doc-remove-${key}`);
         if (removeBtn) removeBtn.style.display = 'inline-block';
       };
 
       reader.readAsDataURL(file);
     }
 
-    removeFile(docType = 'CBTA') {
-      this.fileBuffers['CBTA'] = null;
+    removeFile(docType) {
+      const key = this.getFieldKey(docType);
+      this.fileBuffers[docType] = null;
 
-      const fileInput = document.getElementById('doc-file-cbta');
+      const fileInput = document.getElementById(`doc-file-${key}`);
       if (fileInput) fileInput.value = '';
 
-      const statusEl = document.getElementById('doc-status-cbta');
+      const statusEl = document.getElementById(`doc-status-${key}`);
       if (statusEl) {
         statusEl.textContent = 'No file selected';
         statusEl.style.color = 'var(--text-muted)';
       }
 
-      const previewBox = document.getElementById('doc-preview-box-cbta');
+      const previewBox = document.getElementById(`doc-preview-box-${key}`);
       if (previewBox) previewBox.style.display = 'none';
 
-      const removeBtn = document.getElementById('doc-remove-cbta');
+      const removeBtn = document.getElementById(`doc-remove-${key}`);
       if (removeBtn) removeBtn.style.display = 'none';
     }
 
@@ -286,6 +294,9 @@
       }
 
       this.clearSelectedEmployee();
+      this.removeFile('RESUME');
+      this.removeFile('PHOTOCOPY OF VALID ID');
+      this.removeFile('BARANGAY CLEARANCE/POLICE CLEARANCE');
       this.removeFile('CBTA');
 
       document.getElementById('doc-upload-date').value = new Date().toISOString().split('T')[0];
@@ -296,7 +307,6 @@
       if (modal) modal.classList.add('active');
     }
 
-    // Direct 1-click upload trigger for a specific employee from the Missing Records table
     openUploadModalForEmp(empId) {
       if (!window.authManager || !window.authManager.isAdmin()) {
         notify('Permission Denied: Only Administrators can upload compliance documents.');
@@ -390,14 +400,13 @@
       }
     }
 
-    /* --- INITIATE SAVE & CONFIRMATION FLOW --- */
+    /* --- INITIATE SAVE & CONFIRMATION FLOW (SUPPORTS BATCH UPLOADS) --- */
     initiateSaveDocument() {
       if (!window.authManager || !window.authManager.isAdmin()) return;
 
       const empId = document.getElementById('doc-selected-emp-id').value;
       const empName = document.getElementById('doc-selected-emp-name').value;
       const empRole = document.getElementById('doc-selected-emp-role').value || 'Staff';
-      const docType = 'CBTA';
 
       // 1. Validation: Employee selected
       if (!empId) {
@@ -405,16 +414,16 @@
         return;
       }
 
-      // 2. Validation: CBTA file selected
-      const fileData = this.fileBuffers['CBTA'];
-      if (!fileData || !fileData.fileDataUrl) {
-        notify('Validation Error: Please select and upload the COMMISSION BASED TELLER AGREEMENT (CBTA) file (PDF or Image).');
+      // 2. Validation: At least one document attached across the 4 fields
+      const attachedTypes = Object.keys(this.fileBuffers).filter(type => this.fileBuffers[type] && this.fileBuffers[type].fileDataUrl);
+      if (attachedTypes.length === 0) {
+        notify('Validation Error: Please select and upload at least one document (Resume, Valid ID, Clearance, or CBTA).');
         return;
       }
 
       const dateUploaded = document.getElementById('doc-upload-date').value || new Date().toISOString().split('T')[0];
       const expiryDate = document.getElementById('doc-upload-expiry').value || '—';
-      const notes = document.getElementById('doc-upload-notes').value.trim() || 'Verified Commission Based Teller Agreement (CBTA) on file.';
+      const notes = document.getElementById('doc-upload-notes').value.trim() || 'Verified official compliance record on file.';
 
       // Determine status based on expiration date
       let status = 'Complete';
@@ -426,36 +435,40 @@
         else if (diffDays <= 30) status = 'Expiring Soon';
       }
 
-      this.pendingUpload = {
-        employeeId: empId,
-        employeeName: empName,
-        employeeRole: empRole,
-        documentType: docType,
-        fileName: fileData.fileName,
-        fileSize: fileData.fileSize,
-        fileDataUrl: fileData.fileDataUrl,
-        fileType: fileData.fileType,
-        dateUploaded,
-        expiryDate,
-        status,
-        notes
-      };
+      this.pendingUploads = attachedTypes.map(docType => {
+        const fileData = this.fileBuffers[docType];
+        return {
+          employeeId: empId,
+          employeeName: empName,
+          employeeRole: empRole,
+          documentType: docType,
+          fileName: fileData.fileName,
+          fileSize: fileData.fileSize,
+          fileDataUrl: fileData.fileDataUrl,
+          fileType: fileData.fileType,
+          dateUploaded,
+          expiryDate,
+          status,
+          notes
+        };
+      });
 
-      // Check if employee already has a CBTA
-      const existingDoc = this.documents.find(d => d.employeeId === empId && d.documentType === 'CBTA');
-      if (existingDoc) {
+      // Check if employee already has any of these document types uploaded
+      const existingTypes = attachedTypes.filter(docType => this.documents.some(d => d.employeeId === empId && d.documentType === docType));
+
+      if (existingTypes.length > 0) {
         // Show Replace confirmation modal
         document.getElementById('doc-replace-emp-name').textContent = `${empName} (${empId})`;
-        document.getElementById('doc-replace-type').textContent = 'COMMISSION BASED TELLER AGREEMENT (CBTA)';
-        document.getElementById('doc-replace-modal-title').textContent = 'Replace Existing CBTA?';
+        document.getElementById('doc-replace-type').textContent = existingTypes.join(', ');
+        document.getElementById('doc-replace-modal-title').textContent = `Replace Existing ${existingTypes.length > 1 ? 'Documents' : existingTypes[0]}?`;
 
         const replaceModal = document.getElementById('modal-doc-confirm-replace');
         if (replaceModal) replaceModal.classList.add('active');
       } else {
         // Show Standard Save confirmation modal
         document.getElementById('doc-confirm-emp-name').textContent = `${empName} (${empId})`;
-        document.getElementById('doc-confirm-type').textContent = 'COMMISSION BASED TELLER AGREEMENT (CBTA)';
-        document.getElementById('doc-confirm-filename').textContent = fileData.fileName;
+        document.getElementById('doc-confirm-type').textContent = attachedTypes.join(', ');
+        document.getElementById('doc-confirm-filename').textContent = this.pendingUploads.map(u => u.fileName).join(', ');
 
         const confirmModal = document.getElementById('modal-doc-confirm-upload');
         if (confirmModal) confirmModal.classList.add('active');
@@ -483,36 +496,42 @@
     }
 
     commitDocumentSave(isReplace = false) {
-      const p = this.pendingUpload;
-      if (!p || !p.employeeId) return;
+      if (!this.pendingUploads || this.pendingUploads.length === 0) return;
 
-      if (isReplace) {
-        this.documents = this.documents.filter(d => !(d.employeeId === p.employeeId && d.documentType === 'CBTA'));
-      }
+      this.pendingUploads.forEach(p => {
+        if (isReplace) {
+          this.documents = this.documents.filter(d => !(d.employeeId === p.employeeId && d.documentType === p.documentType));
+        }
 
-      const newDoc = {
-        id: `DOC-${p.employeeId}-${Date.now()}`,
-        employeeId: p.employeeId,
-        employeeName: p.employeeName,
-        position: p.employeeRole,
-        documentType: 'CBTA',
-        status: p.status,
-        dateUploaded: p.dateUploaded,
-        expiryDate: p.expiryDate,
-        fileName: p.fileName,
-        fileSize: p.fileSize,
-        fileDataUrl: p.fileDataUrl,
-        fileType: p.fileType,
-        notes: p.notes
-      };
+        const newDoc = {
+          id: `DOC-${p.employeeId}-${p.documentType.replace(/[\/\s]+/g, '_')}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          employeeId: p.employeeId,
+          employeeName: p.employeeName,
+          position: p.employeeRole,
+          documentType: p.documentType,
+          status: p.status,
+          dateUploaded: p.dateUploaded,
+          expiryDate: p.expiryDate,
+          fileName: p.fileName,
+          fileSize: p.fileSize,
+          fileDataUrl: p.fileDataUrl,
+          fileType: p.fileType,
+          notes: p.notes
+        };
 
-      this.documents.unshift(newDoc);
+        this.documents.unshift(newDoc);
+      });
+
       this.saveDocuments();
       this.closeUploadModal();
       this.render();
 
-      const actionWord = isReplace ? 'replaced' : 'uploaded';
-      notify(`Success: Commission Based Teller Agreement (CBTA) for ${p.employeeName} (${p.employeeId}) ${actionWord} successfully.`);
+      const docNames = this.pendingUploads.map(u => u.documentType).join(', ');
+      const empName = this.pendingUploads[0].employeeName;
+      const empId = this.pendingUploads[0].employeeId;
+      const actionWord = isReplace ? 'saved/replaced' : 'uploaded';
+      notify(`Success: Compliance documents [${docNames}] for ${empName} (${empId}) ${actionWord} successfully.`);
+      this.pendingUploads = [];
     }
 
     /* --- REPOSITORY TABLE RENDERING & LIVE MISSING TRACKING --- */
@@ -528,11 +547,11 @@
         btn.style.display = isAdmin ? 'inline-flex' : 'none';
       });
 
-      // 1. Gather all active field personnel who legally require CBTA (150 staff: 116 Tellers + 34 Relievers)
+      // 1. Gather all active field personnel who legally require compliance documents
       const fieldPersonnel = this.getFieldPersonnel();
       const coveredEmpIds = new Set(this.documents.map(d => d.employeeId));
 
-      // Build missing list
+      // Build missing list (field staff with 0 uploaded documents)
       const missingStaff = fieldPersonnel.filter(emp => !coveredEmpIds.has(emp.id));
 
       // 2. Compute KPI counts
@@ -560,12 +579,12 @@
           employeeId: emp.id,
           employeeName: emp.name,
           position: emp.role || 'Sales Representative',
-          documentType: 'CBTA',
+          documentType: 'CBTA & Compliance',
           status: 'Missing',
           dateUploaded: '—',
           expiryDate: '—',
           fileName: null,
-          notes: 'Awaiting signed CBTA contract submission'
+          notes: 'Awaiting submission of compliance documents'
         }));
       } else {
         // Display Uploaded Documents
@@ -635,8 +654,8 @@
         if (doc.isMissingPlaceholder) {
           if (isAdmin) {
             actionBtns = `
-              <button class="btn btn-xs btn-primary" onclick="window.employeeDocumentsModule.openUploadModalForEmp('${doc.employeeId}')" style="background:var(--accent-gold);border-color:var(--accent-gold);color:#000;font-weight:800;padding:3px 8px;font-size:11px;" title="Upload CBTA for this employee">
-                ➕ Upload CBTA
+              <button class="btn btn-xs btn-primary" onclick="window.employeeDocumentsModule.openUploadModalForEmp('${doc.employeeId}')" style="background:var(--accent-gold);border-color:var(--accent-gold);color:#000;font-weight:800;padding:3px 8px;font-size:11px;" title="Upload documents for this employee">
+                ➕ Upload
               </button>
             `;
           } else {
@@ -731,7 +750,7 @@
       const doc = this.documents.find(d => d.id === id);
       if (!doc) return;
 
-      document.getElementById('view-doc-title').textContent = `CBTA — ${doc.employeeName}`;
+      document.getElementById('view-doc-title').textContent = `${doc.documentType} — ${doc.employeeName}`;
       const contentEl = document.getElementById('view-doc-content');
       if (contentEl) {
         const isPdf = (doc.fileName && doc.fileName.toLowerCase().endsWith('.pdf')) || (doc.fileType === 'application/pdf');
@@ -742,9 +761,9 @@
             filePreviewHtml = `
               <div style="margin-top:14px; text-align:center;">
                 <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:8px; font-weight:700;">📄 PDF AGREEMENT PREVIEW:</div>
-                <iframe src="${doc.fileDataUrl}" style="width:100%; height:380px; border-radius:8px; border:1px solid rgba(245,158,11,0.3); background:#0f172a;" title="CBTA PDF Viewer"></iframe>
+                <iframe src="${doc.fileDataUrl}" style="width:100%; height:380px; border-radius:8px; border:1px solid rgba(245,158,11,0.3); background:#0f172a;" title="PDF Viewer"></iframe>
                 <div style="margin-top:10px;">
-                  <a href="${doc.fileDataUrl}" download="${doc.fileName || 'CBTA-Document.pdf'}" class="btn btn-secondary btn-xs" style="font-weight:700; color:var(--accent-gold);">
+                  <a href="${doc.fileDataUrl}" download="${doc.fileName || 'Document.pdf'}" class="btn btn-secondary btn-xs" style="font-weight:700; color:var(--accent-gold);">
                     ⬇️ Download Official PDF File
                   </a>
                 </div>
@@ -754,9 +773,9 @@
             filePreviewHtml = `
               <div style="margin-top:14px; text-align:center;">
                 <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:6px; font-weight:700;">🖼️ DOCUMENT IMAGE PREVIEW:</div>
-                <img src="${doc.fileDataUrl}" style="max-width:100%; max-height:280px; border-radius:8px; border:1px solid rgba(245,158,11,0.3); object-fit:contain; background:#000;" alt="CBTA Agreement">
+                <img src="${doc.fileDataUrl}" style="max-width:100%; max-height:280px; border-radius:8px; border:1px solid rgba(245,158,11,0.3); object-fit:contain; background:#000;" alt="${doc.documentType}">
                 <div style="margin-top:10px;">
-                  <a href="${doc.fileDataUrl}" download="${doc.fileName || 'CBTA-Document.jpg'}" class="btn btn-secondary btn-xs" style="font-weight:700; color:var(--accent-gold);">
+                  <a href="${doc.fileDataUrl}" download="${doc.fileName || 'Document.jpg'}" class="btn btn-secondary btn-xs" style="font-weight:700; color:var(--accent-gold);">
                     ⬇️ Download Image File
                   </a>
                 </div>
@@ -781,10 +800,10 @@
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12.5px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
               <div>
                 <span style="color:var(--text-muted);">Document Type:</span><br>
-                <strong style="color:#fff;">COMMISSION BASED TELLER AGREEMENT (CBTA)</strong>
+                <strong style="color:#fff;">${doc.documentType}</strong>
               </div>
               <div>
-                <span style="color:var(--text-muted);">Effective / Signed Date:</span><br>
+                <span style="color:var(--text-muted);">Uploaded / Signed Date:</span><br>
                 <strong>${doc.dateUploaded || '-'}</strong>
               </div>
               <div>
@@ -816,7 +835,7 @@
 
     deleteDocument(id) {
       if (!window.authManager || !window.authManager.isAdmin()) return;
-      if (confirm('Are you sure you want to permanently delete this CBTA record?')) {
+      if (confirm('Are you sure you want to permanently delete this document record?')) {
         this.documents = this.documents.filter(d => d.id !== id);
         this.saveDocuments();
         this.render();
