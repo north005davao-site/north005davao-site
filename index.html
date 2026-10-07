@@ -2205,9 +2205,7 @@
               <select id="docs-filter-type" class="form-input" style="width: 220px;"
                 onchange="window.employeeDocumentsModule.filterDocuments()">
                 <option value="all">All Document Types</option>
-                <option value="RESUME">RESUME</option>
-                <option value="PHOTOCOPY OF VALID ID">PHOTOCOPY OF VALID ID</option>
-                <option value="BARANGAY CLEARANCE/POLICE CLEARANCE">BARANGAY CLEARANCE/POLICE CLEARANCE</option>
+                <option value="CBTA">Commission Based Teller Agreement (CBTA)</option>
               </select>
               <select id="docs-filter-status" class="form-input" style="width: 140px;"
                 onchange="window.employeeDocumentsModule.filterDocuments()">
@@ -5197,111 +5195,42 @@
           </div>
         </div>
 
-        <!-- 2. Document Type Dropdown (ONLY 3 TYPES) -->
-        <div class="form-group" style="margin-bottom: 16px;">
-          <label style="display:block; margin-bottom: 6px; font-weight:700; font-size:12px; color: #fff;">
-            Document Type: <span style="color:#ef4444;">*</span>
-          </label>
-          <select id="doc-upload-type" class="form-input" style="width:100%;"
-            onchange="window.employeeDocumentsModule.onDocTypeChanged(this.value)">
-            <option value="RESUME">RESUME</option>
-            <option value="PHOTOCOPY OF VALID ID">PHOTOCOPY OF VALID ID</option>
-            <option value="BARANGAY CLEARANCE/POLICE CLEARANCE">BARANGAY CLEARANCE/POLICE CLEARANCE</option>
-          </select>
-        </div>
-
-        <!-- 3. Three Separate Document Upload Fields -->
+        <!-- 2. Dedicated CBTA Document Upload Field (PDF & Image Supported) -->
         <div style="margin-bottom: 16px;">
           <div
             style="font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">
-            Document Upload Fields
+            Compliance Document Upload
           </div>
 
-          <!-- Upload Field 1: RESUME -->
-          <div class="doc-upload-field-card" id="doc-card-resume">
-            <div class="doc-upload-field-header">
-              <span class="doc-upload-field-title">1. RESUME</span>
-              <span id="doc-status-resume" style="font-size: 11.5px; color: var(--text-muted); font-style: italic;">No
-                file selected</span>
+          <div class="doc-upload-field-card" id="doc-card-cbta" style="border-color: rgba(245,158,11,0.3); background: rgba(255,255,255,0.02); border-radius: 8px; padding: 14px;">
+            <div class="doc-upload-field-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <span class="doc-upload-field-title" style="font-weight: 800; color: #fff; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                <span>📄</span> COMMISSION BASED TELLER AGREEMENT (CBTA)
+              </span>
+              <span id="doc-status-cbta" style="font-size: 11.5px; color: var(--text-muted); font-style: italic;">No file selected</span>
             </div>
-            <input type="file" id="doc-file-resume" accept="image/jpeg,image/png,image/webp,image/jpg"
-              style="display:none;" onchange="window.employeeDocumentsModule.handleFileSelected('RESUME', this)">
+            <input type="file" id="doc-file-cbta" accept="image/jpeg,image/png,image/webp,image/jpg,application/pdf"
+              style="display:none;" onchange="window.employeeDocumentsModule.handleFileSelected('CBTA', this)">
             <div style="display: flex; align-items: center; gap: 10px;">
               <button type="button" class="btn btn-secondary btn-xs"
-                onclick="document.getElementById('doc-file-resume').click()" style="font-weight: 700;">
-                📁 UPLOAD IMAGE FILE
+                onclick="document.getElementById('doc-file-cbta').click()" style="font-weight: 700;">
+                📁 UPLOAD FILE (PDF / IMAGE)
               </button>
-              <button type="button" id="doc-remove-resume" class="btn btn-xs"
-                onclick="window.employeeDocumentsModule.removeFile('RESUME')"
+              <button type="button" id="doc-remove-cbta" class="btn btn-xs"
+                onclick="window.employeeDocumentsModule.removeFile('CBTA')"
                 style="display:none; background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid #ef4444;">
                 ✕ Remove
               </button>
+              <span style="font-size: 11px; color: var(--text-muted);">Supports PDF, PNG, JPG (Max 15MB)</span>
             </div>
-            <div id="doc-preview-box-resume" class="doc-preview-container" style="display:none;">
-              <img id="doc-preview-img-resume" class="doc-preview-thumb" src="" alt="Resume Preview">
-              <div class="doc-file-info">
-                <strong id="doc-filename-resume">filename.jpg</strong>
-                <div style="font-size: 11px;" id="doc-filesize-resume">0 KB</div>
+            <div id="doc-preview-box-cbta" class="doc-preview-container" style="display:none; margin-top: 12px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 6px; align-items: center; gap: 12px;">
+              <div id="doc-preview-icon-cbta" style="display:none; font-size: 28px; width: 44px; height: 44px; align-items: center; justify-content: center; background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); border-radius: 6px;">
+                📄
               </div>
-            </div>
-          </div>
-
-          <!-- Upload Field 2: PHOTOCOPY OF VALID ID -->
-          <div class="doc-upload-field-card" id="doc-card-validid">
-            <div class="doc-upload-field-header">
-              <span class="doc-upload-field-title">2. PHOTOCOPY OF VALID ID</span>
-              <span id="doc-status-validid" style="font-size: 11.5px; color: var(--text-muted); font-style: italic;">No
-                file selected</span>
-            </div>
-            <input type="file" id="doc-file-validid" accept="image/jpeg,image/png,image/webp,image/jpg"
-              style="display:none;"
-              onchange="window.employeeDocumentsModule.handleFileSelected('PHOTOCOPY OF VALID ID', this)">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <button type="button" class="btn btn-secondary btn-xs"
-                onclick="document.getElementById('doc-file-validid').click()" style="font-weight: 700;">
-                📁 UPLOAD IMAGE FILE
-              </button>
-              <button type="button" id="doc-remove-validid" class="btn btn-xs"
-                onclick="window.employeeDocumentsModule.removeFile('PHOTOCOPY OF VALID ID')"
-                style="display:none; background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid #ef4444;">
-                ✕ Remove
-              </button>
-            </div>
-            <div id="doc-preview-box-validid" class="doc-preview-container" style="display:none;">
-              <img id="doc-preview-img-validid" class="doc-preview-thumb" src="" alt="Valid ID Preview">
-              <div class="doc-file-info">
-                <strong id="doc-filename-validid">filename.jpg</strong>
-                <div style="font-size: 11px;" id="doc-filesize-validid">0 KB</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Upload Field 3: BARANGAY CLEARANCE / POLICE CLEARANCE -->
-          <div class="doc-upload-field-card" id="doc-card-clearance">
-            <div class="doc-upload-field-header">
-              <span class="doc-upload-field-title">3. BARANGAY CLEARANCE / POLICE CLEARANCE</span>
-              <span id="doc-status-clearance"
-                style="font-size: 11.5px; color: var(--text-muted); font-style: italic;">No file selected</span>
-            </div>
-            <input type="file" id="doc-file-clearance" accept="image/jpeg,image/png,image/webp,image/jpg"
-              style="display:none;"
-              onchange="window.employeeDocumentsModule.handleFileSelected('BARANGAY CLEARANCE/POLICE CLEARANCE', this)">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <button type="button" class="btn btn-secondary btn-xs"
-                onclick="document.getElementById('doc-file-clearance').click()" style="font-weight: 700;">
-                📁 UPLOAD IMAGE FILE
-              </button>
-              <button type="button" id="doc-remove-clearance" class="btn btn-xs"
-                onclick="window.employeeDocumentsModule.removeFile('BARANGAY CLEARANCE/POLICE CLEARANCE')"
-                style="display:none; background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid #ef4444;">
-                ✕ Remove
-              </button>
-            </div>
-            <div id="doc-preview-box-clearance" class="doc-preview-container" style="display:none;">
-              <img id="doc-preview-img-clearance" class="doc-preview-thumb" src="" alt="Clearance Preview">
-              <div class="doc-file-info">
-                <strong id="doc-filename-clearance">filename.jpg</strong>
-                <div style="font-size: 11px;" id="doc-filesize-clearance">0 KB</div>
+              <img id="doc-preview-img-cbta" class="doc-preview-thumb" src="" alt="CBTA Preview" style="max-width: 52px; max-height: 52px; object-fit: contain; border-radius: 4px; display: none;">
+              <div class="doc-file-info" style="flex: 1;">
+                <strong id="doc-filename-cbta" style="color: #fff; font-size: 12.5px; display: block; word-break: break-all;">filename.pdf</strong>
+                <div style="font-size: 11px; color: var(--text-muted);" id="doc-filesize-cbta">0 KB</div>
               </div>
             </div>
           </div>
@@ -5309,12 +5238,11 @@
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
           <div>
-            <label style="display:block; margin-bottom: 4px; font-weight:700; font-size:12px;">Date Uploaded:</label>
+            <label style="display:block; margin-bottom: 4px; font-weight:700; font-size:12px;">Date Signed / Effective Date:</label>
             <input type="date" id="doc-upload-date" class="form-input" style="width:100%;">
           </div>
           <div>
-            <label style="display:block; margin-bottom: 4px; font-weight:700; font-size:12px;">Expiration Date
-              (Optional):</label>
+            <label style="display:block; margin-bottom: 4px; font-weight:700; font-size:12px;">Agreement Expiration Date (Optional):</label>
             <input type="date" id="doc-upload-expiry" class="form-input" style="width:100%;">
           </div>
         </div>
