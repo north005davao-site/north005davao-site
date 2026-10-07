@@ -19,9 +19,15 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 
+  <!-- Favicon / Site Icon (Official NORTH-005 HQ Emblem) -->
+  <link rel="icon" type="image/png" href="assets/north-005-logo.png">
+  <link rel="shortcut icon" type="image/png" href="assets/north-005-logo.png">
+  <link rel="apple-touch-icon" href="assets/north-005-logo.png">
+
   <!-- Core Design System CSS -->
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/landing-portal.css">
+  <link rel="stylesheet" href="css/production-suite.css">
 
   <!-- Early Route Pre-Activation (Eliminates Dashboard Flash on Reload) -->
   <script>
@@ -265,6 +271,18 @@
               <option value="sunset">🌅 Davao Sunset</option>
             </select>
           </div>
+
+          <button class="btn btn-secondary btn-sm" id="topbar-cmd-palette-btn" onclick="window.productionSuite.openCommandPalette()" title="Quick Find & Command Palette (Ctrl+K)" style="display: flex; align-items: center; gap: 6px; padding: 5px 10px; font-size: 12px; font-weight: 600;">
+            🔍 Search <kbd style="background: rgba(255,255,255,0.12); padding: 1px 5px; border-radius: 3px; font-size: 10px; font-family: monospace;">Ctrl+K</kbd>
+          </button>
+
+          <button class="icon-btn" id="topbar-health-btn" onclick="window.productionSuite.openDiagnosticsModal()" title="System Health & 1-Click Diagnostics">
+            🛡️
+          </button>
+
+          <button class="icon-btn" id="topbar-lock-btn" onclick="window.productionSuite.lockSessionNow()" title="Lock Screen (Security Protection)">
+            🔒
+          </button>
 
           <button class="icon-btn" id="sound-toggle-btn" title="Toggle Sound Feedback">
             🔔
@@ -5575,6 +5593,80 @@
     </div>
   </div>
 
+  <!-- ===================================================================
+       COMMAND PALETTE MODAL (CTRL + K)
+       =================================================================== -->
+  <div id="command-palette-backdrop">
+    <div class="command-palette-modal">
+      <div class="command-search-header">
+        <span class="cmd-icon">🔍</span>
+        <input type="text" id="command-palette-input" class="command-search-input" placeholder="Search staff, booths (e.g. DDN-754), modules, or actions..." autocomplete="off">
+        <span class="command-esc-badge">ESC</span>
+      </div>
+      <div id="command-palette-results" class="command-results-list"></div>
+      <div class="command-palette-footer">
+        <span>Use <kbd>↑</kbd> <kbd>↓</kbd> to navigate, <kbd>Enter</kbd> to select, <kbd>Esc</kbd> to close</span>
+        <span>NORTH-005 Quick Find</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       SESSION LOCK SCREEN MODAL (SECURITY GUARD)
+       =================================================================== -->
+  <div id="session-lock-modal">
+    <div class="session-lock-card">
+      <img src="assets/north-005-logo.png" alt="NORTH-005 Emblem" class="session-lock-logo">
+      <div class="session-lock-title">Session Locked</div>
+      <div class="session-lock-sub">Terminal locked due to inactivity to protect sensitive operational data.</div>
+      <div class="session-lock-user-badge">
+        <span>👤</span>
+        <span id="session-lock-username">Peter John Carrillo</span>
+        <span style="color: var(--accent-gold); font-size: 11px;">•</span>
+        <span id="session-lock-role" style="color: var(--accent-gold);">Administrator</span>
+      </div>
+      <form onsubmit="event.preventDefault(); window.productionSuite.unlockSession(document.getElementById('session-lock-pin-input').value);" style="display: flex; flex-direction: column; gap: 12px;">
+        <input type="password" id="session-lock-pin-input" class="form-input" placeholder="Enter Password or PIN to unlock" style="text-align: center; font-size: 14px; letter-spacing: 1px;" required>
+        <button type="submit" class="btn btn-primary" style="padding: 10px; font-weight: 700;">🔓 Unlock Terminal</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="window.authManager.logout()" style="color: var(--text-muted); border: none; background: transparent;">Switch Account / Sign Out</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       SYSTEM DIAGNOSTICS & 1-CLICK AUTO-REPAIR MODAL
+       =================================================================== -->
+  <div id="diagnostics-modal">
+    <div class="diagnostics-modal-card">
+      <div class="diagnostics-modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 20px;">🛡️</span>
+          <div>
+            <h3 style="font-size: 16px; font-weight: 800; color: var(--text-main); margin: 0;">System Diagnostics &amp; Self-Healing</h3>
+            <span style="font-size: 11.5px; color: var(--text-muted);">Real-time Integrity Audit, 1-Click Repair &amp; Safe Rollback Engine</span>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('diagnostics-modal').classList.remove('active')">&times;</button>
+      </div>
+      <div class="diagnostics-modal-body">
+        <div id="diag-summary-content"></div>
+      </div>
+      <div style="padding: 14px 22px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.15);">
+        <button class="btn btn-secondary btn-sm" onclick="window.productionSuite.exportDiagnosticReport()" title="Export complete system state, logs &amp; audit">
+          📥 Download Diagnostics File
+        </button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary btn-sm" onclick="window.productionSuite.createSnapshot('Manual Admin Snapshot'); window.productionSuite.openDiagnosticsModal(); window.showToast('Manual backup snapshot created!', 'success');">
+            📸 Take Snapshot
+          </button>
+          <button class="btn btn-primary btn-sm" onclick="window.productionSuite.runAutoRepair()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 700;">
+            ⚡ Run 1-Click Auto-Repair
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Supabase Cloud SDK & Realtime Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabase-client.js"></script>
@@ -5594,6 +5686,7 @@
   <script src="js/thermal-paper.js?v=20260930_03"></script>
   <script src="js/org-chart.js"></script>
   <script src="js/app.js?v=20260930_03"></script>
+  <script src="js/production-suite.js"></script>
 </body>
 
 </html>

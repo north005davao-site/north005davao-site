@@ -285,6 +285,13 @@
     /* ------------------------------------------------------------------ */
 
     login(username, password) {
+      if (window.productionSuite && typeof window.productionSuite.checkRateLimit === 'function') {
+        const rateCheck = window.productionSuite.checkRateLimit(username);
+        if (!rateCheck.allowed) {
+          return { success: false, message: rateCheck.message };
+        }
+      }
+
       const users = this.getUsers();
       const user = users.find(u => {
         const uName = (u.username || '').toLowerCase();
@@ -294,10 +301,17 @@
       });
 
       if (!user) {
+        if (window.productionSuite) window.productionSuite.recordFailedAttempt(username);
         this.logHistory(username, 'Failed', 'User not found');
         return { success: false, message: 'Invalid username or password.' };
       }
       if (user.password !== password) {
+        if (window.productionSuite) {
+          const res = window.productionSuite.recordFailedAttempt(username);
+          if (res && res.locked) {
+            return { success: false, message: `Security Cooldown: 5 consecutive failed attempts. Please wait ${res.remainingSec}s.` };
+          }
+        }
         this.logHistory(username, 'Failed', 'Incorrect password');
         return { success: false, message: 'Invalid username or password.' };
       }
@@ -313,6 +327,8 @@
         this.logHistory(username, 'Blocked', 'Account inactive');
         return { success: false, message: 'This account is inactive.' };
       }
+
+      if (window.productionSuite) window.productionSuite.resetRateLimit(username);
 
       const now = new Date();
       user.lastLogin = `${now.toISOString().split('T')[0]} ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;

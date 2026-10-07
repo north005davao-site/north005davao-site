@@ -1197,6 +1197,11 @@
     const newRecords = currentImportData.comparisonResults.filter(r => r.action === 'NEW');
     const updateRecords = currentImportData.comparisonResults.filter(r => r.action === 'UPDATE');
 
+    // Create safety snapshot before synchronizing Excel records
+    if (window.productionSuite && typeof window.productionSuite.createSnapshot === 'function') {
+      window.productionSuite.createSnapshot(`Pre-Import: ${currentImportData.fileName || 'Excel File'}`);
+    }
+
     // Execute Store Synchronization
     const syncRes = store.syncEmployeesFromExcel({
       newRecords,
