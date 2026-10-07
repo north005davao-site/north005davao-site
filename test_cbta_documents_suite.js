@@ -217,7 +217,46 @@ if (newMissingKPI !== 149) {
   console.error(`❌ Expected Missing Records to decrement to 149, got ${newMissingKPI}`);
   process.exit(1);
 }
-console.log('✓ Live Compliance Countdown verified: Missing Records dropped from 150 to 149!');
+// 6. Test Specific Regression: Disambiguating Relievers Sharing DDN005-SR000
+console.log('\nTesting Reliever Disambiguation (Rhea Desnacido vs Precious Nica Torrefiel):');
+
+// Select Rhea Desnacido
+docMod.selectEmployee('DDN005-SR000', 'Rhea Desnacido');
+const selectedName1 = elements['doc-selected-emp-name'].value;
+const selectedId1 = elements['doc-selected-emp-id'].value;
+console.log(`Selected Staff 1: ${selectedName1} (${selectedId1})`);
+
+if (selectedName1 !== 'Rhea Desnacido') {
+  console.error(`❌ Bug reproduced! Expected 'Rhea Desnacido' but got '${selectedName1}'`);
+  process.exit(1);
+}
+console.log('✓ Successfully selected Rhea Desnacido without picking Precious Nica Torrefiel!');
+
+// Select Precious Nica Torrefiel
+docMod.selectEmployee('DDN005-SR000', 'PRECIOUS NICA TORREFIEL');
+const selectedName2 = elements['doc-selected-emp-name'].value;
+const selectedId2 = elements['doc-selected-emp-id'].value;
+console.log(`Selected Staff 2: ${selectedName2} (${selectedId2})`);
+
+if (selectedName2 !== 'PRECIOUS NICA TORREFIEL') {
+  console.error(`❌ Expected 'PRECIOUS NICA TORREFIEL' but got '${selectedName2}'`);
+  process.exit(1);
+}
+console.log('✓ Successfully selected PRECIOUS NICA TORREFIEL separately!');
+
+// Verify document isolation between the two
+const docRhea = { employeeId: 'DDN005-SR000', employeeName: 'Rhea Desnacido' };
+const docPrecious = { employeeId: 'DDN005-SR000', employeeName: 'PRECIOUS NICA TORREFIEL' };
+
+if (docMod.isSameEmployee(docRhea, 'DDN005-SR000', 'PRECIOUS NICA TORREFIEL')) {
+  console.error('❌ isSameEmployee mistakenly treated Rhea Desnacido and Precious Nica Torrefiel as identical!');
+  process.exit(1);
+}
+if (!docMod.isSameEmployee(docRhea, 'DDN005-SR000', 'Rhea Desnacido')) {
+  console.error('❌ isSameEmployee failed to match Rhea Desnacido to herself!');
+  process.exit(1);
+}
+console.log('✓ Verified: Document isolation between relievers sharing DDN005-SR000 is 100% active!');
 
 console.log('\n======================================================');
 console.log('🎉 ALL 4-FIELD EMPLOYEE DOCUMENTS TESTS PASSED 100%! 🚀');

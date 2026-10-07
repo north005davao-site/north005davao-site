@@ -96,6 +96,20 @@
       return 'cbta';
     }
 
+    // Helper: Safely compare if a document belongs to an employee (disambiguates shared reliever ID DDN005-SR000 by name)
+    isSameEmployee(d, empId, empName) {
+      if (!d) return false;
+      const targetId = (empId || '').trim();
+      const targetName = (empName || '').trim().toLowerCase();
+      const docId = (d.employeeId || '').trim();
+      const docName = (d.employeeName || '').trim().toLowerCase();
+
+      if (targetId === 'DDN005-SR000' || docId === 'DDN005-SR000') {
+        return docId === targetId && docName === targetName;
+      }
+      return docId === targetId;
+    }
+
     // Returns all active employees in Master Registry
     getEmployees() {
       const store = window.appStore;
@@ -307,14 +321,14 @@
       if (modal) modal.classList.add('active');
     }
 
-    openUploadModalForEmp(empId) {
+    openUploadModalForEmp(empId, empName) {
       if (!window.authManager || !window.authManager.isAdmin()) {
         notify('Permission Denied: Only Administrators can upload compliance documents.');
         return;
       }
 
       this.openUploadModal();
-      this.selectEmployee(empId);
+      this.selectEmployee(empId, empName);
     }
 
     closeUploadModal() {
@@ -357,18 +371,31 @@
         return;
       }
 
-      resultsContainer.innerHTML = matched.slice(0, 30).map(e => `
-        <div class="searchable-select-item" onclick="window.employeeDocumentsModule.selectEmployee('${e.id}')">
-          <span>${e.id}</span> — <strong>${e.name}</strong> <small style="color:var(--text-muted);">(${e.role || 'Sales Rep'})</small>
-        </div>
-      `).join('');
+      resultsContainer.innerHTML = matched.slice(0, 30).map(e => {
+        const safeName = (e.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        return `
+          <div class="searchable-select-item" onclick="window.employeeDocumentsModule.selectEmployee('${e.id}', '${safeName}')">
+            <span>${e.id}</span> — <strong>${e.name}</strong> <small style="color:var(--text-muted);">(${e.role || 'Sales Rep'})</small>
+          </div>
+        `;
+      }).join('');
 
       resultsContainer.classList.add('active');
     }
 
-    selectEmployee(empId) {
+    selectEmployee(empId, empName) {
       const emps = this.getEmployees();
-      const emp = emps.find(e => e.id === empId);
+      let emp = null;
+      if (empName) {
+        const cleanTargetName = empName.trim().toLowerCase();
+        emp = emps.find(e => e.id === empId && (e.name || '').trim().toLowerCase() === cleanTargetName);
+        if (!emp) {
+          emp = emps.find(e => (e.name || '').trim().toLowerCase() === cleanTargetName);
+        }
+      }
+      if (!emp) {
+        emp = emps.find(e => e.id === empId);
+      }
       if (!emp) return;
 
       document.getElementById('doc-selected-emp-id').value = emp.id;
@@ -454,7 +481,7 @@
       });
 
       // Check if employee already has any of these document types uploaded
-      const existingTypes = attachedTypes.filter(docType => this.documents.some(d => d.employeeId === empId && d.documentType === docType));
+      const existingTypes = attachedTypes.filter(docType => this.documents.some(d => this.isSameEmployee(d, empId, empName) && d.documentType === docType));
 
       if (existingTypes.length > 0) {
         // Show Replace confirmation modal
@@ -500,7 +527,7 @@
 
       this.pendingUploads.forEach(p => {
         if (isReplace) {
-          this.documents = this.documents.filter(d => !(d.employeeId === p.employeeId && d.documentType === p.documentType));
+          this.documents = this.documents.filter(d => !(this.isSameEmployee(d, p.employeeId, p.employeeName) && d.documentType === p.documentType));
         }
 
         const newDoc = {
@@ -549,10 +576,9 @@
 
       // 1. Gather all active field personnel who legally require compliance documents
       const fieldPersonnel = this.getFieldPersonnel();
-      const coveredEmpIds = new Set(this.documents.map(d => d.employeeId));
 
       // Build missing list (field staff with 0 uploaded documents)
-      const missingStaff = fieldPersonnel.filter(emp => !coveredEmpIds.has(emp.id));
+      const missingStaff = fieldPersonnel.filter(emp => !this.documents.some(d => this.isSameEmployee(d, emp.id, emp.name)));
 
       // 2. Compute KPI counts
       const totalDocs = this.documents.length;
@@ -653,8 +679,9 @@
         let actionBtns = '';
         if (doc.isMissingPlaceholder) {
           if (isAdmin) {
+            const safeDocEmpName = (doc.employeeName || '').replace(/'/g, "\\'");
             actionBtns = `
-              <button class="btn btn-xs btn-primary" onclick="window.employeeDocumentsModule.openUploadModalForEmp('${doc.employeeId}')" style="background:var(--accent-gold);border-color:var(--accent-gold);color:#000;font-weight:800;padding:3px 8px;font-size:11px;" title="Upload documents for this employee">
+              <button class="btn btn-xs btn-primary" onclick="window.employeeDocumentsModule.openUploadModalForEmp('${doc.employeeId}', '${safeDocEmpName}')" style="background:var(--accent-gold);border-color:var(--accent-gold);color:#000;font-weight:800;padding:3px 8px;font-size:11px;" title="Upload documents for this employee">
                 ➕ Upload
               </button>
             `;
