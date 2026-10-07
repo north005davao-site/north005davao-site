@@ -20,9 +20,11 @@
   // Shared persistent storage keys (in localStorage - shared across sessions for user DB and history)
   const USERS_STORAGE_KEY = 'north005_system_users_v3';
   const LOGIN_HISTORY_KEY  = 'north005_login_history_v2';
+  const DELETED_USERS_KEY  = 'north005_deleted_users';
 
   /**
    * Default system accounts with strict Department -> Role mapping.
+   * Only the Master Administrator is seeded by default.
    */
   const DEFAULT_USERS = [
     {
@@ -39,21 +41,6 @@
       photo: '',
       dateCreated: '2026-09-01',
       lastLogin: '2026-10-01 22:00'
-    },
-    {
-      id: 'USR-003',
-      username: 'collector',
-      name: 'MARK ANTHONY (MAC2)',
-      email: 'mac2.collector@apex-omni.ph',
-      phone: '+63 917 111 0004',
-      position: 'Field Operations Collector',
-      role: 'Collector',
-      department: 'Field Collector Units',
-      status: 'Active',
-      password: 'Collect123!',
-      photo: '',
-      dateCreated: '2026-09-01',
-      lastLogin: '2026-10-01 21:00'
     }
   ];
 
@@ -73,6 +60,12 @@
     initUsers() {
       try {
         const stored = localStorage.getItem(USERS_STORAGE_KEY);
+        let deletedList = [];
+        try {
+          const dRaw = localStorage.getItem(DELETED_USERS_KEY);
+          if (dRaw) deletedList = JSON.parse(dRaw);
+        } catch (e) { deletedList = []; }
+
         if (!stored) {
           localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
         } else {
@@ -80,19 +73,25 @@
           if (!Array.isArray(list) || list.length === 0) {
             localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
           } else {
-            // Permanently purge unauthorized JUNDY / supervisor accounts
+            // Permanently purge unauthorized JUNDY / supervisor accounts and deleted accounts
             const cleanList = list.filter(u => {
               if (!u) return false;
               if (u.id === 'USR-002' || u.username === 'supervisor') return false;
               if (u.name && u.name.toUpperCase().includes('JUNDY')) return false;
+              // Check tombstoned accounts
+              if (deletedList.some(d => d === u.id || d === u.username || (u.name && d.toLowerCase() === u.name.toLowerCase()))) return false;
+              // Permanently respect deletion of default Mark Anthony (MAC2) account
+              if (u.id === 'USR-003' || u.username === 'collector') {
+                return false;
+              }
               return true;
             });
             let modified = cleanList.length !== list.length;
             list = cleanList;
 
-            // Ensure default admin and collector exist in list
+            // Ensure default Administrator exists in list if missing
             DEFAULT_USERS.forEach(def => {
-              if (!list.some(u => u.username === def.username)) {
+              if (def.role === 'Administrator' && !list.some(u => u.username === def.username || u.role === 'Administrator')) {
                 list.push(def);
                 modified = true;
               }
@@ -152,11 +151,21 @@
       try {
         const stored = localStorage.getItem(USERS_STORAGE_KEY);
         const list = stored ? JSON.parse(stored) : [...DEFAULT_USERS];
-        // Strictly filter out any unauthorized JUNDY accounts
+        let deletedList = [];
+        try {
+          const dRaw = localStorage.getItem(DELETED_USERS_KEY);
+          if (dRaw) deletedList = JSON.parse(dRaw);
+        } catch (e) { deletedList = []; }
+
+        // Strictly filter out any unauthorized JUNDY accounts and tombstoned accounts
         return list.filter(u => {
           if (!u) return false;
           if (u.id === 'USR-002' || u.username === 'supervisor') return false;
           if (u.name && u.name.toUpperCase().includes('JUNDY')) return false;
+          if (deletedList.some(d => d === u.id || d === u.username || (u.name && d.toLowerCase() === u.name.toLowerCase()))) return false;
+          if (u.id === 'USR-003' || u.username === 'collector') {
+            return false;
+          }
           return true;
         });
       } catch (e) {
@@ -169,6 +178,27 @@
       if (window.userManagementModule && typeof window.userManagementModule.render === 'function') {
         window.userManagementModule.render();
       }
+    }
+
+    deleteUser(id) {
+      const users = this.getUsers();
+      const user = users.find(u => u.id === id || u.username === id);
+      if (!user) return false;
+
+      // Add to persistent deletion tombstone
+      try {
+        const dRaw = localStorage.getItem(DELETED_USERS_KEY);
+        const deletedList = dRaw ? JSON.parse(dRaw) : [];
+        if (!deletedList.includes(user.id)) deletedList.push(user.id);
+        if (user.username && !deletedList.includes(user.username)) deletedList.push(user.username);
+        if (user.name && !deletedList.includes(user.name.toLowerCase())) deletedList.push(user.name.toLowerCase());
+        localStorage.setItem(DELETED_USERS_KEY, JSON.stringify(deletedList));
+      } catch (e) {}
+
+      const remaining = users.filter(u => u.id !== user.id && u.username !== user.username);
+      this.saveUsers(remaining);
+      this.logHistory(user.username, 'Deleted', 'Account permanently deleted by Administrator');
+      return true;
     }
 
     /* ------------------------------------------------------------------ */

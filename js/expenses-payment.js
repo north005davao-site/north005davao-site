@@ -1395,11 +1395,11 @@ class ExpensesPaymentController {
           return [curMatch];
         } else {
           return [{
-            id: cur.id || 'DDN005-SC004',
-            name: cur.name || 'MARK ANTHONY (MAC2)',
+            id: cur.id || 'COLL-FIELD',
+            name: cur.name || 'Field Operations Collector',
             role: 'Collector',
             boothCode: '',
-            area: cur.department || 'Panabo City',
+            area: cur.department || 'Field Collector Units',
             status: 'Active'
           }];
         }

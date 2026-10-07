@@ -546,10 +546,13 @@
       const users = this.getUsers();
       const user = users.find(u => u.id === this.pendingDeleteId);
       if (user) {
-        const updated = users.filter(u => u.id !== this.pendingDeleteId);
-        window.authManager.saveUsers(updated);
-        window.authManager.logHistory(user.username, 'Deleted', 'Account deleted by Admin');
-        alert(`Account "@${user.username}" has been permanently deleted.`);
+        if (window.authManager && typeof window.authManager.deleteUser === 'function') {
+          window.authManager.deleteUser(this.pendingDeleteId);
+        } else {
+          const updated = users.filter(u => u.id !== this.pendingDeleteId);
+          window.authManager.saveUsers(updated);
+        }
+        alert(`Account "@${user.username}" (${user.name}) has been permanently deleted.`);
       }
 
       this.cancelDeleteConfirmation();

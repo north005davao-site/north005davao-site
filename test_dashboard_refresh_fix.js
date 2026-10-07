@@ -46,6 +46,19 @@ global.localStorage = {
 };
 
 global.window = global;
+global.document = {
+  getElementById: () => null,
+  querySelector: () => null,
+  querySelectorAll: () => [],
+  addEventListener: () => {}
+};
+global.sessionStorage = {
+  _data: {},
+  getItem(k) { return this._data[k] !== undefined ? this._data[k] : null; },
+  setItem(k, v) { this._data[k] = String(v); },
+  removeItem(k) { delete this._data[k]; },
+  clear() { this._data = {}; }
+};
 require('./js/store.js');
 const store = window.appStore;
 const relievers = store.getEmployees().filter(e => (e.role || '').toUpperCase().includes('RELIEVER'));
@@ -110,6 +123,61 @@ if (!stillExistsRel2) {
 }
 console.log('✓ Disambiguated delete succeeded: only targeted reliever was deleted!');
 
+// 6. Test AuthManager & User Deletion Persistence (Mark Anthony / collector fix)
+require('./js/auth.js');
+const authManager = window.authManager;
+const currentUsers = authManager.getUsers();
+console.log('Current system users:', currentUsers.map(u => `${u.username} (${u.name})`));
+
+const hasMarkAnthony = currentUsers.some(u => u.username === 'collector' || (u.name && u.name.toUpperCase().includes('MARK ANTHONY')));
+if (hasMarkAnthony) {
+  console.error('❌ Mark Anthony (MAC2) / collector is still present in default users!');
+  process.exit(1);
+}
+console.log('✓ Confirmed Mark Anthony (MAC2) / collector is NOT resurrected in system users');
+
+// Test deletion and persistent tombstone
+authManager.register({
+  username: 'test_temp_user',
+  name: 'Temporary User',
+  password: 'Password123!',
+  confirmPassword: 'Password123!',
+  position: 'Collector'
+});
+console.log('Registered temporary user. Now deleting...');
+const tempUser = authManager.getUsers().find(u => u.username === 'test_temp_user');
+if (!tempUser) {
+  console.error('❌ Failed to find registered temporary user');
+  process.exit(1);
+}
+
+authManager.deleteUser(tempUser.id);
+const usersAfterDelete = authManager.getUsers();
+if (usersAfterDelete.some(u => u.username === 'test_temp_user')) {
+  console.error('❌ Temporary user still exists after deleteUser!');
+  process.exit(1);
+}
+
+// Test re-initializing authManager (simulating browser reload / refresh)
+authManager.initUsers();
+const usersAfterReload = authManager.getUsers();
+if (usersAfterReload.some(u => u.username === 'test_temp_user')) {
+  console.error('❌ Temporary user was resurrected on reload! Tombstone failed!');
+  process.exit(1);
+}
+console.log('✓ Deletion tombstone verified: deleted users remain permanently purged across reloads');
+
+// 7. Verify index.html contains dash-wf-relievers and dash-booth-muni-samal
+if (!indexHtml.includes('dash-wf-relievers')) {
+  console.error('❌ index.html is missing dash-wf-relievers!');
+  process.exit(1);
+}
+if (!indexHtml.includes('dash-booth-muni-samal')) {
+  console.error('❌ index.html is missing dash-booth-muni-samal!');
+  process.exit(1);
+}
+console.log('✓ Confirmed index.html contains dash-wf-relievers and dash-booth-muni-samal');
+
 console.log('\n======================================================');
-console.log('🎉 ALL DASHBOARD REFRESH & MULTI-UPDATE CHECKS PASSED!');
+console.log('🎉 ALL DASHBOARD REFRESH & USER DELETION CHECKS PASSED!');
 console.log('======================================================\n');

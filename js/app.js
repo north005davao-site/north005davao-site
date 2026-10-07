@@ -655,10 +655,12 @@ function renderDashboard() {
 
   // 2. Control Center Workforce Breakdown
   setEl('dash-wf-total', totalStaff);
-  setEl('dash-wf-tellers', countTellers);
+  setEl('dash-wf-tellers', countSalesReps);
+  setEl('dash-wf-relievers', countRelievers);
   setEl('dash-wf-collectors', countCollectors);
   setEl('dash-wf-supervisors', countSupervisors);
   setEl('dash-wf-admins', countAdmins);
+  setEl('dash-wf-field-total', countSalesReps + countRelievers);
   setEl('dash-wf-active', countActiveStaff);
   setEl('dash-wf-terminated', countTerminatedStaff);
 
@@ -668,6 +670,7 @@ function renderDashboard() {
   setEl('dash-booth-muni-tagum', muniCounts['Tagum City'] + ' Outlets');
   setEl('dash-booth-muni-carmen', muniCounts['Carmen'] + ' Outlets');
   setEl('dash-booth-muni-panabo', muniCounts['Panabo City'] + ' Outlets');
+  setEl('dash-booth-muni-samal', (muniCounts['Samal'] || 0) + ' Outlets');
   setEl('dash-booth-muni-kapalong', muniCounts['Kapalong'] + ' Outlets');
   setEl('dash-booth-muni-talaingod', muniCounts['Talaingod'] + ' Outlets');
 
