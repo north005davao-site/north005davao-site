@@ -1475,6 +1475,7 @@ function renderEmployeesTable(customList = null) {
                     <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px; color: var(--danger); border-color: rgba(239, 68, 68, 0.4);" onclick="window.requestDeleteEmployee('${emp.id}', '${safeEmpName}')" title="Delete Record">
                       🗑️ Delete
                     </button>
+                    <input type="checkbox" class="registry-row-checkbox" value="${emp.id}" ${window.selectedRegistryEmpIds && window.selectedRegistryEmpIds.has(emp.id) ? 'checked' : ''} onchange="window.toggleRegistryRowSelection('${emp.id}', this.checked)" style="cursor:pointer; transform:scale(1.15); margin-left: 4px;" title="Select employee for bulk delete">
                   `;
                 }
                 return `
@@ -1484,6 +1485,7 @@ function renderEmployeesTable(customList = null) {
                   <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px; color: var(--danger); border-color: rgba(239, 68, 68, 0.4);" onclick="window.requestDeleteEmployee('${emp.id}', '${safeEmpName}')" title="Delete Record">
                     🗑️ Delete
                   </button>
+                  <input type="checkbox" class="registry-row-checkbox" value="${emp.id}" ${window.selectedRegistryEmpIds && window.selectedRegistryEmpIds.has(emp.id) ? 'checked' : ''} onchange="window.toggleRegistryRowSelection('${emp.id}', this.checked)" style="cursor:pointer; transform:scale(1.15); margin-left: 4px;" title="Select employee for bulk delete">
                   <button class="btn btn-primary btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="window.showQrPass('${emp.id}')" title="View Digital Pass">
                     🪪 Pass
                   </button>
@@ -1508,6 +1510,7 @@ function renderEmployeesTable(customList = null) {
 
   // Render Pagination Controls
   renderRegistryPagination(totalCount, totalPages);
+  if (typeof window.updateRegistrySelectionUI === 'function') window.updateRegistrySelectionUI();
 }
 
 function renderRegistryPagination(totalCount, totalPages) {
@@ -1536,6 +1539,114 @@ function renderRegistryPagination(totalCount, totalPages) {
 
   controls.innerHTML = html;
 }
+
+/* --- MASTER REGISTRY BULK SELECTION & ACTIONS (SELECT ALL / UNSELECT ALL / BULK DELETE) --- */
+window.selectedRegistryEmpIds = new Set();
+
+window.toggleRegistryRowSelection = function(id, isChecked) {
+  if (!id) return;
+  if (!window.selectedRegistryEmpIds) window.selectedRegistryEmpIds = new Set();
+  if (isChecked) {
+    window.selectedRegistryEmpIds.add(id);
+  } else {
+    window.selectedRegistryEmpIds.delete(id);
+  }
+  window.updateRegistrySelectionUI();
+};
+
+window.toggleRegistrySelectAll = function(forceState) {
+  if (!window.selectedRegistryEmpIds) window.selectedRegistryEmpIds = new Set();
+  const store = window.appStore;
+  const emps = (store && typeof store.getEmployees === 'function') ? store.getEmployees() : [];
+  const staff = emps.filter(e => {
+    const r = (e.role || '').toUpperCase();
+    return !r.includes('ADMIN') && !r.includes('SUPERVISOR') && !r.includes('COLLECTOR');
+  });
+  const uniqueStaffIds = new Set(staff.map(e => e.id));
+  if (uniqueStaffIds.size === 0) return;
+
+  const shouldSelect = typeof forceState === 'boolean'
+    ? forceState
+    : window.selectedRegistryEmpIds.size < uniqueStaffIds.size;
+
+  if (shouldSelect) {
+    uniqueStaffIds.forEach(id => window.selectedRegistryEmpIds.add(id));
+  } else {
+    window.selectedRegistryEmpIds.clear();
+  }
+  renderEmployeesTable();
+};
+
+window.unselectRegistryAll = function() {
+  if (window.selectedRegistryEmpIds) window.selectedRegistryEmpIds.clear();
+  renderEmployeesTable();
+};
+
+window.updateRegistrySelectionUI = function() {
+  const banner = document.getElementById('registry-selection-banner');
+  const countEl = document.getElementById('registry-selected-count');
+  const actionSelectAllCb = document.getElementById('registry-select-all-checkbox');
+  const actionSelectAllLabel = document.getElementById('registry-select-all-label');
+
+  const store = window.appStore;
+  const emps = (store && typeof store.getEmployees === 'function') ? store.getEmployees() : [];
+  const staff = emps.filter(e => {
+    const r = (e.role || '').toUpperCase();
+    return !r.includes('ADMIN') && !r.includes('SUPERVISOR') && !r.includes('COLLECTOR');
+  });
+  const uniqueStaffIds = new Set(staff.map(e => e.id));
+  const count = window.selectedRegistryEmpIds ? window.selectedRegistryEmpIds.size : 0;
+  const allSelected = uniqueStaffIds.size > 0 && count >= uniqueStaffIds.size;
+
+  if (countEl) countEl.textContent = count;
+  if (banner) {
+    banner.style.display = count > 0 ? 'flex' : 'none';
+  }
+  if (actionSelectAllCb) {
+    actionSelectAllCb.checked = allSelected;
+    actionSelectAllCb.indeterminate = count > 0 && count < uniqueStaffIds.size;
+  }
+  if (actionSelectAllLabel) {
+    actionSelectAllLabel.textContent = allSelected ? 'UNSELECT ALL' : 'SELECT ALL';
+  }
+
+  if (typeof document !== 'undefined') {
+    const rowCheckboxes = document.querySelectorAll('.registry-row-checkbox');
+    rowCheckboxes.forEach(cb => {
+      cb.checked = window.selectedRegistryEmpIds && window.selectedRegistryEmpIds.has(cb.value);
+    });
+  }
+};
+
+window.deleteSelectedRegistryEmployees = async function() {
+  if (!window.authManager || !window.authManager.isAdmin()) {
+    alert('Permission Denied: Only Administrators can delete personnel records.');
+    return;
+  }
+  const count = window.selectedRegistryEmpIds ? window.selectedRegistryEmpIds.size : 0;
+  if (count === 0) {
+    alert('Please select one or more master registry records to delete.');
+    return;
+  }
+
+  const confirmMsg = `Are you sure you want to permanently delete the ${count} selected master registry personnel record(s)? This action cannot be undone.`;
+  const shouldDelete = (typeof confirm === 'function')
+    ? confirm(confirmMsg)
+    : (typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm(confirmMsg) : true);
+  if (!shouldDelete) return;
+
+  const idsToDelete = Array.from(window.selectedRegistryEmpIds);
+  for (const id of idsToDelete) {
+    if (window.appStore && typeof window.appStore.deleteEmployee === 'function') {
+      window.appStore.deleteEmployee(id);
+    }
+  }
+
+  window.selectedRegistryEmpIds.clear();
+  renderEmployeesTable();
+  if (typeof updateStats === 'function') updateStats();
+  alert(`Successfully deleted ${idsToDelete.length} master registry personnel record(s).`);
+};
 
 window.filterEmployees = function() {
   const input = document.getElementById('employee-search-input');

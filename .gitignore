@@ -1,3 +1,6 @@
 node_modules/
+data_backup/
+.env
 .DS_Store
 Thumbs.db
+

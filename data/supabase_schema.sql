@@ -123,14 +123,79 @@ ALTER TABLE public.thermal_paper_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.employee_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_snapshots ENABLE ROW LEVEL SECURITY;
 
--- Allow read/write access for authenticated ERP operations via Supabase anon key
-CREATE POLICY "Allow all operations for ERP attendance" ON public.attendance_records FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all operations for ERP users" ON public.system_users FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all operations for ERP transactions" ON public.transactions FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all operations for ERP rentals" ON public.outlet_rentals FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all operations for ERP thermal paper" ON public.thermal_paper_records FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all operations for ERP employee documents" ON public.employee_documents FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all operations for ERP snapshots" ON public.system_snapshots FOR ALL USING (true) WITH CHECK (true);
+-- Helper function to check if requesting user has Administrator role
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN (
+        auth.jwt() ->> 'role' = 'Administrator'
+        OR current_setting('request.jwt.claims', true)::jsonb ->> 'role' = 'Administrator'
+        OR auth.role() = 'service_role'
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 1. ATTENDANCE RECORDS POLICIES
+CREATE POLICY "Allow authenticated read attendance" ON public.attendance_records
+    FOR SELECT TO authenticated, anon USING (true);
+CREATE POLICY "Allow staff insert attendance" ON public.attendance_records
+    FOR INSERT TO authenticated, anon WITH CHECK (employee_id IS NOT NULL);
+CREATE POLICY "Allow admin modify attendance" ON public.attendance_records
+    FOR UPDATE TO authenticated USING (public.is_admin() OR auth.uid()::text = employee_id);
+
+-- 2. SYSTEM USERS POLICIES (Prevent unauthorized role escalation)
+CREATE POLICY "Allow read system users" ON public.system_users
+    FOR SELECT TO authenticated, anon USING (true);
+CREATE POLICY "Allow registration of pending users" ON public.system_users
+    FOR INSERT TO authenticated, anon WITH CHECK (role != 'Administrator' OR public.is_admin());
+CREATE POLICY "Allow self profile update or admin manage users" ON public.system_users
+    FOR UPDATE TO authenticated, anon
+    USING (public.is_admin() OR auth.uid()::text = id)
+    WITH CHECK (
+        -- Prevent non-admins from promoting themselves or others to Administrator
+        CASE 
+            WHEN public.is_admin() THEN true
+            ELSE role = (SELECT role FROM public.system_users WHERE id = auth.uid()::text)
+        END
+    );
+CREATE POLICY "Only admin can delete users" ON public.system_users
+    FOR DELETE TO authenticated USING (public.is_admin());
+
+-- 3. FINANCIAL TRANSACTIONS POLICIES
+CREATE POLICY "Allow read transactions" ON public.transactions
+    FOR SELECT TO authenticated, anon USING (true);
+CREATE POLICY "Allow insert transactions" ON public.transactions
+    FOR INSERT TO authenticated, anon WITH CHECK (amount >= 0);
+CREATE POLICY "Only admin and supervisor can modify transactions" ON public.transactions
+    FOR UPDATE TO authenticated USING (public.is_admin());
+CREATE POLICY "Only admin can delete transactions" ON public.transactions
+    FOR DELETE TO authenticated USING (public.is_admin());
+
+-- 4. OUTLET RENTALS POLICIES
+CREATE POLICY "Allow read outlet rentals" ON public.outlet_rentals
+    FOR SELECT TO authenticated, anon USING (true);
+CREATE POLICY "Allow admin and authorized staff manage rentals" ON public.outlet_rentals
+    FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
+
+-- 5. THERMAL PAPER RECORDS POLICIES
+CREATE POLICY "Allow read thermal paper" ON public.thermal_paper_records
+    FOR SELECT TO authenticated, anon USING (true);
+CREATE POLICY "Allow manage thermal paper" ON public.thermal_paper_records
+    FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
+
+-- 6. EMPLOYEE DOCUMENTS POLICIES
+CREATE POLICY "Allow read employee documents" ON public.employee_documents
+    FOR SELECT TO authenticated, anon USING (true);
+CREATE POLICY "Allow manage employee documents" ON public.employee_documents
+    FOR ALL TO authenticated, anon USING (true) WITH CHECK (document_type IS NOT NULL);
+
+-- 7. SYSTEM SNAPSHOTS POLICIES (Diagnostic rollback restricted to admin/repair)
+CREATE POLICY "Allow read snapshots" ON public.system_snapshots
+    FOR SELECT TO authenticated, anon USING (true);
+CREATE POLICY "Allow snapshot creation" ON public.system_snapshots
+    FOR INSERT TO authenticated, anon WITH CHECK (reason IS NOT NULL);
+CREATE POLICY "Only admin can modify or delete snapshots" ON public.system_snapshots
+    FOR ALL TO authenticated USING (public.is_admin());
 
 -- Enable Realtime publication on all ERP tables
 ALTER PUBLICATION supabase_realtime ADD TABLE public.attendance_records;

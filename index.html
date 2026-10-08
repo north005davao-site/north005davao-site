@@ -126,18 +126,25 @@
 
       window.__INITIAL_ROUTE_VIEW__ = targetView;
 
-      // Injects early CSS rule before DOM parsing begins so ONLY the target view is rendered from frame 0
-      const style = document.createElement('style');
-      style.id = 'early-route-style';
-      style.textContent = `
-        #${targetView} { display: block !important; }
-        .sidebar-nav .nav-item[data-view="${targetView}"] {
-          background: rgba(255, 255, 255, 0.08) !important;
-          color: var(--accent-gold) !important;
-          border-left: 3px solid var(--accent-gold) !important;
-        }
-      `;
-      document.head.appendChild(style);
+      // Issue F6: Only inject early CSS rule if user is authenticated to prevent flashing protected content before login
+      let hasAuthSession = false;
+      try {
+        hasAuthSession = !!sessionStorage.getItem('north005_session_user_v2') || !!localStorage.getItem('north005_session_user_v2');
+      } catch (e) {}
+
+      if (hasAuthSession) {
+        const style = document.createElement('style');
+        style.id = 'early-route-style';
+        style.textContent = `
+          #${targetView} { display: block !important; }
+          .sidebar-nav .nav-item[data-view="${targetView}"] {
+            background: rgba(255, 255, 255, 0.08) !important;
+            color: var(--accent-gold) !important;
+            border-left: 3px solid var(--accent-gold) !important;
+          }
+        `;
+        document.head.appendChild(style);
+      }
     })();
   </script>
 
@@ -745,6 +752,21 @@
           </div>
 
           <div class="card">
+            <!-- Bulk Action / Selection Toolbar -->
+            <div id="registry-selection-banner" style="display: none; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 10px 16px; margin: 0 16px 14px 16px; align-items: center; justify-content: space-between;">
+              <div style="font-size: 13px; font-weight: 700; color: #f87171; display: flex; align-items: center; gap: 8px;">
+                <span>☑️</span>
+                <span><strong id="registry-selected-count">0</strong> master registry record(s) selected</span>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button type="button" class="btn btn-xs btn-secondary" onclick="window.unselectRegistryAll()" style="padding: 4px 10px; font-size: 11px;">
+                  Unselect All
+                </button>
+                <button type="button" class="btn btn-xs btn-danger" onclick="window.deleteSelectedRegistryEmployees()" style="background: #ef4444; border-color: #ef4444; color: #fff; font-weight: 800; padding: 4px 12px; font-size: 11px;">
+                  🗑️ Delete Selected
+                </button>
+              </div>
+            </div>
             <div class="table-wrapper">
               <table class="data-table">
                 <thead id="registry-table-thead">
@@ -760,7 +782,15 @@
                     <th style="text-align: center;">Status</th>
                     <th>POS Serial No.</th>
                     <th style="text-align: center;">PORTABLE PRINTER NAME</th>
-                    <th style="text-align: center;">Actions</th>
+                    <th style="text-align: center; min-width: 150px;">
+                      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+                        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase;">Actions</span>
+                        <label style="display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; cursor: pointer; text-transform: none; color: var(--text-main); margin: 0;">
+                          <input type="checkbox" id="registry-select-all-checkbox" onchange="window.toggleRegistrySelectAll(this.checked)" style="cursor: pointer; transform: scale(1.1);">
+                          <span id="registry-select-all-label">SELECT ALL</span>
+                        </label>
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody id="employee-table-tbody">
@@ -1962,6 +1992,21 @@
                 ⚠️ Pending user sign-ups require Administrator activation
               </div>
             </div>
+            <!-- Bulk Action / Selection Toolbar -->
+            <div id="user-selection-banner" style="display: none; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 10px 16px; margin: 0 16px 14px 16px; align-items: center; justify-content: space-between;">
+              <div style="font-size: 13px; font-weight: 700; color: #f87171; display: flex; align-items: center; gap: 8px;">
+                <span>☑️</span>
+                <span><strong id="user-selected-count">0</strong> user account(s) selected</span>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button type="button" class="btn btn-xs btn-secondary" onclick="window.userManagementModule.unselectAll()" style="padding: 4px 10px; font-size: 11px;">
+                  Unselect All
+                </button>
+                <button type="button" class="btn btn-xs btn-danger" onclick="window.userManagementModule.deleteSelectedUsers()" style="background: #ef4444; border-color: #ef4444; color: #fff; font-weight: 800; padding: 4px 12px; font-size: 11px;">
+                  🗑️ Delete Selected
+                </button>
+              </div>
+            </div>
             <div class="table-wrapper">
               <table class="data-table">
                 <thead>
@@ -1974,7 +2019,15 @@
                     <th style="text-align: center;">Account Status</th>
                     <th>Date Created</th>
                     <th>Last Login</th>
-                    <th style="text-align: center; width: 140px;">Actions</th>
+                    <th style="text-align: center; min-width: 150px;">
+                      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+                        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase;">Actions</span>
+                        <label style="display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; cursor: pointer; text-transform: none; color: var(--text-main); margin: 0;">
+                          <input type="checkbox" id="user-select-all-checkbox" onchange="window.userManagementModule.toggleSelectAll(this.checked)" style="cursor: pointer; transform: scale(1.1);">
+                          <span id="user-select-all-label">SELECT ALL</span>
+                        </label>
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody id="user-mgmt-tbody">
@@ -2357,10 +2410,28 @@
                 Tracks expiry dates, upload logs, and verification status
               </div>
             </div>
+            <!-- Bulk Action / Selection Toolbar -->
+            <div id="doc-selection-banner" style="display: none; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 10px 16px; margin: 0 16px 14px 16px; align-items: center; justify-content: space-between;">
+              <div style="font-size: 13px; font-weight: 700; color: #f87171; display: flex; align-items: center; gap: 8px;">
+                <span>☑️</span>
+                <span><strong id="doc-selected-count">0</strong> document record(s) selected</span>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button type="button" class="btn btn-xs btn-secondary" onclick="window.employeeDocumentsModule.unselectAll()" style="padding: 4px 10px; font-size: 11px;">
+                  Unselect All
+                </button>
+                <button type="button" class="btn btn-xs btn-danger" onclick="window.employeeDocumentsModule.deleteSelectedDocuments()" style="background: #ef4444; border-color: #ef4444; color: #fff; font-weight: 800; padding: 4px 12px; font-size: 11px;">
+                  🗑️ Delete Selected
+                </button>
+              </div>
+            </div>
             <div class="table-wrapper">
               <table class="data-table">
                 <thead>
                   <tr>
+                    <th style="width: 36px; text-align: center;">
+                      <input type="checkbox" id="doc-master-checkbox" style="cursor: pointer; transform: scale(1.15);" title="Select All / Unselect All" onchange="window.employeeDocumentsModule.toggleSelectAll(this.checked)">
+                    </th>
                     <th>Emp ID</th>
                     <th>Employee Name</th>
                     <th>Position</th>
@@ -2370,7 +2441,15 @@
                     <th>Expiration Date</th>
                     <th>Attachment File</th>
                     <th>Notes</th>
-                    <th style="text-align: center; width: 140px;">Actions</th>
+                    <th style="text-align: center; min-width: 170px;" id="doc-th-actions">
+                      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+                        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase;">Actions</span>
+                        <label style="display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; cursor: pointer; text-transform: none; color: var(--text-main); margin: 0;">
+                          <input type="checkbox" id="doc-action-select-all" onchange="window.employeeDocumentsModule.toggleSelectAll(this.checked)" style="cursor: pointer; transform: scale(1.1);">
+                          <span id="doc-action-select-all-label">SELECT ALL</span>
+                        </label>
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody id="employee-documents-tbody">
@@ -2523,6 +2602,20 @@
                 style="font-weight: 700;">
                 + Add Allocation
               </button>
+            <!-- Bulk Action / Selection Toolbar -->
+            <div id="thermal-selection-banner" style="display: none; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 10px 16px; margin-bottom: 14px; align-items: center; justify-content: space-between;">
+              <div style="font-size: 13px; font-weight: 700; color: #f87171; display: flex; align-items: center; gap: 8px;">
+                <span>☑️</span>
+                <span><strong id="thermal-selected-count">0</strong> allocation record(s) selected</span>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button type="button" class="btn btn-xs btn-secondary" onclick="window.thermalPaperModule.unselectAll()" style="padding: 4px 10px; font-size: 11px;">
+                  Unselect All
+                </button>
+                <button type="button" class="btn btn-xs btn-danger" onclick="window.thermalPaperModule.deleteSelectedAllocations()" style="background: #ef4444; border-color: #ef4444; color: #fff; font-weight: 800; padding: 4px 12px; font-size: 11px;">
+                  🗑️ Delete Selected
+                </button>
+              </div>
             </div>
 
             <div class="table-wrapper">
@@ -2532,7 +2625,15 @@
                     <th style="width: 160px;">BOOTH CODE</th>
                     <th>STATION TELLER / LOCATION</th>
                     <th style="width: 180px;">ROLLS ALLOCATED</th>
-                    <th style="width: 140px;">ACTION</th>
+                    <th style="width: 160px; text-align: center;">
+                      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+                        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase;">ACTION</span>
+                        <label style="display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; cursor: pointer; text-transform: none; color: var(--text-main); margin: 0;">
+                          <input type="checkbox" id="thermal-select-all-checkbox" onchange="window.thermalPaperModule.toggleSelectAll(this.checked)" style="cursor: pointer; transform: scale(1.1);">
+                          <span id="thermal-select-all-label">SELECT ALL</span>
+                        </label>
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody id="thermal-daily-tbody">

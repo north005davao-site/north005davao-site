@@ -14,6 +14,19 @@
 (function () {
   'use strict';
 
+  // Global XSS defense sanitizer (Issue S7)
+  if (typeof window !== 'undefined') {
+    window.escapeHtml = function (str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+  }
+
   // Session key stored in sessionStorage (isolated per browser tab/session)
   const SESSION_KEY = 'north005_session_user_v2';
 
@@ -130,7 +143,8 @@
                   role: ru.role || 'Staff',
                   department: ru.department || 'General Operations',
                   status: ru.status || 'Active',
-                  password: ru.password || 'User123!',
+                  password: ru.password || (ru.password_hash || ('#SEC-' + Math.random().toString(36).substring(2) + '!')),
+                  needsPasswordReset: !ru.password,
                   photo: ru.photo || '',
                   dateCreated: ru.created_at ? ru.created_at.split('T')[0] : '2026-09-01',
                   lastLogin: ru.last_login || 'Never'

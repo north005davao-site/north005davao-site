@@ -20,6 +20,9 @@
       // Pending modal operations
       this.pendingSaveData = null;
       this.pendingDeleteId = null;
+
+      // Multi-row selection state for bulk delete
+      this.selectedUserIds = new Set();
     }
 
     init() {
@@ -259,40 +262,53 @@
           `;
 
           if (!isSelf) {
+            const isRowChecked = this.selectedUserIds && this.selectedUserIds.has(u.id);
             actionBtns += `
               <button class="btn btn-xs btn-secondary" onclick="window.userManagementModule.promptDelete('${u.id}')" style="color:#ef4444;padding:3px 8px;font-size:11px;" title="Delete User">
                 🗑️ Delete
               </button>
+              <input type="checkbox" class="user-row-checkbox" value="${u.id}" ${isRowChecked ? 'checked' : ''} onchange="window.userManagementModule.toggleRowSelection('${u.id}', this.checked)" style="cursor:pointer; transform:scale(1.15); margin-left:5px;" title="Select user for bulk delete">
             `;
           }
         } else {
           actionBtns = `<span style="font-size:11px;color:var(--text-muted);">View-only</span>`;
         }
 
+        const esc = window.escapeHtml || (s => (s == null ? '' : String(s)));
+        const safeName = esc(u.name);
+        const safeUsername = esc(u.username);
+        const safeEmail = esc(u.email || '-');
+        const safePhone = esc(u.phone || '-');
+        const safePosition = esc(u.position || 'Operations Staff');
+        const safeDate = esc(u.dateCreated || '-');
+        const safeLogin = esc(u.lastLogin || 'Never');
+
         return `
           <tr style="${isSelf ? 'background: rgba(245, 158, 11, 0.04);' : ''}">
             <td style="text-align: center;">${avatarHtml}</td>
             <td>
               <div style="font-weight: 700; color: var(--text-main); font-size: 13px;">
-                ${u.name} ${isSelf ? '<span class="badge badge-warning" style="font-size:9.5px;padding:1px 4px;margin-left:4px;">YOU</span>' : ''}
+                ${safeName} ${isSelf ? '<span class="badge badge-warning" style="font-size:9.5px;padding:1px 4px;margin-left:4px;">YOU</span>' : ''}
               </div>
-              <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">@${u.username}</div>
+              <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">@${safeUsername}</div>
             </td>
             <td>
-              <div style="font-size: 12px; color: var(--text-main);">${u.email || '-'}</div>
-              <div style="font-size: 11px; color: var(--text-muted);">${u.phone || '-'}</div>
+              <div style="font-size: 12px; color: var(--text-main);">${safeEmail}</div>
+              <div style="font-size: 11px; color: var(--text-muted);">${safePhone}</div>
             </td>
             <td>
-              <div style="font-size: 12px; font-weight: 600;">${u.position || 'Operations Staff'}</div>
+              <div style="font-size: 12px; font-weight: 600;">${safePosition}</div>
             </td>
             <td style="text-align: center;">${roleBadge}</td>
             <td style="text-align: center;">${statusBadge}</td>
-            <td style="font-size: 11.5px; color: var(--text-muted);">${u.dateCreated || '-'}</td>
-            <td style="font-size: 11.5px; color: var(--text-muted);">${u.lastLogin || 'Never'}</td>
+            <td style="font-size: 11.5px; color: var(--text-muted);">${safeDate}</td>
+            <td style="font-size: 11.5px; color: var(--text-muted);">${safeLogin}</td>
             <td style="text-align: center; white-space: nowrap;">${actionBtns}</td>
           </tr>
         `;
       }).join('');
+
+      this.updateSelectionUI();
     }
 
     renderPagination(totalRecords, totalPages) {
@@ -528,7 +544,8 @@
       this.pendingDeleteId = id;
       const targetEl = document.getElementById('delete-user-name-target');
       if (targetEl) {
-        targetEl.innerHTML = `Are you sure you want to permanently delete <strong>${user.name}</strong> (<code>@${user.username}</code>)?`;
+        const esc = window.escapeHtml || (s => (s == null ? '' : String(s)));
+        targetEl.innerHTML = `Are you sure you want to permanently delete <strong>${esc(user.name)}</strong> (<code>@${esc(user.username)}</code>)?`;
       }
 
       const modal = document.getElementById('modal-user-confirm-delete');
@@ -604,6 +621,110 @@
 
       window.authManager.saveUsers(users);
       this.render();
+    }
+
+    /* --- BULK SELECTION & ACTIONS (SELECT ALL / UNSELECT ALL / BULK DELETE) --- */
+    toggleRowSelection(id, isChecked) {
+      if (!id) return;
+      if (isChecked) {
+        this.selectedUserIds.add(id);
+      } else {
+        this.selectedUserIds.delete(id);
+      }
+      this.updateSelectionUI();
+    }
+
+    toggleSelectAll(forceState) {
+      const currentUser = window.authManager ? window.authManager.getCurrentUser() : null;
+      const users = this.getUsers().filter(u => !currentUser || u.id !== currentUser.id);
+      if (users.length === 0) return;
+
+      const shouldSelect = typeof forceState === 'boolean'
+        ? forceState
+        : this.selectedUserIds.size < users.length;
+
+      if (shouldSelect) {
+        users.forEach(u => this.selectedUserIds.add(u.id));
+      } else {
+        this.selectedUserIds.clear();
+      }
+      this.render();
+    }
+
+    unselectAll() {
+      this.selectedUserIds.clear();
+      this.render();
+    }
+
+    updateSelectionUI() {
+      const banner = document.getElementById('user-selection-banner');
+      const countEl = document.getElementById('user-selected-count');
+      const actionSelectAllCb = document.getElementById('user-select-all-checkbox');
+      const actionSelectAllLabel = document.getElementById('user-select-all-label');
+
+      const currentUser = window.authManager ? window.authManager.getCurrentUser() : null;
+      const users = this.getUsers().filter(u => !currentUser || u.id !== currentUser.id);
+      const count = this.selectedUserIds ? this.selectedUserIds.size : 0;
+      const allSelected = users.length > 0 && count === users.length;
+
+      if (countEl) countEl.textContent = count;
+      if (banner) {
+        banner.style.display = count > 0 ? 'flex' : 'none';
+      }
+      if (actionSelectAllCb) {
+        actionSelectAllCb.checked = allSelected;
+        actionSelectAllCb.indeterminate = count > 0 && count < users.length;
+      }
+      if (actionSelectAllLabel) {
+        actionSelectAllLabel.textContent = allSelected ? 'UNSELECT ALL' : 'SELECT ALL';
+      }
+
+      if (typeof document !== 'undefined') {
+        const rowCheckboxes = document.querySelectorAll('.user-row-checkbox');
+        rowCheckboxes.forEach(cb => {
+          cb.checked = this.selectedUserIds && this.selectedUserIds.has(cb.value);
+        });
+      }
+    }
+
+    async deleteSelectedUsers() {
+      if (!window.authManager || !window.authManager.isAdmin()) {
+        alert('Permission Denied: Only Administrators can delete user accounts.');
+        return;
+      }
+      const count = this.selectedUserIds ? this.selectedUserIds.size : 0;
+      if (count === 0) {
+        alert('Please select one or more user accounts to delete.');
+        return;
+      }
+
+      const confirmMsg = `Are you sure you want to permanently delete the ${count} selected user account(s)? This action cannot be undone.`;
+      const shouldDelete = (typeof confirm === 'function')
+        ? confirm(confirmMsg)
+        : (typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm(confirmMsg) : true);
+      if (!shouldDelete) return;
+
+      const idsToDelete = Array.from(this.selectedUserIds);
+      let users = this.getUsers();
+      const currentUser = window.authManager.getCurrentUser();
+
+      // Never delete currently active user
+      const targets = users.filter(u => idsToDelete.includes(u.id) && (!currentUser || u.id !== currentUser.id));
+      users = users.filter(u => !idsToDelete.includes(u.id) || (currentUser && u.id === currentUser.id));
+
+      // Persist users locally
+      window.authManager.saveUsers(users);
+
+      // Remove from Supabase Cloud if available
+      if (window.supabaseSync && typeof window.supabaseSync.deleteUserAccount === 'function') {
+        for (const u of targets) {
+          try { await window.supabaseSync.deleteUserAccount(u.username); } catch (e) {}
+        }
+      }
+
+      this.selectedUserIds.clear();
+      this.render();
+      alert(`Successfully deleted ${targets.length} user account(s).`);
     }
   }
 

@@ -25,9 +25,11 @@
       // OCR & Modal state
       this.pendingOcrRecords = [];
       this.pendingOcrDate = '2026-09-29';
-      this.pendingOcrStocksOnHand = null;
       this.editingRecordId = null;
       this.deletingRecordId = null;
+
+      // Multi-row selection state for bulk delete
+      this.selectedAllocationIds = new Set();
     }
 
     async init() {
@@ -1053,13 +1055,14 @@ DDN 1591 - 5
                 ${r.rollsAllocated} <span style="font-size: 11px; font-weight: normal; color: var(--text-muted);">ROLLS</span>
               </td>
               <td style="white-space: nowrap;">
-                <div style="display: flex; gap: 6px;">
+                <div style="display: flex; gap: 6px; align-items: center;">
                   <button class="btn btn-secondary btn-xs" onclick="window.thermalPaperModule.openEditModal('${r.id}')" title="Edit Allocation">
                     ✏️ Edit
                   </button>
                   <button class="btn btn-danger btn-xs" onclick="window.thermalPaperModule.openDeleteConfirm('${r.id}')" title="Delete Allocation">
                     🗑️ Delete
                   </button>
+                  <input type="checkbox" class="thermal-row-checkbox" value="${r.id}" ${this.selectedAllocationIds.has(r.id) ? 'checked' : ''} onchange="window.thermalPaperModule.toggleRowSelection('${r.id}', this.checked)" style="cursor:pointer; transform:scale(1.15); margin-left: 4px;" title="Select allocation for bulk delete">
                 </div>
               </td>
             </tr>
@@ -1079,6 +1082,7 @@ DDN 1591 - 5
 
       // Render Pagination Controls (Section 27)
       this.renderPagination(rows.length, totalPages);
+      this.updateSelectionUI();
     }
 
     renderPagination(totalRows, totalPages) {
@@ -1194,6 +1198,110 @@ DDN 1591 - 5
       const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
       const mIdx = parseInt(parts[1], 10) - 1;
       return `${months[mIdx]} ${parts[0]}`;
+    }
+
+    /* --- BULK SELECTION & ACTIONS (SELECT ALL / UNSELECT ALL / BULK DELETE) --- */
+    toggleRowSelection(id, isChecked) {
+      if (!id) return;
+      if (isChecked) {
+        this.selectedAllocationIds.add(id);
+      } else {
+        this.selectedAllocationIds.delete(id);
+      }
+      this.updateSelectionUI();
+    }
+
+    toggleSelectAll(forceState) {
+      let activeRows = this.allocations.filter(a => a.date === this.selectedDate);
+      if (this.searchDailyBooth) {
+        activeRows = activeRows.filter(a =>
+          a.boothCode.toUpperCase().includes(this.searchDailyBooth) ||
+          (a.tellerName && a.tellerName.toUpperCase().includes(this.searchDailyBooth))
+        );
+      }
+      if (activeRows.length === 0) return;
+
+      const shouldSelect = typeof forceState === 'boolean'
+        ? forceState
+        : this.selectedAllocationIds.size < activeRows.length;
+
+      if (shouldSelect) {
+        activeRows.forEach(a => this.selectedAllocationIds.add(a.id));
+      } else {
+        this.selectedAllocationIds.clear();
+      }
+      this.render();
+    }
+
+    unselectAll() {
+      this.selectedAllocationIds.clear();
+      this.render();
+    }
+
+    updateSelectionUI() {
+      const banner = document.getElementById('thermal-selection-banner');
+      const countEl = document.getElementById('thermal-selected-count');
+      const actionSelectAllCb = document.getElementById('thermal-select-all-checkbox');
+      const actionSelectAllLabel = document.getElementById('thermal-select-all-label');
+
+      let activeRows = this.allocations.filter(a => a.date === this.selectedDate);
+      if (this.searchDailyBooth) {
+        activeRows = activeRows.filter(a =>
+          a.boothCode.toUpperCase().includes(this.searchDailyBooth) ||
+          (a.tellerName && a.tellerName.toUpperCase().includes(this.searchDailyBooth))
+        );
+      }
+      const count = this.selectedAllocationIds ? this.selectedAllocationIds.size : 0;
+      const allSelected = activeRows.length > 0 && count === activeRows.length;
+
+      if (countEl) countEl.textContent = count;
+      if (banner) {
+        banner.style.display = count > 0 ? 'flex' : 'none';
+      }
+      if (actionSelectAllCb) {
+        actionSelectAllCb.checked = allSelected;
+        actionSelectAllCb.indeterminate = count > 0 && count < activeRows.length;
+      }
+      if (actionSelectAllLabel) {
+        actionSelectAllLabel.textContent = allSelected ? 'UNSELECT ALL' : 'SELECT ALL';
+      }
+
+      if (typeof document !== 'undefined') {
+        const rowCheckboxes = document.querySelectorAll('.thermal-row-checkbox');
+        rowCheckboxes.forEach(cb => {
+          cb.checked = this.selectedAllocationIds && this.selectedAllocationIds.has(cb.value);
+        });
+      }
+    }
+
+    async deleteSelectedAllocations() {
+      const count = this.selectedAllocationIds ? this.selectedAllocationIds.size : 0;
+      if (count === 0) {
+        alert('Please select one or more allocations to delete.');
+        return;
+      }
+
+      const confirmMsg = `Are you sure you want to permanently delete the ${count} selected thermal paper allocation(s)? This action cannot be undone.`;
+      const shouldDelete = (typeof confirm === 'function')
+        ? confirm(confirmMsg)
+        : (typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm(confirmMsg) : true);
+      if (!shouldDelete) return;
+
+      const idsToDelete = Array.from(this.selectedAllocationIds);
+      this.allocations = this.allocations.filter(a => !idsToDelete.includes(a.id));
+
+      for (const id of idsToDelete) {
+        try {
+          await fetch(`/api/thermal-paper?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+        } catch (e) {}
+      }
+
+      await this.savePersistentData();
+      this.selectedAllocationIds.clear();
+      this.render();
+
+      if (window.sfx && window.sfx.playClick) window.sfx.playClick();
+      alert(`Successfully deleted ${idsToDelete.length} thermal paper allocation record(s).`);
     }
   }
 

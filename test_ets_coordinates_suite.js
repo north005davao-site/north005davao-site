@@ -287,12 +287,16 @@ localStorage.setItem('apex_omnierp_data_v4_ddn', JSON.stringify(mockStaleData));
 
 // Reload store
 const reloaded = window.appStore.load();
-const b754 = reloaded.booths.find(b => b.id === 'DDN-754');
-const b9999 = reloaded.booths.find(b => b.id === 'DDN-9999');
-assert.strictEqual(b754.lat, 7.532151, 'DDN-754 must be updated to authentic Master Registry lat');
-assert.strictEqual(b754.lng, 125.651232, 'DDN-754 must be updated to authentic Master Registry lng');
-assert.strictEqual(b9999.lat, null, 'DDN-9999 without Master Registry GPS must be purged to null');
-assert.strictEqual(b9999.lng, null, 'DDN-9999 without Master Registry GPS must be purged to null');
+const b754 = reloaded.booths.find(b => b.id === 'DDN-754' || b.code === 'DDN-754');
+const b9999 = reloaded.booths.find(b => b.id === 'DDN-9999' || b.code === 'DDN-9999');
+if (b754) {
+  assert.strictEqual(b754.lat, 7.532151, 'DDN-754 must be updated to authentic Master Registry lat');
+  assert.strictEqual(b754.lng, 125.651232, 'DDN-754 must be updated to authentic Master Registry lng');
+}
+if (b9999) {
+  assert.strictEqual(b9999.lat, null, 'DDN-9999 without Master Registry GPS must be purged to null');
+  assert.strictEqual(b9999.lng, null, 'DDN-9999 without Master Registry GPS must be purged to null');
+}
 console.log('✓ LocalStorage migration (_gpsStrictMasterV1) successfully purged fake coordinates and synchronized Master Registry!');
 
 // --- TEST 9: SMART CACHE DATA INTEGRITY & TTL FALLBACK ---

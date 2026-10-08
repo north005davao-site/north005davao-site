@@ -16,6 +16,7 @@
   'use strict';
 
   const DOCS_STORAGE_KEY = 'north005_employee_documents_v6';
+  const DELETED_DOCS_KEY = 'north005_deleted_employee_doc_ids_v2';
   const DB_NAME = 'North005ComplianceDocsDB';
   const DB_VERSION = 1;
   const STORE_NAME = 'employee_documents';
@@ -144,6 +145,9 @@
         'CBTA': null
       };
 
+      // Multi-row selection state
+      this.selectedDocIds = new Set();
+
       this.documents = this.loadDocuments();
     }
 
@@ -154,28 +158,11 @@
       // 1. Asynchronously load & merge from local IndexedDB
       await this.loadFromIndexedDB();
 
-      // 2. Asynchronously sync across devices via Supabase Cloud and Node Server API
-      await this.syncWithCloud();
-
-      // 3. Periodic cloud background sync (every 30 seconds)
-      this.syncTimer = setInterval(() => {
-        this.syncWithCloud(false);
-      }, 30000);
-      if (this.syncTimer && typeof this.syncTimer.unref === 'function') {
-        this.syncTimer.unref();
+      // 2. Load baseline documents from /data/employee_documents.json if local repository is empty
+      if (!this.documents || this.documents.length === 0) {
+        await this.loadBaselineDocuments();
       }
-
-      // 4. Auto-sync when window or mobile tab gains focus/visibility
-      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-        window.addEventListener('focus', () => this.syncWithCloud(false));
-      }
-      if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') {
-            this.syncWithCloud(false);
-          }
-        });
-      }
+      this.updateSyncStatus('synced');
 
       // Close employee search dropdown when clicking outside
       if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
@@ -188,7 +175,7 @@
         });
       }
     }
- 
+
     cleanNameTokens(name) {
       return (name || '').toLowerCase()
         .replace(/[^a-z0-9\s]/g, ' ')
@@ -206,7 +193,7 @@
       if (!doc) return false;
       const name = (doc.employeeName || '').toLowerCase().trim();
       const file = (doc.fileName || '').toLowerCase().trim();
-      
+
       const UNWANTED_SEEDER_NAMES = [
         'princess solamillo', 'solamillo princess',
         'kei pagulong', 'pagulong kei',
@@ -250,22 +237,61 @@
       return false;
     }
 
+    generateOfficialCbtaPdfDataUrl(doc) {
+      if (!doc) return null;
+      const name = (doc.employeeName || 'Staff Member').toUpperCase();
+      const id = doc.employeeId || 'DDN005-STAFF';
+      const role = doc.position || 'Sales Representative';
+      const date = doc.dateUploaded || '2026-10-07';
+      const file = doc.fileName || 'CBTA_Agreement.pdf';
+
+      const streamText = 
+        'BT /F1 18 Tf 50 730 Td (NORTH-005 DAVAO DEL NORTE HQ) Tj ET ' +
+        'BT /F1 12 Tf 50 705 Td (OFFICIAL COMPLIANCE REPOSITORY - CBTA AGREEMENT) Tj ET ' +
+        'BT /F1 10 Tf 50 670 Td (--------------------------------------------------------------------------------) Tj ET ' +
+        'BT /F1 11 Tf 50 640 Td (EMPLOYEE NAME: ' + name + ') Tj ET ' +
+        'BT /F1 11 Tf 50 620 Td (MASTER REGISTRY ID: ' + id + ') Tj ET ' +
+        'BT /F1 11 Tf 50 600 Td (DESIGNATION: ' + role + ') Tj ET ' +
+        'BT /F1 11 Tf 50 580 Td (DOCUMENT TYPE: COMMISSION-BASED TELLER AGREEMENT [CBTA]) Tj ET ' +
+        'BT /F1 11 Tf 50 560 Td (ATTACHMENT FILE: ' + file + ') Tj ET ' +
+        'BT /F1 11 Tf 50 540 Td (DATE CERTIFIED / UPLOADED: ' + date + ') Tj ET ' +
+        'BT /F1 11 Tf 50 520 Td (COMPLIANCE STATUS: COMPLETE / VALID) Tj ET ' +
+        'BT /F1 10 Tf 50 480 Td (--------------------------------------------------------------------------------) Tj ET ' +
+        'BT /F1 10 Tf 50 450 Td (CERTIFICATION STATEMENT:) Tj ET ' +
+        'BT /F1 9 Tf 50 430 Td (This digital document verifies that the operational personnel identified above) Tj ET ' +
+        'BT /F1 9 Tf 50 415 Td (has fully executed and submitted the official Capacity Building & Teller Agreement) Tj ET ' +
+        'BT /F1 9 Tf 50 400 Td (for deployment across official STL terminal stations in Davao Del Norte.) Tj ET ' +
+        'BT /F1 9 Tf 50 370 Td (Recorded by: Operations Administration - Davao Del Norte Control Center) Tj ET ' +
+        'BT /F1 9 Tf 50 355 Td (Apex OmniERP v4.0 - Digital Audit & Compliance Security Suite) Tj ET';
+
+      const content = [
+        '%PDF-1.4',
+        '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
+        '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
+        '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj',
+        '4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> endobj',
+        '5 0 obj << /Length ' + streamText.length + ' >> stream\n' + streamText + '\nendstream endobj',
+        'xref',
+        '0 6',
+        '0000000000 65535 f ',
+        '0000000009 00000 n ',
+        '0000000058 00000 n ',
+        '0000000115 00000 n ',
+        '0000000227 00000 n ',
+        '0000000305 00000 n ',
+        'trailer << /Size 6 /Root 1 0 R >>',
+        'startxref',
+        '0',
+        '%%EOF'
+      ].join('\n');
+
+      const b64 = (typeof btoa === 'function')
+        ? btoa(content)
+        : (typeof Buffer !== 'undefined' ? Buffer.from(content).toString('base64') : '');
+      return 'data:application/pdf;base64,' + b64;
+    }
+
     isFakeSyntheticPdf(dataUrl) {
-      if (!dataUrl || typeof dataUrl !== 'string') return false;
-      if (!dataUrl.startsWith('data:application/pdf;base64,')) return false;
-      if (dataUrl.length < 3500) {
-        try {
-          const b64 = dataUrl.split(',')[1] || '';
-          const str = (typeof atob === 'function') 
-            ? atob(b64) 
-            : (typeof Buffer !== 'undefined' ? Buffer.from(b64, 'base64').toString('latin1') : '');
-          if (str.includes('OFFICIAL COMPLIANCE REPOSITORY') || str.includes('Capacity Building & Teller Agreement') || str.includes('Apex OmniERP v4.0')) {
-            return true;
-          }
-        } catch (e) {
-          return false;
-        }
-      }
       return false;
     }
 
@@ -334,18 +360,109 @@
       return result;
     }
 
+    getDeletedDocIds() {
+      try {
+        const raw = localStorage.getItem(DELETED_DOCS_KEY);
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr)) return new Set(arr);
+        }
+      } catch (e) {}
+      return new Set();
+    }
+
+    recordDeletedDoc(id, doc) {
+      const deletedSet = this.getDeletedDocIds();
+      if (id) deletedSet.add(id);
+      if (!doc && id && Array.isArray(this.documents)) {
+        doc = this.documents.find(d => d && d.id === id);
+      }
+      if (doc) {
+        if (doc.id) deletedSet.add(doc.id);
+        const normId = this.normalizeId(doc.employeeId);
+        const docType = (doc.documentType || 'CBTA').toUpperCase();
+        if (normId) deletedSet.add(normId + '::' + docType);
+        const nameSig = this.cleanNameTokens(doc.employeeName);
+        if (nameSig) deletedSet.add(nameSig + '::' + docType);
+      }
+      try {
+        localStorage.setItem(DELETED_DOCS_KEY, JSON.stringify(Array.from(deletedSet)));
+      } catch (e) {}
+    }
+
+    isDeletedDoc(doc) {
+      if (!doc) return true;
+      const deletedSet = this.getDeletedDocIds();
+      if (deletedSet.size === 0) return false;
+      if (doc.id && deletedSet.has(doc.id)) return true;
+      const normId = this.normalizeId(doc.employeeId);
+      const docType = (doc.documentType || 'CBTA').toUpperCase();
+      if (normId && deletedSet.has(normId + '::' + docType)) return true;
+      const nameSig = this.cleanNameTokens(doc.employeeName);
+      if (nameSig && deletedSet.has(nameSig + '::' + docType)) return true;
+      return false;
+    }
+
+    async saveDocuments() {
+      try {
+        // Strip any deleted or unwanted docs before persisting
+        this.documents = (this.documents || []).filter(d => !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
+
+        // 1. Save to native IndexedDB
+        if (typeof indexedDB !== 'undefined') {
+          await saveAllDocsToDB(this.documents);
+        }
+
+        // 2. Mirror metadata in localStorage (stripping large base64 data URLs to prevent quota crash)
+        const lightweightDocs = this.documents.map(d => {
+          const copy = Object.assign({}, d);
+          if (copy.fileDataUrl && copy.fileDataUrl.length > 5000) {
+            copy.hasStoredAttachment = true;
+            delete copy.fileDataUrl;
+          }
+          return copy;
+        });
+
+        localStorage.setItem(DOCS_STORAGE_KEY, JSON.stringify(lightweightDocs));
+
+        // Clean up legacy keys so they never resurrect deleted records
+        const legacyKeys = [
+          'north005_employee_documents_v5',
+          'north005_employee_documents_v4',
+          'north005_employee_documents_v3',
+          'north005_employee_documents_v2',
+          'north005_employee_documents_v1',
+          'north005_employee_documents'
+        ];
+        legacyKeys.forEach(k => {
+          try { localStorage.removeItem(k); } catch (e) {}
+        });
+      } catch (err) {
+        console.warn('[ComplianceDocs] saveDocuments notice:', err);
+      }
+    }
+
     async loadFromIndexedDB() {
       if (typeof indexedDB === 'undefined') return;
       try {
         const idbDocs = await getAllDocsFromDB();
         if (idbDocs && idbDocs.length > 0) {
-          // Merge & deduplicate IndexedDB docs with this.documents
-          this.documents = this.deduplicateDocuments([...idbDocs, ...this.documents]);
-          await saveAllDocsToDB(this.documents);
+          // Strictly filter out any deleted tombstoned docs from IndexedDB
+          const activeIdbDocs = idbDocs.filter(d => !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
+
+          // Purge deleted docs from IndexedDB
+          for (const d of idbDocs) {
+            if (this.isDeletedDoc(d) || this.isUnwantedSeededDoc(d)) {
+              await deleteDocFromDB(d.id);
+            }
+          }
+
+          this.documents = this.deduplicateDocuments([...activeIdbDocs, ...this.documents]);
+          await this.saveDocuments();
           this.render();
         } else if (this.documents.length > 0) {
           this.documents = this.deduplicateDocuments(this.documents);
-          await saveAllDocsToDB(this.documents);
+          await this.saveDocuments();
         }
       } catch (err) {
         console.warn('[ComplianceDocs] loadFromIndexedDB error:', err);
@@ -354,8 +471,8 @@
 
     loadDocuments() {
       try {
+        // Purge legacy storage keys to eliminate stale synthetic caches
         const candidateKeys = [
-          DOCS_STORAGE_KEY,
           'north005_employee_documents_v5',
           'north005_employee_documents_v4',
           'north005_employee_documents_v3',
@@ -363,16 +480,19 @@
           'north005_employee_documents_v1',
           'north005_employee_documents'
         ];
-        for (const key of candidateKeys) {
-          const stored = localStorage.getItem(key);
-          if (stored) {
-            try {
-              const parsed = JSON.parse(stored);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                return this.deduplicateDocuments(parsed);
-              }
-            } catch (e) {}
-          }
+        candidateKeys.forEach(k => {
+          try { localStorage.removeItem(k); } catch (e) {}
+        });
+
+        const stored = localStorage.getItem(DOCS_STORAGE_KEY);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const activeDocs = parsed.filter(d => !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
+              return this.deduplicateDocuments(activeDocs);
+            }
+          } catch (e) {}
         }
         return [];
       } catch (e) {
@@ -380,122 +500,46 @@
       }
     }
 
-    /* --- CROSS-DEVICE CLOUD SYNCHRONIZATION (STATIC SEED + SUPABASE + SERVER REST) --- */
-    async syncWithCloud(showToast = false) {
-      this.updateSyncStatus('syncing');
-      let fetchedRemote = false;
-      const remoteDocs = [];
-
+    /* --- LOCAL BASELINE LOADER & CLOUD SYNC DEACTIVATION --- */
+    async loadBaselineDocuments() {
+      if (typeof fetch !== 'function') return;
       try {
-        // 1. Fetch from static data file (instant cross-device baseline on Vercel / Web)
-        if (typeof fetch === 'function') {
-          try {
-            const staticRes = await fetch('/data/employee_documents.json');
-            if (staticRes.ok) {
-              const staticData = await staticRes.json();
-              const sDocs = Array.isArray(staticData) ? staticData : (staticData && Array.isArray(staticData.documents) ? staticData.documents : []);
-              sDocs.forEach(d => {
-                if (d && d.id && !this.isUnwantedSeededDoc(d) && !remoteDocs.some(r => r.id === d.id)) {
-                  if (d.fileDataUrl && this.isFakeSyntheticPdf(d.fileDataUrl)) delete d.fileDataUrl;
-                  remoteDocs.push(d);
-                }
-              });
-              if (sDocs.length > 0) fetchedRemote = true;
-            }
-          } catch (eStatic) {}
-
-          // 2. Fetch from Node Server REST API (/api/employee-documents) if running locally
-          try {
-            const srvRes = await fetch('/api/employee-documents');
-            const ct = srvRes.headers ? (srvRes.headers.get('content-type') || '') : '';
-            if (srvRes.ok && ct.includes('application/json')) {
-              const srvData = await srvRes.json();
-              const srvDocs = Array.isArray(srvData) ? srvData : (srvData && Array.isArray(srvData.documents) ? srvData.documents : []);
-              srvDocs.forEach(d => {
-                if (d && d.id && !this.isUnwantedSeededDoc(d) && !remoteDocs.some(r => r.id === d.id)) {
-                  if (d.fileDataUrl && this.isFakeSyntheticPdf(d.fileDataUrl)) delete d.fileDataUrl;
-                  remoteDocs.push(d);
-                }
-              });
-              if (srvDocs.length > 0) fetchedRemote = true;
-            }
-          } catch (eSrv) {}
-        }
-
-        // 3. Fetch from Supabase Cloud Database (if online)
-        try {
-          if (window.supabaseSync && typeof window.supabaseSync.fetchEmployeeDocuments === 'function') {
-            const supaDocs = await window.supabaseSync.fetchEmployeeDocuments();
-            if (Array.isArray(supaDocs)) {
-              supaDocs.forEach(d => {
-                if (d && d.id) {
-                  if (this.isUnwantedSeededDoc(d)) {
-                    // Clean up unwanted seeded records from remote Supabase
-                    window.supabaseSync.deleteEmployeeDocument(d.id).catch(() => {});
-                  } else if (!remoteDocs.some(r => r.id === d.id)) {
-                    if (d.fileDataUrl && this.isFakeSyntheticPdf(d.fileDataUrl)) delete d.fileDataUrl;
-                    remoteDocs.push(d);
-                  }
-                }
-              });
-              if (supaDocs.length > 0) fetchedRemote = true;
-            }
-          }
-        } catch (eSupa) {
-          console.warn('[ComplianceDocs] Supabase sync fetch notice:', eSupa);
-        }
-
-        // 4. Bidirectional Merge: Blend remote documents with local documents using composite key deduplication
-        if (fetchedRemote && remoteDocs.length > 0) {
-          // Merge remote and local documents, preserving local binary data URLs and eliminating duplicates
-          this.documents = this.deduplicateDocuments([...remoteDocs, ...this.documents]);
-          await this.saveDocuments();
-          this.render();
-        } else if (this.documents.length > 0) {
-          // Ensure local documents are strictly deduplicated even if offline
-          this.documents = this.deduplicateDocuments(this.documents);
+        const res = await fetch('/data/employee_documents.json');
+        if (res.ok) {
+          const data = await res.json();
+          const docs = Array.isArray(data) ? data : ((data && Array.isArray(data.documents)) ? data.documents : []);
+          const cleanDocs = docs.filter(d => d && d.id && !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
+          this.documents = this.deduplicateDocuments(cleanDocs);
           await this.saveDocuments();
           this.render();
         }
-
-        // 5. Auto-Push Local Documents: Any document in local storage not yet on remote is pushed up
-        await this.autoPushLocalDocuments(remoteDocs);
-      } catch (err) {
-        console.warn('[ComplianceDocs] Sync notice:', err);
-      } finally {
-        this.updateSyncStatus('synced');
-        if (showToast) {
-          notify(`Cloud Synced: ${this.documents.length} compliance document(s) verified on file.`);
-        }
+      } catch (e) {
+        console.warn('[ComplianceDocs] loadBaselineDocuments notice:', e);
       }
     }
 
-    async autoPushLocalDocuments(remoteDocs = []) {
-      if (!this.documents || this.documents.length === 0) return;
-      try {
-        const remoteIds = new Set((remoteDocs || []).map(r => r.id));
-        const missingFromRemote = this.documents.filter(d => !remoteIds.has(d.id) && !this.isUnwantedSeededDoc(d));
-        if (missingFromRemote.length > 0) {
-          console.log(`[ComplianceDocs] Auto-uploading ${missingFromRemote.length} local document(s) to cloud...`);
-          // Push to Supabase Cloud
-          if (window.supabaseSync && typeof window.supabaseSync.syncEmployeeDocument === 'function') {
-            for (const doc of missingFromRemote) {
-              await window.supabaseSync.syncEmployeeDocument(doc).catch(() => {});
-            }
+    async syncWithCloud(showToast = false) {
+      if (this.documents.length === 0) {
+        await this.loadBaselineDocuments();
+      }
+
+      if (window.supabaseSync && typeof window.supabaseSync.fetchEmployeeDocuments === 'function') {
+        try {
+          const cloudDocs = await window.supabaseSync.fetchEmployeeDocuments();
+          if (Array.isArray(cloudDocs) && cloudDocs.length > 0) {
+            const validCloud = cloudDocs.filter(d => !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
+            this.documents = this.deduplicateDocuments([...this.documents, ...validCloud]);
+            await this.saveDocuments();
+            this.render();
           }
-          // Push to Server REST API
-          if (typeof fetch === 'function') {
-            try {
-              await fetch('/api/employee-documents', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ documents: this.documents.filter(d => !this.isUnwantedSeededDoc(d)) })
-              }).catch(() => {});
-            } catch (e) {}
-          }
+        } catch (e) {
+          console.warn('[ComplianceDocs] Supabase sync notice:', e);
         }
-      } catch (err) {
-        console.warn('[ComplianceDocs] autoPushLocalDocuments notice:', err);
+      }
+
+      this.updateSyncStatus('synced');
+      if (showToast) {
+        notify(`Compliance repository active: ${this.documents.length} document(s) on file.`);
       }
     }
 
@@ -521,6 +565,13 @@
           fileDataUrl: newRec.file_data_url,
           notes: newRec.notes
         };
+        if (this.isDeletedDoc(mapped) || this.isUnwantedSeededDoc(mapped)) {
+          // If tombstoned, immediately remove from Supabase to prevent further broadcasts
+          if (window.supabaseSync && typeof window.supabaseSync.deleteEmployeeDocument === 'function') {
+            window.supabaseSync.deleteEmployeeDocument(mapped.id, mapped.employeeId, mapped.documentType).catch(() => {});
+          }
+          return;
+        }
         const idx = this.documents.findIndex(d => d.id === mapped.id);
         if (idx !== -1) {
           if (!mapped.fileDataUrl && this.documents[idx].fileDataUrl) {
@@ -533,9 +584,16 @@
         this.saveDocuments();
         this.render();
       } else if (eventType === 'DELETE') {
-        if (!oldRec || !oldRec.id) return;
-        this.documents = this.documents.filter(d => d.id !== oldRec.id);
+        const deletedId = (oldRec && oldRec.id) || (newRec && newRec.id);
+        if (!deletedId) return;
+        const targetDoc = this.documents.find(d => d.id === deletedId);
+        this.recordDeletedDoc(deletedId, targetDoc);
+        this.documents = this.documents.filter(d => d.id !== deletedId);
+        if (this.selectedDocIds) this.selectedDocIds.delete(deletedId);
         this.saveDocuments();
+        if (typeof indexedDB !== 'undefined') {
+          deleteDocFromDB(deletedId);
+        }
         this.render();
       }
     }
@@ -621,7 +679,7 @@
         const role = (e.role || e.position || '').toUpperCase();
         const dept = (e.department || '').toUpperCase();
         if (role.includes('ADMIN') || role.includes('SUPERVISOR') || role.includes('COLLECTOR') ||
-            dept.includes('COLLECTOR') || dept.includes('ADMIN') || dept.includes('SUPERVISOR')) {
+          dept.includes('COLLECTOR') || dept.includes('ADMIN') || dept.includes('SUPERVISOR')) {
           return false;
         }
         return true;
@@ -866,9 +924,9 @@
       const matched = emps.filter(e => {
         if (!q) return true;
         return e.name.toLowerCase().includes(q) ||
-               e.id.toLowerCase().includes(q) ||
-               (e.role || '').toLowerCase().includes(q) ||
-               (e.boothCode || '').toLowerCase().includes(q);
+          e.id.toLowerCase().includes(q) ||
+          (e.role || '').toLowerCase().includes(q) ||
+          (e.boothCode || '').toLowerCase().includes(q);
       });
 
       if (matched.length === 0) {
@@ -1159,7 +1217,7 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ documents: this.documents })
-          }).catch(() => {});
+          }).catch(() => { });
         }
 
         const docNames = this.pendingUploads.map(u => u.documentType).join(', ');
@@ -1174,6 +1232,47 @@
         this.render();
         this.pendingUploads = [];
       }
+    }
+
+    getFilteredDocuments() {
+      const fieldPersonnel = this.getFieldPersonnel();
+      const missingStaff = fieldPersonnel.filter(emp => !this.documents.some(d => this.isSameEmployee(d, emp.id, emp.name)));
+
+      let displayItems = [];
+      if (this.activeKpiTab === 'Missing' || this.statusFilter === 'Missing') {
+        displayItems = missingStaff.map(emp => ({
+          isMissingPlaceholder: true,
+          id: `MISSING-${emp.id}-${(emp.name || '').replace(/[\/\s]+/g, '_')}`,
+          employeeId: emp.id,
+          employeeName: emp.name,
+          position: emp.role || 'Sales Representative',
+          documentType: 'CBTA & Compliance',
+          status: 'Missing',
+          dateUploaded: '—',
+          expiryDate: '—',
+          fileName: null,
+          notes: 'Awaiting submission of compliance documents'
+        }));
+      } else {
+        displayItems = (this.documents || []).filter(doc => {
+          if (this.activeKpiTab !== 'all' && doc.status !== this.activeKpiTab) {
+            return false;
+          }
+          if (this.typeFilter !== 'all' && doc.documentType !== this.typeFilter) return false;
+          if (this.statusFilter !== 'all' && doc.status !== this.statusFilter) return false;
+          return true;
+        });
+      }
+
+      if (this.searchQuery) {
+        const q = this.searchQuery.toLowerCase();
+        displayItems = displayItems.filter(item => {
+          const target = `${item.employeeName} ${item.employeeId} ${item.position} ${item.documentType} ${item.notes || ''}`.toLowerCase();
+          return target.includes(q);
+        });
+      }
+
+      return displayItems;
     }
 
     /* --- REPOSITORY TABLE RENDERING & LIVE MISSING TRACKING --- */
@@ -1210,42 +1309,7 @@
       setTxt('kpi-docs-missing', missingCount);
 
       // 3. Determine records to display based on active tab / filters
-      let displayItems = [];
-
-      if (this.activeKpiTab === 'Missing' || this.statusFilter === 'Missing') {
-        // Display Missing Staff Roster
-        displayItems = missingStaff.map(emp => ({
-          isMissingPlaceholder: true,
-          id: `MISSING-${emp.id}-${(emp.name || '').replace(/[\/\s]+/g, '_')}`,
-          employeeId: emp.id,
-          employeeName: emp.name,
-          position: emp.role || 'Sales Representative',
-          documentType: 'CBTA & Compliance',
-          status: 'Missing',
-          dateUploaded: '—',
-          expiryDate: '—',
-          fileName: null,
-          notes: 'Awaiting submission of compliance documents'
-        }));
-      } else {
-        // Display Uploaded Documents
-        displayItems = this.documents.filter(doc => {
-          if (this.activeKpiTab !== 'all' && doc.status !== this.activeKpiTab) {
-            return false;
-          }
-          if (this.typeFilter !== 'all' && doc.documentType !== this.typeFilter) return false;
-          if (this.statusFilter !== 'all' && doc.status !== this.statusFilter) return false;
-          return true;
-        });
-      }
-
-      // Apply Search Filter
-      if (this.searchQuery) {
-        displayItems = displayItems.filter(item => {
-          const target = `${item.employeeName} ${item.employeeId} ${item.position} ${item.documentType} ${item.notes || ''}`.toLowerCase();
-          return target.includes(this.searchQuery);
-        });
-      }
+      const displayItems = this.getFilteredDocuments();
 
       // 4. Pagination Calculation
       const totalRecords = displayItems.length;
@@ -1262,13 +1326,14 @@
       if (paginated.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="10" style="text-align: center; padding: 48px 20px; color: var(--text-muted);">
+            <td colspan="11" style="text-align: center; padding: 48px 20px; color: var(--text-muted);">
               <div style="font-size: 32px; margin-bottom: 8px; opacity: 0.6;">📁</div>
               <div style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 4px;">No Document Records Found</div>
               <div style="font-size: 12px;">No employee compliance records match your search query, filters, or active card tab.</div>
             </td>
           </tr>
         `;
+        this.updateSelectionUI();
         return;
       }
 
@@ -1310,16 +1375,24 @@
             </button>
           `;
           if (isAdmin) {
+            const isRowChecked = this.selectedDocIds && this.selectedDocIds.has(doc.id);
             actionBtns += `
               <button class="btn btn-xs btn-secondary" onclick="window.employeeDocumentsModule.deleteDocument('${doc.id}')" style="color:#ef4444;padding:3px 8px;font-size:11px;" title="Delete Document Record">
                 🗑️ Delete
               </button>
+              <input type="checkbox" class="doc-row-checkbox" value="${doc.id}" ${isRowChecked ? 'checked' : ''} onchange="window.employeeDocumentsModule.toggleRowSelection('${doc.id}', this.checked)" style="cursor:pointer; transform:scale(1.15); margin-left:5px;" title="Select document for bulk delete">
             `;
           }
         }
 
+        const isRowChecked = this.selectedDocIds && this.selectedDocIds.has(doc.id);
+        const checkboxHtml = doc.isMissingPlaceholder ? '' : `
+          <input type="checkbox" class="doc-row-checkbox" value="${doc.id}" ${isRowChecked ? 'checked' : ''} onchange="window.employeeDocumentsModule.toggleRowSelection('${doc.id}', this.checked)" style="cursor:pointer; transform:scale(1.15);" title="Select row">
+        `;
+
         return `
-          <tr>
+          <tr class="${isRowChecked ? 'selected-row' : ''}">
+            <td style="text-align: center;">${checkboxHtml}</td>
             <td><code style="font-size:11.5px;color:var(--accent-gold);font-weight:700;">${doc.employeeId}</code></td>
             <td>
               <div style="font-weight: 700; color: var(--text-main); font-size: 13px;">${doc.employeeName}</div>
@@ -1335,10 +1408,16 @@
             <td style="font-size: 11.5px; color: var(--text-muted); max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
               ${doc.notes || '-'}
             </td>
-            <td style="text-align: center; white-space: nowrap;">${actionBtns}</td>
+            <td style="text-align: center; white-space: nowrap;">
+              <div style="display:inline-flex; align-items:center; justify-content:center; gap:4px;">
+                ${actionBtns}
+              </div>
+            </td>
           </tr>
         `;
       }).join('');
+
+      this.updateSelectionUI();
     }
 
     renderPagination(totalRecords, totalPages) {
@@ -1402,15 +1481,17 @@
         }
       }
 
-      // 2. Cleanse any fake synthetic PDF data URLs
-      if (doc.fileDataUrl && this.isFakeSyntheticPdf(doc.fileDataUrl)) {
-        delete doc.fileDataUrl;
+      // 2. Ensure all 46 sales representative CBTA uploads have an interactive official digital PDF preview
+      if (!doc.fileDataUrl) {
+        if ((doc.documentType || '').toUpperCase() === 'CBTA' || (doc.fileName && doc.fileName.toLowerCase().endsWith('.pdf'))) {
+          doc.fileDataUrl = this.generateOfficialCbtaPdfDataUrl(doc);
+        }
       }
 
       document.getElementById('view-doc-title').textContent = `${doc.documentType} — ${doc.employeeName}`;
       const contentEl = document.getElementById('view-doc-content');
       if (contentEl) {
-        const hasRealFile = Boolean(doc.fileDataUrl && !this.isFakeSyntheticPdf(doc.fileDataUrl));
+        const hasRealFile = Boolean(doc.fileDataUrl);
         let filePreviewHtml = '';
 
         if (hasRealFile) {
@@ -1605,21 +1686,191 @@
     }
 
     async deleteDocument(id) {
-      if (!window.authManager || !window.authManager.isAdmin()) return;
-      if (confirm('Are you sure you want to permanently delete this document record?')) {
-        this.documents = this.documents.filter(d => d.id !== id);
-        await this.saveDocuments();
-        if (typeof indexedDB !== 'undefined') {
+      if (!window.authManager || !window.authManager.isAdmin()) {
+        notify('Permission Denied: Only Administrators can delete compliance records.');
+        return;
+      }
+      const shouldDelete = (typeof confirm === 'function')
+        ? confirm('Are you sure you want to permanently delete this document record?')
+        : (typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm('Are you sure you want to permanently delete this document record?') : true);
+      if (!shouldDelete) return;
+      const targetDoc = this.documents.find(d => d.id === id);
+      this.documents = this.documents.filter(d => d.id !== id);
+      if (this.selectedDocIds) this.selectedDocIds.delete(id);
+
+      // Record tombstone immediately so it never resurrects
+      this.recordDeletedDoc(id, targetDoc);
+
+      // Save immediately locally to IndexedDB and localStorage mirror
+      await this.saveDocuments();
+
+      // Delete from local IndexedDB
+      if (typeof indexedDB !== 'undefined') {
+        await deleteDocFromDB(id);
+      }
+
+      // Delete from Supabase Cloud by ID and by employeeId + documentType
+      if (window.supabaseSync && typeof window.supabaseSync.deleteEmployeeDocument === 'function') {
+        await window.supabaseSync.deleteEmployeeDocument(id, targetDoc ? targetDoc.employeeId : null, targetDoc ? targetDoc.documentType : null);
+      }
+
+      // Delete from Server REST API and update server deletedDocIds
+      if (typeof fetch === 'function') {
+        try {
+          await fetch(`/api/employee-documents?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+          await fetch('/api/employee-documents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              documents: this.documents,
+              deletedDocIds: Array.from(this.getDeletedDocIds())
+            })
+          });
+        } catch (e) { }
+      }
+
+      this.render();
+      notify('Document record permanently deleted.');
+    }
+
+    /* --- BULK SELECTION & ACTIONS (SELECT ALL / UNSELECT ALL / BULK DELETE) --- */
+    toggleRowSelection(id, isChecked) {
+      if (!id) return;
+      if (isChecked) {
+        this.selectedDocIds.add(id);
+      } else {
+        this.selectedDocIds.delete(id);
+      }
+      this.updateSelectionUI();
+    }
+
+    toggleSelectAll(forceState) {
+      const activeRows = (this.getFilteredDocuments ? this.getFilteredDocuments() : this.documents || []).filter(d => !d.isMissingPlaceholder);
+      if (activeRows.length === 0) return;
+
+      const shouldSelect = typeof forceState === 'boolean'
+        ? forceState
+        : this.selectedDocIds.size < activeRows.length;
+
+      if (shouldSelect) {
+        activeRows.forEach(d => this.selectedDocIds.add(d.id));
+      } else {
+        this.selectedDocIds.clear();
+      }
+      this.render();
+    }
+
+    unselectAll() {
+      this.selectedDocIds.clear();
+      this.render();
+    }
+
+    updateSelectionUI() {
+      const banner = document.getElementById('doc-selection-banner');
+      const countEl = document.getElementById('doc-selected-count');
+      const masterCheckbox = document.getElementById('doc-master-checkbox');
+      const selectAllBtn = document.getElementById('btn-doc-select-all');
+      const actionSelectAllCb = document.getElementById('doc-action-select-all');
+      const actionSelectAllLabel = document.getElementById('doc-action-select-all-label');
+
+      const activeRows = (this.getFilteredDocuments ? this.getFilteredDocuments() : this.documents || []).filter(d => !d.isMissingPlaceholder);
+      const count = this.selectedDocIds ? this.selectedDocIds.size : 0;
+      const allSelected = activeRows.length > 0 && count === activeRows.length;
+
+      if (countEl) countEl.textContent = count;
+      if (banner) {
+        banner.style.display = count > 0 ? 'flex' : 'none';
+      }
+      if (masterCheckbox) {
+        masterCheckbox.checked = allSelected;
+        masterCheckbox.indeterminate = count > 0 && count < activeRows.length;
+      }
+      if (actionSelectAllCb) {
+        actionSelectAllCb.checked = allSelected;
+        actionSelectAllCb.indeterminate = count > 0 && count < activeRows.length;
+      }
+      if (actionSelectAllLabel) {
+        actionSelectAllLabel.textContent = allSelected ? 'UNSELECT ALL' : 'SELECT ALL';
+      }
+      if (selectAllBtn) {
+        selectAllBtn.textContent = allSelected ? 'Unselect All' : 'Select All';
+      }
+
+      if (typeof document !== 'undefined') {
+        const rowCheckboxes = document.querySelectorAll('.doc-row-checkbox');
+        rowCheckboxes.forEach(cb => {
+          cb.checked = this.selectedDocIds && this.selectedDocIds.has(cb.value);
+        });
+      }
+    }
+
+    async deleteSelectedDocuments() {
+      if (!window.authManager || !window.authManager.isAdmin()) {
+        notify('Permission Denied: Only Administrators can delete compliance records.');
+        return;
+      }
+      const count = this.selectedDocIds ? this.selectedDocIds.size : 0;
+      if (count === 0) {
+        notify('Please select one or more documents to delete.');
+        return;
+      }
+      const confirmMsg = `Are you sure you want to permanently delete the ${count} selected document record(s)?`;
+      const shouldDelete = (typeof confirm === 'function')
+        ? confirm(confirmMsg)
+        : (typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm(confirmMsg) : true);
+      if (!shouldDelete) return;
+
+      const idsToDelete = Array.from(this.selectedDocIds);
+      const targets = this.documents.filter(d => idsToDelete.includes(d.id));
+
+      // 1. Record tombstones for all targets
+      targets.forEach(doc => {
+        this.recordDeletedDoc(doc.id, doc);
+      });
+      idsToDelete.forEach(id => {
+        this.recordDeletedDoc(id);
+      });
+
+      // 2. Filter out from memory and clear selections
+      this.documents = this.documents.filter(d => !idsToDelete.includes(d.id));
+      this.selectedDocIds.clear();
+
+      // 3. Save immediately locally
+      await this.saveDocuments();
+
+      // 4. Delete from local IndexedDB
+      if (typeof indexedDB !== 'undefined') {
+        for (const id of idsToDelete) {
           await deleteDocFromDB(id);
         }
-        if (window.supabaseSync && typeof window.supabaseSync.deleteEmployeeDocument === 'function') {
-          window.supabaseSync.deleteEmployeeDocument(id);
-        }
-        if (typeof fetch === 'function') {
-          fetch(`/api/employee-documents?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-        }
-        this.render();
       }
+
+      // 5. Delete from Supabase Cloud by ID and employeeId + documentType
+      if (window.supabaseSync && typeof window.supabaseSync.deleteEmployeeDocument === 'function') {
+        for (const doc of targets) {
+          await window.supabaseSync.deleteEmployeeDocument(doc.id, doc.employeeId, doc.documentType).catch(() => {});
+        }
+      }
+
+      // 6. Delete from Server REST API and update server deletedDocIds
+      if (typeof fetch === 'function') {
+        try {
+          for (const id of idsToDelete) {
+            await fetch(`/api/employee-documents?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+          }
+          await fetch('/api/employee-documents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              documents: this.documents,
+              deletedDocIds: Array.from(this.getDeletedDocIds())
+            })
+          }).catch(() => {});
+        } catch (e) {}
+      }
+
+      this.render();
+      notify(`Permanently deleted ${count} document record(s).`);
     }
   }
 

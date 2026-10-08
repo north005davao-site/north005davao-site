@@ -684,6 +684,25 @@
           }
         }
 
+        // Priority 3: Authoritative check against Master Registry Authentic Coordinates dictionary
+        if (!gps.isValid) {
+          const authDict = (typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined')
+            ? AUTHENTIC_MASTER_REGISTRY_COORDINATES
+            : ((typeof window !== 'undefined' && window.AUTHENTIC_MASTER_REGISTRY_COORDINATES) ? window.AUTHENTIC_MASTER_REGISTRY_COORDINATES : (typeof global !== 'undefined' && global.AUTHENTIC_MASTER_REGISTRY_COORDINATES ? global.AUTHENTIC_MASTER_REGISTRY_COORDINATES : null));
+          if (authDict) {
+            const authEntry = authDict[normBoothCode] || (entry.rawBoothCode ? authDict[entry.rawBoothCode] : null) || authDict[normBoothCode.replace('DDN-', '')];
+            if (authEntry && typeof authEntry.lat === 'number' && typeof authEntry.lng === 'number') {
+              const dictGps = parseGpsCoordinates(authEntry);
+              if (dictGps.isValid) {
+                gps = dictGps;
+                if (authEntry.municipality && (!entry.municipality || entry.municipality === '-')) {
+                  entry.municipality = authEntry.municipality;
+                }
+              }
+            }
+          }
+        }
+
         // Section 11 & 12: If no valid GPS coordinates exist in Master Registry, DO NOT place on map!
         // Record and log the specific Booth Code for diagnostic tracking
         if (!gps.isValid) {

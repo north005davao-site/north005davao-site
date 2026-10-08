@@ -196,7 +196,20 @@ assert.strictEqual(portalEl.style.display, 'flex', 'Landing portal restored upon
 console.log('✓ TEST 9: Logout restores the NORTH-005 landing portal');
 
 // TEST 10: Role permissions unharmed
-const colLogin = auth.login('collector', 'Collect123!');
+const allUsers = auth.getUsers();
+if (!allUsers.some(u => u.username === 'testcollector')) {
+  allUsers.push({
+    id: 'USR-TEST-COL',
+    username: 'testcollector',
+    password: 'Collect123!',
+    role: 'Collector',
+    department: 'Field Collector Units',
+    status: 'Active',
+    name: 'Test Collector'
+  });
+  auth.saveUsers(allUsers);
+}
+const colLogin = auth.login('testcollector', 'Collect123!');
 assert.strictEqual(colLogin.success, true);
 assert.strictEqual(auth.isCollector(), true);
 assert.strictEqual(auth.canAccessView('view-dashboard'), true);

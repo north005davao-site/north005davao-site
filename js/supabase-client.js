@@ -278,19 +278,35 @@
       }
     }
 
-    async deleteEmployeeDocument(id) {
-      if (!this.client || !id) return false;
+    async deleteEmployeeDocument(id, employeeId, documentType) {
+      if (!this.client || (!id && !employeeId)) return false;
       try {
-        const { error } = await this.client
-          .from('employee_documents')
-          .delete()
-          .eq('id', id);
-
-        if (error) {
-          console.warn('Supabase deleteEmployeeDocument notice:', error.message);
-          return false;
+        let success = true;
+        if (id) {
+          const { error } = await this.client
+            .from('employee_documents')
+            .delete()
+            .eq('id', id);
+          if (error) {
+            console.warn('Supabase deleteEmployeeDocument notice:', error.message);
+            success = false;
+          }
         }
-        return true;
+        if (employeeId && documentType) {
+          await this.client
+            .from('employee_documents')
+            .delete()
+            .eq('employee_id', employeeId)
+            .eq('document_type', documentType)
+            .catch(() => {});
+        } else if (employeeId) {
+          await this.client
+            .from('employee_documents')
+            .delete()
+            .eq('employee_id', employeeId)
+            .catch(() => {});
+        }
+        return success;
       } catch (err) {
         console.error('Failed to delete employee document from Supabase:', err);
         return false;
