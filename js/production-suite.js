@@ -513,11 +513,24 @@
             remoteList = sList;
           }
         }
-        // 2. Node Server REST API fallback
+        // 2. Static data file fallback (works directly on Vercel / GitHub Pages)
+        if (remoteList.length === 0 && typeof fetch === 'function') {
+          try {
+            const staticRes = await fetch('/data/snapshots.json');
+            if (staticRes.ok) {
+              const staticData = await staticRes.json();
+              const sList = Array.isArray(staticData) ? staticData : (staticData && Array.isArray(staticData.snapshots) ? staticData.snapshots : []);
+              if (sList.length > 0) remoteList = sList;
+            }
+          } catch (eStatic) {}
+        }
+
+        // 3. Node Server REST API fallback
         if (remoteList.length === 0 && typeof fetch === 'function') {
           try {
             const srvRes = await fetch('/api/snapshots');
-            if (srvRes.ok) {
+            const ct = srvRes.headers ? (srvRes.headers.get('content-type') || '') : '';
+            if (srvRes.ok && ct.includes('application/json')) {
               const srvData = await srvRes.json();
               const sList = Array.isArray(srvData) ? srvData : (srvData && Array.isArray(srvData.snapshots) ? srvData.snapshots : []);
               if (sList.length > 0) remoteList = sList;
@@ -746,9 +759,9 @@
       // 3. MODULE: ETS Live Tracking (GPS Bounds Audit)
       let invalidGpsCount = 0;
       booths.forEach(b => {
-        const lat = parseFloat(b.lat);
-        const lng = parseFloat(b.lng);
-        // Davao Del Norte GPS bounding box approx: Lat 7.0-7.9, Lng 125.3-126.3
+        const lat = parseFloat(b.lat || (b.coordinates && b.coordinates.lat));
+        const lng = parseFloat(b.lng || (b.coordinates && b.coordinates.lng));
+        // Davao Del Norte GPS bounding box approx: Lat 6.8-8.0, Lng 125.0-126.5
         if (!lat || !lng || isNaN(lat) || isNaN(lng) || lat < 6.8 || lat > 8.0 || lng < 125.0 || lng > 126.5) {
           invalidGpsCount++;
         }
@@ -944,9 +957,13 @@
       if (relFixed > 0) actionsApplied.push(`Aligned ${relFixed} relievers to canonical ID DDN005-SR000`);
 
       // 3. Ensure the 7 unused booths are registered
-      if (typeof RAW_UNUSED_BOOTHS !== 'undefined' && store.data.booths) {
+      const rawUnusedBoothsList = (typeof RAW_UNUSED_BOOTHS !== 'undefined') 
+        ? RAW_UNUSED_BOOTHS 
+        : (typeof window !== 'undefined' && window.RAW_UNUSED_BOOTHS ? window.RAW_UNUSED_BOOTHS : (typeof global !== 'undefined' && global.RAW_UNUSED_BOOTHS ? global.RAW_UNUSED_BOOTHS : []));
+
+      if (rawUnusedBoothsList.length > 0 && store.data.booths) {
         let addedUnused = 0;
-        RAW_UNUSED_BOOTHS.forEach(ub => {
+        rawUnusedBoothsList.forEach(ub => {
           const code = ub.boothCode.toUpperCase();
           let b = store.data.booths.find(x => (x.id || x.code || '').toUpperCase() === code);
           if (!b) {
@@ -976,25 +993,83 @@
       }
 
       // 4. Auto-repair booth GPS coordinates if missing or invalid
-      if (store.data.booths && typeof BOOTH_GPS_COORDINATES !== 'undefined') {
+      if (store.data.booths) {
         let gpsRepaired = 0;
+        const coordsMap = (typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined')
+          ? AUTHENTIC_MASTER_REGISTRY_COORDINATES
+          : (typeof window !== 'undefined' && window.AUTHENTIC_MASTER_REGISTRY_COORDINATES ? window.AUTHENTIC_MASTER_REGISTRY_COORDINATES : (typeof global !== 'undefined' && global.AUTHENTIC_MASTER_REGISTRY_COORDINATES ? global.AUTHENTIC_MASTER_REGISTRY_COORDINATES : {}));
+        const unusedList = rawUnusedBoothsList;
+        const unusedMap = {};
+        unusedList.forEach(u => {
+          if (u.boothCode && u.lat && u.lng) {
+            unusedMap[u.boothCode.toUpperCase()] = { lat: u.lat, lng: u.lng };
+          }
+        });
+
         store.data.booths.forEach(b => {
-          const code = (b.id || b.code || '').toUpperCase();
-          const lat = parseFloat(b.lat);
-          const lng = parseFloat(b.lng);
-          if (!lat || !lng || isNaN(lat) || isNaN(lng) || lat < 6.8 || lat > 8.0) {
-            const canonical = BOOTH_GPS_COORDINATES[code];
+          const code = (b.id || b.code || '').toUpperCase().trim();
+          let lat = parseFloat(b.lat || (b.coordinates && b.coordinates.lat));
+          let lng = parseFloat(b.lng || (b.coordinates && b.coordinates.lng));
+          if (!lat || !lng || isNaN(lat) || isNaN(lng) || lat < 6.8 || lat > 8.0 || lng < 125.0 || lng > 126.5) {
+            const canonical = coordsMap[code] || unusedMap[code];
             if (canonical && canonical.lat && canonical.lng) {
               b.lat = canonical.lat;
               b.lng = canonical.lng;
+              b.coordinates = { lat: canonical.lat, lng: canonical.lng };
               gpsRepaired++;
             }
+          } else {
+            b.lat = lat;
+            b.lng = lng;
+            b.coordinates = { lat, lng };
           }
         });
         if (gpsRepaired > 0) actionsApplied.push(`Repaired ${gpsRepaired} booth GPS coordinates`);
       }
 
-      // 5. Run Store ID Sanitizer
+      // 5. Enforce Canonical Operational Staff & Workforce Alignment (strictly 150 Op Staff / 158 Total)
+      if (store.data.employees && Array.isArray(store.data.employees)) {
+        const isLeadership = (emp) => {
+          const r = (emp.role || emp.position || '').toUpperCase();
+          const d = (emp.department || '').toUpperCase();
+          return r.includes('ADMIN') || r.includes('SUPERVISOR') || r.includes('TEAM LEADER') || r.includes('COLLECTOR') || d.includes('COLLECTOR') || d.includes('ADMIN');
+        };
+
+        const leadership = store.data.employees.filter(e => isLeadership(e));
+        const opStaff = store.data.employees.filter(e => !isLeadership(e));
+
+        // Deduplicate operational staff by name / assigned booth
+        const seenTellers = new Set();
+        const seenRelievers = new Set();
+        const cleanOpStaff = [];
+
+        opStaff.forEach(emp => {
+          const isRel = (emp.role || emp.position || '').toUpperCase().includes('RELIEVER');
+          const cleanName = (emp.name || '').trim().toLowerCase();
+          const cleanBooth = (emp.boothCode || emp.booth || '').trim().toUpperCase();
+
+          if (isRel) {
+            if (!seenRelievers.has(cleanName)) {
+              seenRelievers.add(cleanName);
+              emp.id = 'DDN005-SR000';
+              cleanOpStaff.push(emp);
+            }
+          } else {
+            const key = (cleanBooth && cleanBooth !== '-') ? cleanBooth : cleanName;
+            if (!seenTellers.has(key)) {
+              seenTellers.add(key);
+              cleanOpStaff.push(emp);
+            }
+          }
+        });
+
+        if (opStaff.length !== cleanOpStaff.length) {
+          actionsApplied.push(`Deduplicated & normalized ${opStaff.length - cleanOpStaff.length} excess staff records`);
+          store.data.employees = [...leadership, ...cleanOpStaff];
+        }
+      }
+
+      // 6. Run Store ID Sanitizer
       if (typeof store.sanitizeEmployeeIds === 'function') {
         store.sanitizeEmployeeIds();
         actionsApplied.push('Ran Master Registry ID sanitization routine');

@@ -242,104 +242,125 @@
       }
     }
 
-    /* --- CROSS-DEVICE CLOUD SYNCHRONIZATION (SUPABASE + SERVER REST) --- */
+    /* --- CROSS-DEVICE CLOUD SYNCHRONIZATION (STATIC SEED + SUPABASE + SERVER REST) --- */
     async syncWithCloud(showToast = false) {
       this.updateSyncStatus('syncing');
       let fetchedRemote = false;
       const remoteDocs = [];
 
-      // 1. Fetch from Supabase Cloud Database (Primary Realtime Engine)
       try {
-        if (window.supabaseSync && typeof window.supabaseSync.fetchEmployeeDocuments === 'function') {
-          const supaDocs = await window.supabaseSync.fetchEmployeeDocuments();
-          if (Array.isArray(supaDocs)) {
-            supaDocs.forEach(d => {
-              if (d && d.id && !remoteDocs.some(r => r.id === d.id)) {
-                remoteDocs.push(d);
-              }
-            });
-            fetchedRemote = true;
-          }
-        }
-      } catch (eSupa) {
-        console.warn('[ComplianceDocs] Supabase sync fetch notice:', eSupa);
-      }
-
-      // 2. Fetch from Node Server REST API (/api/employee-documents)
-      try {
+        // 1. Fetch from static data file (instant cross-device baseline on Vercel / Web)
         if (typeof fetch === 'function') {
-          const srvRes = await fetch('/api/employee-documents');
-          if (srvRes.ok) {
-            const srvData = await srvRes.json();
-            const srvDocs = Array.isArray(srvData) ? srvData : (srvData && Array.isArray(srvData.documents) ? srvData.documents : []);
-            srvDocs.forEach(d => {
-              if (d && d.id && !remoteDocs.some(r => r.id === d.id)) {
-                remoteDocs.push(d);
-              }
-            });
-            fetchedRemote = true;
-          }
+          try {
+            const staticRes = await fetch('/data/employee_documents.json');
+            if (staticRes.ok) {
+              const staticData = await staticRes.json();
+              const sDocs = Array.isArray(staticData) ? staticData : (staticData && Array.isArray(staticData.documents) ? staticData.documents : []);
+              sDocs.forEach(d => {
+                if (d && d.id && !remoteDocs.some(r => r.id === d.id)) {
+                  remoteDocs.push(d);
+                }
+              });
+              if (sDocs.length > 0) fetchedRemote = true;
+            }
+          } catch (eStatic) {}
+
+          // 2. Fetch from Node Server REST API (/api/employee-documents) if running locally
+          try {
+            const srvRes = await fetch('/api/employee-documents');
+            const ct = srvRes.headers ? (srvRes.headers.get('content-type') || '') : '';
+            if (srvRes.ok && ct.includes('application/json')) {
+              const srvData = await srvRes.json();
+              const srvDocs = Array.isArray(srvData) ? srvData : (srvData && Array.isArray(srvData.documents) ? srvData.documents : []);
+              srvDocs.forEach(d => {
+                if (d && d.id && !remoteDocs.some(r => r.id === d.id)) {
+                  remoteDocs.push(d);
+                }
+              });
+              if (srvDocs.length > 0) fetchedRemote = true;
+            }
+          } catch (eSrv) {}
         }
-      } catch (eSrv) {
-        // Quiet fallback when operating in purely static or offline mode
-      }
 
-      // 3. Bidirectional Merge: Blend remote documents with local documents
-      if (fetchedRemote && remoteDocs.length > 0) {
-        const docMap = new Map();
-        remoteDocs.forEach(d => { if (d && d.id) docMap.set(d.id, d); });
-
-        // Retain and protect local documents, preserving local binary data URLs
-        this.documents.forEach(d => {
-          if (d && d.id) {
-            if (!docMap.has(d.id)) {
-              docMap.set(d.id, d);
-            } else {
-              const rDoc = docMap.get(d.id);
-              if (!rDoc.fileDataUrl && d.fileDataUrl) {
-                rDoc.fileDataUrl = d.fileDataUrl;
-              }
+        // 3. Fetch from Supabase Cloud Database (if online)
+        try {
+          if (window.supabaseSync && typeof window.supabaseSync.fetchEmployeeDocuments === 'function') {
+            const supaDocs = await window.supabaseSync.fetchEmployeeDocuments();
+            if (Array.isArray(supaDocs)) {
+              supaDocs.forEach(d => {
+                if (d && d.id && !remoteDocs.some(r => r.id === d.id)) {
+                  remoteDocs.push(d);
+                }
+              });
+              if (supaDocs.length > 0) fetchedRemote = true;
             }
           }
-        });
+        } catch (eSupa) {
+          console.warn('[ComplianceDocs] Supabase sync fetch notice:', eSupa);
+        }
 
-        this.documents = Array.from(docMap.values());
-        await this.saveDocuments();
-        this.render();
-      }
+        // 4. Bidirectional Merge: Blend remote documents with local documents
+        if (fetchedRemote && remoteDocs.length > 0) {
+          const docMap = new Map();
+          remoteDocs.forEach(d => { if (d && d.id) docMap.set(d.id, d); });
 
-      // 4. Auto-Push Local Documents: Any document in local storage not yet on remote is pushed up
-      await this.autoPushLocalDocuments(remoteDocs);
+          // Retain and protect local documents, preserving local binary data URLs
+          this.documents.forEach(d => {
+            if (d && d.id) {
+              if (!docMap.has(d.id)) {
+                docMap.set(d.id, d);
+              } else {
+                const rDoc = docMap.get(d.id);
+                if (!rDoc.fileDataUrl && d.fileDataUrl) {
+                  rDoc.fileDataUrl = d.fileDataUrl;
+                }
+              }
+            }
+          });
 
-      this.updateSyncStatus('synced');
-      if (showToast) {
-        notify(`Cloud Synced: ${this.documents.length} compliance document(s) verified on file.`);
+          this.documents = Array.from(docMap.values());
+          await this.saveDocuments();
+          this.render();
+        }
+
+        // 5. Auto-Push Local Documents: Any document in local storage not yet on remote is pushed up
+        await this.autoPushLocalDocuments(remoteDocs);
+      } catch (err) {
+        console.warn('[ComplianceDocs] Sync notice:', err);
+      } finally {
+        this.updateSyncStatus('synced');
+        if (showToast) {
+          notify(`Cloud Synced: ${this.documents.length} compliance document(s) verified on file.`);
+        }
       }
     }
 
     async autoPushLocalDocuments(remoteDocs = []) {
       if (!this.documents || this.documents.length === 0) return;
-      const remoteIds = new Set((remoteDocs || []).map(r => r.id));
-
-      const missingFromRemote = this.documents.filter(d => !remoteIds.has(d.id));
-      if (missingFromRemote.length > 0) {
-        console.log(`[ComplianceDocs] Auto-uploading ${missingFromRemote.length} local document(s) to cloud...`);
-        // Push to Supabase Cloud
-        if (window.supabaseSync && typeof window.supabaseSync.syncEmployeeDocument === 'function') {
-          for (const doc of missingFromRemote) {
-            await window.supabaseSync.syncEmployeeDocument(doc);
+      try {
+        const remoteIds = new Set((remoteDocs || []).map(r => r.id));
+        const missingFromRemote = this.documents.filter(d => !remoteIds.has(d.id));
+        if (missingFromRemote.length > 0) {
+          console.log(`[ComplianceDocs] Auto-uploading ${missingFromRemote.length} local document(s) to cloud...`);
+          // Push to Supabase Cloud
+          if (window.supabaseSync && typeof window.supabaseSync.syncEmployeeDocument === 'function') {
+            for (const doc of missingFromRemote) {
+              await window.supabaseSync.syncEmployeeDocument(doc).catch(() => {});
+            }
+          }
+          // Push to Server REST API
+          if (typeof fetch === 'function') {
+            try {
+              await fetch('/api/employee-documents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ documents: this.documents })
+              }).catch(() => {});
+            } catch (e) {}
           }
         }
-        // Push to Server REST API
-        if (typeof fetch === 'function') {
-          try {
-            await fetch('/api/employee-documents', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ documents: this.documents })
-            });
-          } catch (e) {}
-        }
+      } catch (err) {
+        console.warn('[ComplianceDocs] autoPushLocalDocuments notice:', err);
       }
     }
 

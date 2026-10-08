@@ -2195,41 +2195,45 @@
               <p>Organized compliance documents, IDs, medical clearances, and contracts linked to Master Registry
                 employees</p>
             </div>
-            <div class="view-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-              <div style="position: relative;">
-                <input type="text" id="docs-search-input" list="docs-search-datalist" class="form-input"
-                  placeholder="Search employee or document..." style="width: 220px;"
-                  oninput="window.employeeDocumentsModule.filterDocuments()">
-                <datalist id="docs-search-datalist"></datalist>
+            <div class="view-actions docs-toolbar-actions">
+              <div class="docs-toolbar-filters">
+                <div style="position: relative; flex: 1; min-width: 180px;">
+                  <input type="text" id="docs-search-input" list="docs-search-datalist" class="form-input"
+                    placeholder="Search employee or document..." style="width: 100%;"
+                    oninput="window.employeeDocumentsModule.filterDocuments()">
+                  <datalist id="docs-search-datalist"></datalist>
+                </div>
+                <select id="docs-filter-type" class="form-input docs-select-type"
+                  onchange="window.employeeDocumentsModule.filterDocuments()">
+                  <option value="all">All Document Types</option>
+                  <option value="RESUME">Resume</option>
+                  <option value="PHOTOCOPY OF VALID ID">Photocopy of Valid ID</option>
+                  <option value="BARANGAY CLEARANCE/POLICE CLEARANCE">Barangay / Police Clearance</option>
+                  <option value="CBTA">Commission Based Teller Agreement (CBTA)</option>
+                </select>
+                <select id="docs-filter-status" class="form-input docs-select-status"
+                  onchange="window.employeeDocumentsModule.filterDocuments()">
+                  <option value="all">All Statuses</option>
+                  <option value="Complete">Complete / Valid</option>
+                  <option value="Expiring Soon">Expiring Soon</option>
+                  <option value="Expired">Expired</option>
+                  <option value="Missing">Missing</option>
+                </select>
               </div>
-              <select id="docs-filter-type" class="form-input" style="width: 220px;"
-                onchange="window.employeeDocumentsModule.filterDocuments()">
-                <option value="all">All Document Types</option>
-                <option value="RESUME">Resume</option>
-                <option value="PHOTOCOPY OF VALID ID">Photocopy of Valid ID</option>
-                <option value="BARANGAY CLEARANCE/POLICE CLEARANCE">Barangay / Police Clearance</option>
-                <option value="CBTA">Commission Based Teller Agreement (CBTA)</option>
-              </select>
-              <select id="docs-filter-status" class="form-input" style="width: 140px;"
-                onchange="window.employeeDocumentsModule.filterDocuments()">
-                <option value="all">All Statuses</option>
-                <option value="Complete">Complete / Valid</option>
-                <option value="Expiring Soon">Expiring Soon</option>
-                <option value="Expired">Expired</option>
-                <option value="Missing">Missing</option>
-              </select>
-              <div id="docs-sync-status-badge" style="display: inline-flex; align-items: center; padding: 4px 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 6px;">
-                <span style="color:#4ade80;font-size:11px;font-weight:700;">☁️ Cloud Synced</span>
+              <div class="docs-toolbar-buttons">
+                <div id="docs-sync-status-badge" class="docs-sync-badge" style="display: inline-flex; align-items: center; padding: 5px 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 6px;">
+                  <span style="color:#4ade80;font-size:11px;font-weight:700;">☁️ Cloud Synced</span>
+                </div>
+                <button class="btn btn-secondary btn-sm"
+                  onclick="window.employeeDocumentsModule.syncWithCloud(true)"
+                  title="Synchronize compliance documents with Cloud">
+                  🔄 Sync Cloud
+                </button>
+                <button class="btn btn-primary btn-sm admin-only-action"
+                  onclick="window.employeeDocumentsModule.openUploadModal()">
+                  + Upload Document
+                </button>
               </div>
-              <button class="btn btn-secondary btn-sm"
-                onclick="window.employeeDocumentsModule.syncWithCloud(true)"
-                title="Synchronize compliance documents with Supabase Cloud & Server">
-                🔄 Sync Cloud
-              </button>
-              <button class="btn btn-primary btn-sm admin-only-action"
-                onclick="window.employeeDocumentsModule.openUploadModal()">
-                + Upload Document
-              </button>
             </div>
           </div>
 

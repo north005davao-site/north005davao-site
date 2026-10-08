@@ -224,6 +224,8 @@ const AUTHENTIC_MASTER_REGISTRY_COORDINATES = {
 };
 
 const MASTER_REGISTRY_BOOTH_COORDINATES = AUTHENTIC_MASTER_REGISTRY_COORDINATES;
+if (typeof window !== 'undefined') window.AUTHENTIC_MASTER_REGISTRY_COORDINATES = AUTHENTIC_MASTER_REGISTRY_COORDINATES;
+if (typeof global !== 'undefined') global.AUTHENTIC_MASTER_REGISTRY_COORDINATES = AUTHENTIC_MASTER_REGISTRY_COORDINATES;
 
 // 1. Raw Tellers Data (116 Active Primary Sales Representatives from September 2026 Masterlist)
 const RAW_TELLERS = [
@@ -533,6 +535,9 @@ const RAW_UNUSED_BOOTHS = [
     coordinates: { lat: 6.997705, lng: 125.733667 }
   }
 ];
+
+if (typeof window !== 'undefined') window.RAW_UNUSED_BOOTHS = RAW_UNUSED_BOOTHS;
+if (typeof global !== 'undefined') global.RAW_UNUSED_BOOTHS = RAW_UNUSED_BOOTHS;
 
 const RAW_INACTIVE_BOOTHS = [];
 const RAW_TERMINATED_TELLERS = [];

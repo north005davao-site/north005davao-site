@@ -3133,6 +3133,91 @@ button, input, select, textarea {
   100% { left: 100%; }
 }
 
+/* ==========================================================================
+   EMPLOYEE DOCUMENTS TOOLBAR RESPONSIVE STYLING (CROSS-DEVICE FIX)
+   ========================================================================== */
+.docs-toolbar-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  width: auto;
+}
+
+.docs-toolbar-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.docs-select-type {
+  width: 220px;
+}
+
+.docs-select-status {
+  width: 140px;
+}
+
+.docs-toolbar-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  #view-employee-documents .view-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .docs-toolbar-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .docs-toolbar-filters {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .docs-toolbar-filters > div:first-child {
+    grid-column: 1 / -1;
+    width: 100% !important;
+  }
+
+  .docs-select-type {
+    width: 100% !important;
+  }
+
+  .docs-select-status {
+    width: 100% !important;
+  }
+
+  .docs-toolbar-buttons {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .docs-toolbar-buttons .btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  #docs-sync-status-badge {
+    flex-shrink: 0;
+  }
+}
+
+
 
 
 
