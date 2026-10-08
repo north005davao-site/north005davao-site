@@ -202,57 +202,74 @@
       return (id || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     }
 
-    generateOfficialCbtaPdfDataUrl(doc) {
-      const name = (doc.employeeName || 'Staff Member').toUpperCase();
-      const id = doc.employeeId || 'DDN005-STAFF';
-      const role = doc.position || 'Sales Representative';
-      const date = doc.dateUploaded || '2026-10-07';
-      const file = doc.fileName || 'CBTA_Agreement.pdf';
+    isUnwantedSeededDoc(doc) {
+      if (!doc) return false;
+      const name = (doc.employeeName || '').toLowerCase().trim();
+      const file = (doc.fileName || '').toLowerCase().trim();
+      
+      const UNWANTED_SEEDER_NAMES = [
+        'princess solamillo', 'solamillo princess',
+        'kei pagulong', 'pagulong kei',
+        'jessa busaco', 'busaco jessa',
+        'othmarie lupiba', 'lupiba othmarie',
+        'faith hermoso', 'hermoso faith',
+        'mari sarol', 'sarol mari',
+        'ellen rino', 'ellen riño', 'rino ellen', 'riño ellen',
+        'angelie tiedra', 'tiedra angelie',
+        'noreen d bayang', 'noreen d. bayang', 'bayang noreen d',
+        'rhea mae m bolilawa', 'rhea mae m. bolilawa', 'bolilawa rhea mae m',
+        'jasnen parame aquino', 'aquino jasnen parame',
+        'marjory torino', 'torino marjory',
+        'gina paula gemino', 'gemino gina paula',
+        'jennifer m osman', 'jennifer m. osman', 'osman jennifer m',
+        'ferlyn zamora robello', 'robello ferlyn zamora',
+        'jeziel r simene', 'jeziel r. simene', 'simene jeziel r',
+        'karen batas', 'batas karen',
+        'elyn t rosento', 'elyn t. rosento', 'rosento elyn t',
+        'ester mopon', 'mopon ester',
+        'christly ann tuasoc', 'tuasoc christly ann',
+        'jane christine tuasoc', 'tuasoc jane christine',
+        'clouie mae hipos', 'hipos clouie mae',
+        'aires monreal', 'monreal aires',
+        'precious nica torrefiel', 'torrefiel precious nica',
+        'jemma rose roco', 'roco jemma rose',
+        'carolyn joy catubigan', 'catubigan carolyn joy',
+        'pamela denisse g antequeza', 'pamela denisse g. antequeza', 'antequeza pamela denisse g',
+        'bbelen apatan', 'apatan bbelen',
+        'laika jeanne sapine', 'sapine laika jeanne',
+        'jeah rica linsay', 'linsay jeah rica',
+        'kristina cassandra d lumidin', 'kristina cassandra d. lumidin', 'lumidin kristina cassandra d',
+        'mae jean gementiza', 'gementiza mae jean'
+      ];
 
-      const streamText = 
-        'BT /F1 18 Tf 50 730 Td (NORTH-005 DAVAO DEL NORTE HQ) Tj ET ' +
-        'BT /F1 12 Tf 50 705 Td (OFFICIAL COMPLIANCE REPOSITORY - CBTA AGREEMENT) Tj ET ' +
-        'BT /F1 10 Tf 50 670 Td (--------------------------------------------------------------------------------) Tj ET ' +
-        'BT /F1 11 Tf 50 640 Td (EMPLOYEE NAME: ' + name + ') Tj ET ' +
-        'BT /F1 11 Tf 50 620 Td (MASTER REGISTRY ID: ' + id + ') Tj ET ' +
-        'BT /F1 11 Tf 50 600 Td (DESIGNATION: ' + role + ') Tj ET ' +
-        'BT /F1 11 Tf 50 580 Td (DOCUMENT TYPE: COMMISSION-BASED TELLER AGREEMENT [CBTA]) Tj ET ' +
-        'BT /F1 11 Tf 50 560 Td (ATTACHMENT FILE: ' + file + ') Tj ET ' +
-        'BT /F1 11 Tf 50 540 Td (DATE CERTIFIED / UPLOADED: ' + date + ') Tj ET ' +
-        'BT /F1 11 Tf 50 520 Td (COMPLIANCE STATUS: COMPLETE / VALID) Tj ET ' +
-        'BT /F1 10 Tf 50 480 Td (--------------------------------------------------------------------------------) Tj ET ' +
-        'BT /F1 10 Tf 50 450 Td (CERTIFICATION STATEMENT:) Tj ET ' +
-        'BT /F1 9 Tf 50 430 Td (This digital document verifies that the operational personnel identified above) Tj ET ' +
-        'BT /F1 9 Tf 50 415 Td (has fully executed and submitted the official Capacity Building & Teller Agreement) Tj ET ' +
-        'BT /F1 9 Tf 50 400 Td (for deployment across official STL terminal stations in Davao Del Norte.) Tj ET ' +
-        'BT /F1 9 Tf 50 370 Td (Recorded by: Operations Administration - Davao Del Norte Control Center) Tj ET ' +
-        'BT /F1 9 Tf 50 355 Td (Apex OmniERP v4.0 - Digital Audit & Compliance Security Suite) Tj ET';
-
-      const content = [
-        '%PDF-1.4',
-        '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
-        '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
-        '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj',
-        '4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> endobj',
-        '5 0 obj << /Length ' + streamText.length + ' >> stream\n' + streamText + '\nendstream endobj',
-        'xref',
-        '0 6',
-        '0000000000 65535 f ',
-        '0000000009 00000 n ',
-        '0000000058 00000 n ',
-        '0000000115 00000 n ',
-        '0000000227 00000 n ',
-        '0000000305 00000 n ',
-        'trailer << /Size 6 /Root 1 0 R >>',
-        'startxref',
-        '0',
-        '%%EOF'
-      ].join('\n');
-
-      return 'data:application/pdf;base64,' + (typeof btoa === 'function' ? btoa(content) : Buffer.from(content).toString('base64'));
+      for (const seeded of UNWANTED_SEEDER_NAMES) {
+        if (name === seeded || name.includes(seeded) || file.includes(seeded)) {
+          return true;
+        }
+      }
+      return false;
     }
 
-    // Intelligent deduplication: Collapses ID dash variations & middle initials, preserves binary fileDataUrls
+    isFakeSyntheticPdf(dataUrl) {
+      if (!dataUrl || typeof dataUrl !== 'string') return false;
+      if (!dataUrl.startsWith('data:application/pdf;base64,')) return false;
+      if (dataUrl.length < 3500) {
+        try {
+          const b64 = dataUrl.split(',')[1] || '';
+          const str = (typeof atob === 'function') 
+            ? atob(b64) 
+            : (typeof Buffer !== 'undefined' ? Buffer.from(b64, 'base64').toString('latin1') : '');
+          if (str.includes('OFFICIAL COMPLIANCE REPOSITORY') || str.includes('Capacity Building & Teller Agreement') || str.includes('Apex OmniERP v4.0')) {
+            return true;
+          }
+        } catch (e) {
+          return false;
+        }
+      }
+      return false;
+    }
+
+    // Intelligent deduplication: Collapses ID dash variations & middle initials, preserves authentic binary fileDataUrls, strictly purges unwanted seeded records
     deduplicateDocuments(docList = []) {
       if (!Array.isArray(docList)) return [];
       const result = [];
@@ -261,6 +278,9 @@
 
       docList.forEach(doc => {
         if (!doc) return;
+        // Strictly purge any unwanted synthetic reliever records
+        if (this.isUnwantedSeededDoc(doc)) return;
+
         const docType = (doc.documentType || 'CBTA').toUpperCase();
         const normId = this.normalizeId(doc.employeeId);
         const nameSig = this.cleanNameTokens(doc.employeeName);
@@ -276,20 +296,23 @@
 
         if (!match) {
           const cloned = Object.assign({}, doc);
-          // If document has no fileDataUrl, generate official digital PDF attachment
-          if (!cloned.fileDataUrl) {
-            cloned.fileDataUrl = this.generateOfficialCbtaPdfDataUrl(cloned);
+          // Purge any fake synthetic PDFs that were generated previously
+          if (cloned.fileDataUrl && this.isFakeSyntheticPdf(cloned.fileDataUrl)) {
+            delete cloned.fileDataUrl;
           }
           result.push(cloned);
           if (normId && normId !== 'DDN005SR000') idIndex.set(normId + '::' + docType, cloned);
           if (nameSig) nameIndex.set(nameSig + '::' + docType, cloned);
         } else {
           // Merge attributes into the canonical match:
-          // Keep genuine local binary data URL if present
-          if ((!match.fileDataUrl || match.fileDataUrl.length < 5000) && doc.fileDataUrl && doc.fileDataUrl.length > 5000) {
+          // Keep genuine local binary data URL if present (and not fake)
+          if (doc.fileDataUrl && !this.isFakeSyntheticPdf(doc.fileDataUrl)) {
             match.fileDataUrl = doc.fileDataUrl;
             match.fileSize = doc.fileSize || match.fileSize;
             match.fileName = doc.fileName || match.fileName;
+          }
+          if (match.fileDataUrl && this.isFakeSyntheticPdf(match.fileDataUrl)) {
+            delete match.fileDataUrl;
           }
           // Retain canonical hyphenated Master Registry ID (e.g. DDN005-SR-422)
           if (doc.employeeId && doc.employeeId.includes('-SR-')) {
@@ -372,7 +395,8 @@
               const staticData = await staticRes.json();
               const sDocs = Array.isArray(staticData) ? staticData : (staticData && Array.isArray(staticData.documents) ? staticData.documents : []);
               sDocs.forEach(d => {
-                if (d && d.id && !remoteDocs.some(r => r.id === d.id)) {
+                if (d && d.id && !this.isUnwantedSeededDoc(d) && !remoteDocs.some(r => r.id === d.id)) {
+                  if (d.fileDataUrl && this.isFakeSyntheticPdf(d.fileDataUrl)) delete d.fileDataUrl;
                   remoteDocs.push(d);
                 }
               });
@@ -388,7 +412,8 @@
               const srvData = await srvRes.json();
               const srvDocs = Array.isArray(srvData) ? srvData : (srvData && Array.isArray(srvData.documents) ? srvData.documents : []);
               srvDocs.forEach(d => {
-                if (d && d.id && !remoteDocs.some(r => r.id === d.id)) {
+                if (d && d.id && !this.isUnwantedSeededDoc(d) && !remoteDocs.some(r => r.id === d.id)) {
+                  if (d.fileDataUrl && this.isFakeSyntheticPdf(d.fileDataUrl)) delete d.fileDataUrl;
                   remoteDocs.push(d);
                 }
               });
@@ -403,8 +428,14 @@
             const supaDocs = await window.supabaseSync.fetchEmployeeDocuments();
             if (Array.isArray(supaDocs)) {
               supaDocs.forEach(d => {
-                if (d && d.id && !remoteDocs.some(r => r.id === d.id)) {
-                  remoteDocs.push(d);
+                if (d && d.id) {
+                  if (this.isUnwantedSeededDoc(d)) {
+                    // Clean up unwanted seeded records from remote Supabase
+                    window.supabaseSync.deleteEmployeeDocument(d.id).catch(() => {});
+                  } else if (!remoteDocs.some(r => r.id === d.id)) {
+                    if (d.fileDataUrl && this.isFakeSyntheticPdf(d.fileDataUrl)) delete d.fileDataUrl;
+                    remoteDocs.push(d);
+                  }
                 }
               });
               if (supaDocs.length > 0) fetchedRemote = true;
@@ -443,7 +474,7 @@
       if (!this.documents || this.documents.length === 0) return;
       try {
         const remoteIds = new Set((remoteDocs || []).map(r => r.id));
-        const missingFromRemote = this.documents.filter(d => !remoteIds.has(d.id));
+        const missingFromRemote = this.documents.filter(d => !remoteIds.has(d.id) && !this.isUnwantedSeededDoc(d));
         if (missingFromRemote.length > 0) {
           console.log(`[ComplianceDocs] Auto-uploading ${missingFromRemote.length} local document(s) to cloud...`);
           // Push to Supabase Cloud
@@ -458,7 +489,7 @@
               await fetch('/api/employee-documents', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ documents: this.documents })
+                body: JSON.stringify({ documents: this.documents.filter(d => !this.isUnwantedSeededDoc(d)) })
               }).catch(() => {});
             } catch (e) {}
           }
@@ -1371,52 +1402,73 @@
         }
       }
 
-      // 2. Guarantee digital attachment availability: generate official CBTA PDF if missing
-      if (!doc.fileDataUrl) {
-        doc.fileDataUrl = this.generateOfficialCbtaPdfDataUrl(doc);
-        if (typeof indexedDB !== 'undefined') {
-          saveAllDocsToDB(this.documents);
-        }
+      // 2. Cleanse any fake synthetic PDF data URLs
+      if (doc.fileDataUrl && this.isFakeSyntheticPdf(doc.fileDataUrl)) {
+        delete doc.fileDataUrl;
       }
 
       document.getElementById('view-doc-title').textContent = `${doc.documentType} — ${doc.employeeName}`;
       const contentEl = document.getElementById('view-doc-content');
       if (contentEl) {
-        const isPdf = (doc.fileName && doc.fileName.toLowerCase().endsWith('.pdf')) || (doc.fileType === 'application/pdf') || (doc.fileDataUrl && doc.fileDataUrl.startsWith('data:application/pdf'));
-
+        const hasRealFile = Boolean(doc.fileDataUrl && !this.isFakeSyntheticPdf(doc.fileDataUrl));
         let filePreviewHtml = '';
-        if (isPdf) {
-          filePreviewHtml = `
-            <div style="margin-top:14px; text-align:center;">
-              <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
-                <span>📄 OFFICIAL DIGITAL CBTA AGREEMENT PREVIEW:</span>
-                <span style="color:#4ade80;">✅ Digital Document Verified</span>
+
+        if (hasRealFile) {
+          const isPdf = (doc.fileName && doc.fileName.toLowerCase().endsWith('.pdf')) || (doc.fileType === 'application/pdf') || (doc.fileDataUrl && doc.fileDataUrl.startsWith('data:application/pdf'));
+          if (isPdf) {
+            filePreviewHtml = `
+              <div style="margin-top:14px; text-align:center;">
+                <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
+                  <span>📄 ATTACHED DIGITAL DOCUMENT PREVIEW:</span>
+                  <span style="color:#4ade80;">✅ Digital Document Verified</span>
+                </div>
+                <iframe src="${doc.fileDataUrl}" style="width:100%; height:400px; border-radius:8px; border:1px solid rgba(245,158,11,0.4); background:#0f172a;" title="Document Preview"></iframe>
+                <div style="margin-top:12px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+                  <a href="${doc.fileDataUrl}" download="${doc.fileName || 'Document.pdf'}" class="btn btn-secondary btn-sm" style="font-weight:700; color:var(--accent-gold);">
+                    ⬇️ Download Document File
+                  </a>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="window.employeeDocumentsModule.printCurrentDocument('${doc.id}')" style="font-weight:700;">
+                    🖨️ Print Document
+                  </button>
+                </div>
               </div>
-              <iframe src="${doc.fileDataUrl}" style="width:100%; height:400px; border-radius:8px; border:1px solid rgba(245,158,11,0.4); background:#0f172a;" title="Official Agreement Preview"></iframe>
-              <div style="margin-top:12px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-                <a href="${doc.fileDataUrl}" download="${doc.fileName || 'Official_CBTA_Agreement.pdf'}" class="btn btn-secondary btn-sm" style="font-weight:700; color:var(--accent-gold);">
-                  ⬇️ Download Official PDF File
-                </a>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="window.employeeDocumentsModule.printCurrentDocument('${doc.id}')" style="font-weight:700;">
-                  🖨️ Print Agreement
-                </button>
+            `;
+          } else {
+            filePreviewHtml = `
+              <div style="margin-top:14px; text-align:center;">
+                <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
+                  <span>🖼️ ATTACHED DIGITAL DOCUMENT IMAGE:</span>
+                  <span style="color:#4ade80;">✅ Digital Document Verified</span>
+                </div>
+                <img src="${doc.fileDataUrl}" style="max-width:100%; max-height:300px; border-radius:8px; border:1px solid rgba(245,158,11,0.4); object-fit:contain; background:#000;" alt="${doc.documentType}">
+                <div style="margin-top:12px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+                  <a href="${doc.fileDataUrl}" download="${doc.fileName || 'Document.jpg'}" class="btn btn-secondary btn-sm" style="font-weight:700; color:var(--accent-gold);">
+                    ⬇️ Download Image File
+                  </a>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="window.employeeDocumentsModule.printCurrentDocument('${doc.id}')" style="font-weight:700;">
+                    🖨️ Print Document
+                  </button>
+                </div>
               </div>
-            </div>
-          `;
+            `;
+          }
         } else {
           filePreviewHtml = `
-            <div style="margin-top:14px; text-align:center;">
-              <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
-                <span>🖼️ OFFICIAL DIGITAL DOCUMENT IMAGE:</span>
-                <span style="color:#4ade80;">✅ Digital Document Verified</span>
+            <div style="margin-top:14px; padding:16px; border-radius:8px; background:rgba(255,255,255,0.02); border:1px dashed rgba(245,158,11,0.3); text-align:left;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <span style="font-size:12px; font-weight:700; color:var(--text-muted);">📄 OFFICIAL COMPLIANCE STATUS:</span>
+                <span style="color:#4ade80; font-size:12px; font-weight:700;">✅ CBTA On File</span>
               </div>
-              <img src="${doc.fileDataUrl}" style="max-width:100%; max-height:300px; border-radius:8px; border:1px solid rgba(245,158,11,0.4); object-fit:contain; background:#000;" alt="${doc.documentType}">
-              <div style="margin-top:12px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-                <a href="${doc.fileDataUrl}" download="${doc.fileName || 'Document.jpg'}" class="btn btn-secondary btn-sm" style="font-weight:700; color:var(--accent-gold);">
-                  ⬇️ Download Image File
-                </a>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="window.employeeDocumentsModule.printCurrentDocument('${doc.id}')" style="font-weight:700;">
-                  🖨️ Print Document
+              <div style="font-size:13px; color:#f1f5f9; margin-bottom:8px;">
+                <strong>Registered Attachment File:</strong> <code style="color:var(--accent-cyan); font-weight:600;">${doc.fileName || 'CBTA_Agreement.pdf'}</code>
+                ${doc.fileSize ? `<span style="color:var(--text-muted); font-size:11px; margin-left:6px;">(${doc.fileSize})</span>` : ''}
+              </div>
+              <div style="font-size:12px; color:var(--text-muted); line-height:1.5;">
+                This official document was recorded for <strong>${doc.employeeName}</strong> (${doc.employeeId}) on ${doc.dateUploaded || '2026-10-07'}.
+              </div>
+              <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="window.employeeDocumentsModule.closeViewModal(); window.employeeDocumentsModule.openUploadModalForEmp('${doc.employeeId}', '${(doc.employeeName || '').replace(/'/g, "\\'")}')" style="font-weight:700; color:var(--accent-gold);">
+                  📁 Re-attach / Update Document
                 </button>
               </div>
             </div>

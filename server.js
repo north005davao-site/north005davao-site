@@ -96,8 +96,46 @@ function readPersistentEmployeeDocuments() {
   return null;
 }
 
+const UNWANTED_SEEDER_NAMES_SERVER = new Set([
+  'princess solamillo', 'kei pagulong', 'jessa busaco', 'othmarie lupiba',
+  'faith hermoso', 'mari sarol', 'ellen rino', 'ellen riño', 'angelie tiedra',
+  'noreen d bayang', 'noreen d. bayang', 'rhea mae m bolilawa', 'rhea mae m. bolilawa',
+  'jasnen parame aquino', 'marjory torino', 'gina paula gemino', 'jennifer m osman',
+  'jennifer m. osman', 'ferlyn zamora robello', 'jeziel r simene', 'jeziel r. simene',
+  'karen batas', 'elyn t rosento', 'elyn t. rosento', 'ester mopon',
+  'christly ann tuasoc', 'jane christine tuasoc', 'clouie mae hipos', 'aires monreal',
+  'precious nica torrefiel', 'jemma rose roco', 'carolyn joy catubigan',
+  'pamela denisse g antequeza', 'pamela denisse g. antequeza', 'bbelen apatan',
+  'laika jeanne sapine', 'jeah rica linsay', 'kristina cassandra d lumidin',
+  'kristina cassandra d. lumidin', 'mae jean gementiza'
+]);
+
+function isServerUnwantedSeededDoc(d) {
+  if (!d) return false;
+  const name = (d.employeeName || '').toLowerCase().trim();
+  const file = (d.fileName || '').toLowerCase().trim();
+  for (const s of UNWANTED_SEEDER_NAMES_SERVER) {
+    if (name === s || name.includes(s) || file.includes(s)) return true;
+  }
+  return false;
+}
+
 function writePersistentEmployeeDocuments(payload) {
   try {
+    if (payload && Array.isArray(payload.documents)) {
+      payload.documents = payload.documents.filter(d => !isServerUnwantedSeededDoc(d));
+      payload.documents.forEach(d => {
+        if (d.fileDataUrl && typeof d.fileDataUrl === 'string' && d.fileDataUrl.length < 3500) {
+          try {
+            const b64 = d.fileDataUrl.split(',')[1] || '';
+            const str = Buffer.from(b64, 'base64').toString('latin1');
+            if (str.includes('OFFICIAL COMPLIANCE REPOSITORY') || str.includes('Capacity Building & Teller Agreement')) {
+              delete d.fileDataUrl;
+            }
+          } catch (e) {}
+        }
+      });
+    }
     fs.writeFileSync(DOCS_FILE, JSON.stringify(payload, null, 2), 'utf8');
   } catch (e) {
     console.error('Error writing persistent employee documents:', e);

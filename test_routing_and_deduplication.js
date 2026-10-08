@@ -83,7 +83,8 @@ const hiposVariations = [
     position: 'Sales Representative',
     documentType: 'CBTA',
     status: 'Complete',
-    fileName: 'HIPOS, AMERITA.pdf'
+    fileName: 'HIPOS, AMERITA.pdf',
+    fileDataUrl: 'data:application/pdf;base64,JVBERi0xLjQK...'
   },
   {
     id: 'DOC-DESKTOP-HIPOS-ROW2',
@@ -99,15 +100,20 @@ const hiposVariations = [
 const dedupedHipos = mod.deduplicateDocuments(hiposVariations);
 console.log(`Amerita Hipos record count after dual-index deduplication: ${dedupedHipos.length}`);
 assert.strictEqual(dedupedHipos.length, 1, 'Amerita Hipos must collapse from 2 records to 1');
-assert.strictEqual(dedupedHipos[0].fileDataUrl.startsWith('data:application/pdf'), true, 'Must have authentic PDF Data URL');
+assert.strictEqual(dedupedHipos[0].fileDataUrl.startsWith('data:application/pdf'), true, 'Must preserve genuine user uploaded PDF data URL');
 console.log('✓ Amerita Hipos successfully deduplicated with canonical ID:', dedupedHipos[0].employeeId);
 
-// Verify EVERY document has a valid PDF fileDataUrl (0 missing digital attachments)
-const missingPdfs = cleanedDocs.filter(d => !d.fileDataUrl || !d.fileDataUrl.startsWith('data:application/pdf'));
-console.log(`Documents missing digital PDF attachments: ${missingPdfs.length}`);
-assert.strictEqual(missingPdfs.length, 0, 'Every document must have a valid digital PDF attachment');
+// Verify ZERO unwanted generated relievers remain in cleanedDocs
+const unwantedRelievers = cleanedDocs.filter(d => mod.isUnwantedSeededDoc(d));
+console.log(`Unwanted generated relievers found: ${unwantedRelievers.length}`);
+assert.strictEqual(unwantedRelievers.length, 0, 'Zero unwanted generated relievers must exist');
 
-console.log('✓ TEST 1 PASSED: 91 messy records collapsed to exact 46 unique records with 0 duplicates and 100% digital attachments!\n');
+// Verify ZERO fake synthetic PDFs are generated
+const fakePdfs = cleanedDocs.filter(d => d.fileDataUrl && mod.isFakeSyntheticPdf(d.fileDataUrl));
+console.log(`Fake synthetic PDFs found: ${fakePdfs.length}`);
+assert.strictEqual(fakePdfs.length, 0, 'Zero fake synthetic PDFs must exist');
+
+console.log('✓ TEST 1 PASSED: Messy records collapsed to exact 46 authentic records with 0 duplicates, 0 unwanted seeded relievers, and 0 fake PDFs!\n');
 
 
 // -------------------------------------------------------------
