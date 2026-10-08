@@ -1,0 +1,35 @@
+{
+  "snapshots": [
+    {
+      "id": "SNAP-1760001733000",
+      "timestamp": "2026-10-08T09:22:13.000Z",
+      "formattedTime": "10/8/2026, 5:22:13 PM",
+      "reason": "Pre Auto-Repair Safety Checkpoint",
+      "version": "MRV-20261008-01",
+      "staffCount": 163,
+      "relieversCount": 34,
+      "boothsCount": 123
+    },
+    {
+      "id": "SNAP-1760001729000",
+      "timestamp": "2026-10-08T09:22:09.000Z",
+      "formattedTime": "10/8/2026, 5:22:09 PM",
+      "reason": "Manual Admin Snapshot",
+      "version": "MRV-20261008-01",
+      "staffCount": 163,
+      "relieversCount": 34,
+      "boothsCount": 123
+    },
+    {
+      "id": "SNAP-1759900000000",
+      "timestamp": "2026-10-07T03:04:43.000Z",
+      "formattedTime": "07/10/2026, 11:04:43",
+      "reason": "Pre Auto-Repair Safety Checkpoint",
+      "version": "MRV-20261007-01",
+      "staffCount": 160,
+      "relieversCount": 34,
+      "boothsCount": 126
+    }
+  ],
+  "deletedSnapshotIds": []
+}

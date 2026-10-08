@@ -51,6 +51,7 @@
       this.initDom();
       this.updateProfileUi();
       this.applyRoleRestrictions();
+      this.initSingleSessionEnforcement();
     }
 
     /* ------------------------------------------------------------------ */
@@ -217,7 +218,11 @@
           }
           const users = this.getUsers();
           const found = users.find(u => u.username === user.username);
-          if (found && found.status === 'Active') return found;
+          if (found && found.status === 'Active') {
+            const token = sessionStorage.getItem('north005_active_session_token');
+            if (token) found.activeSessionToken = token;
+            return found;
+          }
         }
       } catch (e) {}
       return null;
@@ -362,11 +367,39 @@
 
       const now = new Date();
       user.lastLogin = `${now.toISOString().split('T')[0]} ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+      
+      // Single-Device Security: Generate Unique Session Token & Detect Device
+      const sessionToken = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+      const deviceName = this.getDeviceName();
+      user.activeSessionToken = sessionToken;
+      user.activeDeviceName = deviceName;
+
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem('north005_active_session_token', sessionToken);
+          sessionStorage.setItem('north005_active_device_name', deviceName);
+        }
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('north005_active_session_broadcast', JSON.stringify({
+            userId: user.id,
+            username: user.username,
+            active_session_token: sessionToken,
+            active_device_name: deviceName,
+            timestamp: Date.now()
+          }));
+        }
+      } catch (e) {}
+
       const idx = users.findIndex(u => u.username === user.username);
       if (idx !== -1) { users[idx] = user; this.saveUsers(users); }
 
+      // Cloud session sync: Register active session to Supabase
+      if (window.supabaseSync && typeof window.supabaseSync.updateActiveUserSession === 'function') {
+        window.supabaseSync.updateActiveUserSession(user.username, sessionToken, deviceName).catch(() => {});
+      }
+
       this.setSessionUser(user);
-      this.logHistory(username, 'Success', `Logged in as ${user.role}`);
+      this.logHistory(username, 'Success', `Logged in as ${user.role} on ${deviceName}`);
 
       return { success: true, user };
     }
@@ -374,7 +407,16 @@
     logout() {
       if (this.currentUser) {
         this.logHistory(this.currentUser.username, 'Logout', 'User signed out');
+        if (window.supabaseSync && typeof window.supabaseSync.updateActiveUserSession === 'function') {
+          window.supabaseSync.updateActiveUserSession(this.currentUser.username, null, null).catch(() => {});
+        }
       }
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.removeItem('north005_active_session_token');
+          sessionStorage.removeItem('north005_active_device_name');
+        }
+      } catch (e) {}
       this.setSessionUser(null);
       this.showLoginModal();
     }
@@ -727,6 +769,147 @@
       if (window.workforceAttendanceModule && typeof window.workforceAttendanceModule.render === 'function') {
         window.workforceAttendanceModule.render();
       }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* SINGLE-DEVICE SESSION SECURITY & CONCURRENT LOGIN ENFORCEMENT       */
+    /* ------------------------------------------------------------------ */
+
+    getDeviceName() {
+      const nav = (typeof window !== 'undefined' && window.navigator) ? window.navigator : (typeof navigator !== 'undefined' ? navigator : null);
+      if (!nav) return 'Desktop / Browser';
+      const ua = nav.userAgent || '';
+      if (/Android/i.test(ua)) return 'Android Device';
+      if (/iPhone|iPad|iPod/i.test(ua)) return 'iOS Device (iPhone/iPad)';
+      if (/Windows NT/i.test(ua)) return 'Windows PC';
+      if (/Macintosh/i.test(ua)) return 'Mac OS';
+      if (/Linux/i.test(ua)) return 'Linux PC';
+      return 'Web Browser';
+    }
+
+    initSingleSessionEnforcement() {
+      if (typeof window === 'undefined') return;
+
+      // 1. Cross-tab & Cross-window enforcement via localStorage events
+      if (typeof window.addEventListener === 'function') {
+        window.addEventListener('storage', (e) => {
+          if (e.key === 'north005_active_session_broadcast' && e.newValue) {
+            try {
+              const data = JSON.parse(e.newValue);
+              if (data && this.currentUser) {
+                this.handleConcurrentSessionKick(data);
+              }
+            } catch (err) {}
+          }
+        });
+
+        // 2. Active tab focus/visibility re-verification
+        window.addEventListener('focus', () => {
+          this.verifyActiveSession();
+        });
+
+        if (typeof document !== 'undefined') {
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+              this.verifyActiveSession();
+            }
+          });
+        }
+      }
+
+      // 3. Periodic cloud session heartbeat check (every 15s)
+      if (typeof setInterval === 'function') {
+        const heartbeatTimer = setInterval(() => {
+          this.verifyActiveSession();
+        }, 15000);
+        if (heartbeatTimer && typeof heartbeatTimer.unref === 'function') {
+          heartbeatTimer.unref();
+        }
+      }
+    }
+
+    async verifyActiveSession() {
+      if (!this.currentUser) return;
+      const localToken = (typeof sessionStorage !== 'undefined') ? sessionStorage.getItem('north005_active_session_token') : null;
+      if (!localToken) return;
+
+      try {
+        if (window.supabaseSync && typeof window.supabaseSync.fetchUserSession === 'function') {
+          const session = await window.supabaseSync.fetchUserSession(this.currentUser.username);
+          if (session && session.active_session_token && session.active_session_token !== localToken) {
+            this.handleConcurrentSessionKick(session);
+          }
+        }
+      } catch (err) {
+        // Offline / network failure, keep user session intact
+      }
+    }
+
+    handleConcurrentSessionKick(sessionData) {
+      if (!this.currentUser || !sessionData) return;
+
+      const isMatch = (sessionData.id && sessionData.id === this.currentUser.id) ||
+                      (sessionData.userId && sessionData.userId === this.currentUser.id) ||
+                      (sessionData.username && sessionData.username.toLowerCase() === this.currentUser.username.toLowerCase());
+      if (!isMatch) return;
+
+      const localToken = (typeof sessionStorage !== 'undefined') ? sessionStorage.getItem('north005_active_session_token') : null;
+      const incomingToken = sessionData.active_session_token || sessionData.activeSessionToken;
+
+      // If incoming token exists, is valid, and does not match this device's token -> supersede
+      if (incomingToken && localToken && incomingToken !== localToken) {
+        const newDevice = sessionData.active_device_name || sessionData.activeDeviceName || 'New Device';
+        console.warn(`[Security] Concurrent login detected on ${newDevice}. Safely terminating older session.`);
+
+        const userKicked = this.currentUser.username;
+        this.logHistory(userKicked, 'Security', `Session terminated: Logged in on ${newDevice}`);
+
+        // Safely sign out local session
+        this.setSessionUser(null);
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.removeItem('north005_active_session_token');
+          sessionStorage.removeItem('north005_active_device_name');
+        }
+
+        // Show termination modal
+        this.showConcurrentLogoutModal(newDevice);
+      }
+    }
+
+    showConcurrentLogoutModal(newDevice) {
+      if (typeof document === 'undefined') return;
+
+      const modal = document.getElementById('modal-concurrent-logout');
+      const devEl = document.getElementById('concurrent-device-name');
+      const timeEl = document.getElementById('concurrent-timestamp');
+
+      if (devEl) devEl.textContent = newDevice || 'Another Device';
+      if (timeEl) {
+        const now = new Date();
+        timeEl.textContent = now.toLocaleDateString('en-US') + ', ' + now.toLocaleTimeString('en-US');
+      }
+
+      // Close conflicting overlays if open
+      const lockOverlay = document.getElementById('session-lock-screen');
+      if (lockOverlay) lockOverlay.style.display = 'none';
+
+      if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('active');
+      } else {
+        alert(`SECURITY NOTICE: Your account was logged into on another device (${newDevice || 'New Device'}). This session has been safely signed out.`);
+        this.showLoginModal();
+      }
+    }
+
+    dismissConcurrentModalAndShowLogin() {
+      if (typeof document === 'undefined') return;
+      const modal = document.getElementById('modal-concurrent-logout');
+      if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+      }
+      this.showLoginModal();
     }
 
     /* ------------------------------------------------------------------ */

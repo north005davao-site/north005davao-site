@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS public.system_users (
     status TEXT NOT NULL DEFAULT 'Pending', -- 'Active', 'Pending', 'Suspended'
     employee_id TEXT,
     photo TEXT,
+    active_session_token TEXT,
+    active_device_name TEXT,
+    last_active_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -75,6 +78,39 @@ CREATE TABLE IF NOT EXISTS public.thermal_paper_records (
     UNIQUE (date, booth_code)
 );
 
+-- 6. EMPLOYEE DOCUMENTS & COMPLIANCE REPOSITORY TABLE
+CREATE TABLE IF NOT EXISTS public.employee_documents (
+    id TEXT PRIMARY KEY,
+    employee_id TEXT NOT NULL,
+    employee_name TEXT NOT NULL,
+    position TEXT,
+    document_type TEXT NOT NULL, -- 'CBTA', 'RESUME', 'PHOTOCOPY OF VALID ID', 'BARANGAY CLEARANCE/POLICE CLEARANCE'
+    status TEXT NOT NULL DEFAULT 'Complete', -- 'Complete', 'Expiring Soon', 'Expired'
+    date_uploaded TEXT,
+    expiry_date TEXT,
+    file_name TEXT,
+    file_size TEXT,
+    file_type TEXT,
+    file_data_url TEXT,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. SYSTEM SNAPSHOTS TABLE (Realtime Cross-Device Diagnostics & Rollback)
+CREATE TABLE IF NOT EXISTS public.system_snapshots (
+    id TEXT PRIMARY KEY,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    formatted_time TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    version TEXT,
+    staff_count INT DEFAULT 0,
+    relievers_count INT DEFAULT 0,
+    booths_count INT DEFAULT 0,
+    data JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ==============================================================================
 -- ENABLE ROW LEVEL SECURITY (RLS) & PUBLIC ERP ACCESS POLICIES
 -- ==============================================================================
@@ -84,6 +120,8 @@ ALTER TABLE public.system_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.outlet_rentals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.thermal_paper_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.employee_documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_snapshots ENABLE ROW LEVEL SECURITY;
 
 -- Allow read/write access for authenticated ERP operations via Supabase anon key
 CREATE POLICY "Allow all operations for ERP attendance" ON public.attendance_records FOR ALL USING (true) WITH CHECK (true);
@@ -91,6 +129,8 @@ CREATE POLICY "Allow all operations for ERP users" ON public.system_users FOR AL
 CREATE POLICY "Allow all operations for ERP transactions" ON public.transactions FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all operations for ERP rentals" ON public.outlet_rentals FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all operations for ERP thermal paper" ON public.thermal_paper_records FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all operations for ERP employee documents" ON public.employee_documents FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all operations for ERP snapshots" ON public.system_snapshots FOR ALL USING (true) WITH CHECK (true);
 
 -- Enable Realtime publication on all ERP tables
 ALTER PUBLICATION supabase_realtime ADD TABLE public.attendance_records;
@@ -98,3 +138,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.system_users;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.transactions;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.outlet_rentals;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.thermal_paper_records;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.employee_documents;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.system_snapshots;
+
+

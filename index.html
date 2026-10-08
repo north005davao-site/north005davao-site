@@ -2218,6 +2218,14 @@
                 <option value="Expired">Expired</option>
                 <option value="Missing">Missing</option>
               </select>
+              <div id="docs-sync-status-badge" style="display: inline-flex; align-items: center; padding: 4px 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 6px;">
+                <span style="color:#4ade80;font-size:11px;font-weight:700;">☁️ Cloud Synced</span>
+              </div>
+              <button class="btn btn-secondary btn-sm"
+                onclick="window.employeeDocumentsModule.syncWithCloud(true)"
+                title="Synchronize compliance documents with Supabase Cloud & Server">
+                🔄 Sync Cloud
+              </button>
               <button class="btn btn-primary btn-sm admin-only-action"
                 onclick="window.employeeDocumentsModule.openUploadModal()">
                 + Upload Document
@@ -5686,6 +5694,48 @@
             ⚡ Run 1-Click Auto-Repair
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       CONCURRENT SESSION TERMINATION MODAL (SINGLE-DEVICE SECURITY)
+       =================================================================== -->
+  <div id="modal-concurrent-logout" class="modal-overlay" style="z-index: 100050; display: none; background: rgba(5, 10, 20, 0.88); backdrop-filter: blur(12px);">
+    <div class="modal-card" style="max-width: 440px; width: 92%; border: 1px solid rgba(239, 68, 68, 0.4); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(239, 68, 68, 0.2); animation: modalBounceIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
+      <div class="modal-header" style="padding: 18px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; gap: 12px; background: rgba(239, 68, 68, 0.08);">
+        <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(239, 68, 68, 0.15); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; border: 1px solid rgba(239, 68, 68, 0.3);">
+          🔒
+        </div>
+        <div>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">Session Terminated</h3>
+          <span style="font-size: 12px; color: #f87171; font-weight: 600;">Active on Another Device</span>
+        </div>
+      </div>
+      <div class="modal-body" style="padding: 24px; text-align: left;">
+        <p style="font-size: 13.5px; color: #cbd5e1; line-height: 1.6; margin-top: 0; margin-bottom: 16px;">
+          Your account was just logged in from a new device:
+        </p>
+        <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-size: 11px; text-transform: uppercase; color: var(--text-dim); font-weight: 700; letter-spacing: 0.5px;">New Device</span>
+            <span id="concurrent-device-name" class="badge badge-warning" style="font-size: 11px; padding: 3px 8px; font-weight: 700;">Android Device</span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 11px; text-transform: uppercase; color: var(--text-dim); font-weight: 700; letter-spacing: 0.5px;">Termination Time</span>
+            <span id="concurrent-timestamp" style="font-size: 12px; color: #e2e8f0; font-family: monospace;">Just now</span>
+          </div>
+        </div>
+        <div style="background: rgba(239, 68, 68, 0.08); border-left: 3px solid #ef4444; border-radius: 4px; padding: 10px 14px;">
+          <p style="margin: 0; font-size: 12px; color: #fca5a5; line-height: 1.5;">
+            <strong>Security Policy:</strong> Single-device authentication is strictly enforced. Only 1 active login per account is permitted simultaneously to protect operational data.
+          </p>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: flex-end; gap: 10px; background: rgba(0,0,0,0.15);">
+        <button class="btn btn-primary" style="width: 100%; height: 42px; font-weight: 700; font-size: 13.5px; border-radius: 8px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: none; cursor: pointer;" onclick="window.authManager && window.authManager.dismissConcurrentModalAndShowLogin()">
+          🔑 Log In on This Device
+        </button>
       </div>
     </div>
   </div>

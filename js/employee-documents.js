@@ -151,17 +151,42 @@
       this.populateDatalist();
       this.render();
 
-      // Asynchronously load & merge from IndexedDB
+      // 1. Asynchronously load & merge from local IndexedDB
       await this.loadFromIndexedDB();
 
+      // 2. Asynchronously sync across devices via Supabase Cloud and Node Server API
+      await this.syncWithCloud();
+
+      // 3. Periodic cloud background sync (every 30 seconds)
+      this.syncTimer = setInterval(() => {
+        this.syncWithCloud(false);
+      }, 30000);
+      if (this.syncTimer && typeof this.syncTimer.unref === 'function') {
+        this.syncTimer.unref();
+      }
+
+      // 4. Auto-sync when window or mobile tab gains focus/visibility
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        window.addEventListener('focus', () => this.syncWithCloud(false));
+      }
+      if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            this.syncWithCloud(false);
+          }
+        });
+      }
+
       // Close employee search dropdown when clicking outside
-      document.addEventListener('click', (e) => {
-        const wrapper = document.querySelector('.searchable-select-wrapper');
-        const results = document.getElementById('doc-emp-search-results');
-        if (wrapper && results && !wrapper.contains(e.target)) {
-          results.classList.remove('active');
-        }
-      });
+      if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+        document.addEventListener('click', (e) => {
+          const wrapper = document.querySelector('.searchable-select-wrapper');
+          const results = document.getElementById('doc-emp-search-results');
+          if (wrapper && results && !wrapper.contains(e.target)) {
+            results.classList.remove('active');
+          }
+        });
+      }
     }
 
     async loadFromIndexedDB() {
@@ -191,19 +216,183 @@
 
     loadDocuments() {
       try {
-        const stored = localStorage.getItem(DOCS_STORAGE_KEY);
-        if (stored) {
-          return JSON.parse(stored);
-        }
-        // Check v5 for any existing CBTA records
-        const v5Stored = localStorage.getItem('north005_employee_documents_v5');
-        if (v5Stored) {
-          const parsed = JSON.parse(v5Stored);
-          return Array.isArray(parsed) ? parsed : [];
+        const candidateKeys = [
+          DOCS_STORAGE_KEY,
+          'north005_employee_documents_v5',
+          'north005_employee_documents_v4',
+          'north005_employee_documents_v3',
+          'north005_employee_documents_v2',
+          'north005_employee_documents_v1',
+          'north005_employee_documents'
+        ];
+        for (const key of candidateKeys) {
+          const stored = localStorage.getItem(key);
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                return parsed;
+              }
+            } catch (e) {}
+          }
         }
         return [];
       } catch (e) {
         return [];
+      }
+    }
+
+    /* --- CROSS-DEVICE CLOUD SYNCHRONIZATION (SUPABASE + SERVER REST) --- */
+    async syncWithCloud(showToast = false) {
+      this.updateSyncStatus('syncing');
+      let fetchedRemote = false;
+      const remoteDocs = [];
+
+      // 1. Fetch from Supabase Cloud Database (Primary Realtime Engine)
+      try {
+        if (window.supabaseSync && typeof window.supabaseSync.fetchEmployeeDocuments === 'function') {
+          const supaDocs = await window.supabaseSync.fetchEmployeeDocuments();
+          if (Array.isArray(supaDocs)) {
+            supaDocs.forEach(d => {
+              if (d && d.id && !remoteDocs.some(r => r.id === d.id)) {
+                remoteDocs.push(d);
+              }
+            });
+            fetchedRemote = true;
+          }
+        }
+      } catch (eSupa) {
+        console.warn('[ComplianceDocs] Supabase sync fetch notice:', eSupa);
+      }
+
+      // 2. Fetch from Node Server REST API (/api/employee-documents)
+      try {
+        if (typeof fetch === 'function') {
+          const srvRes = await fetch('/api/employee-documents');
+          if (srvRes.ok) {
+            const srvData = await srvRes.json();
+            const srvDocs = Array.isArray(srvData) ? srvData : (srvData && Array.isArray(srvData.documents) ? srvData.documents : []);
+            srvDocs.forEach(d => {
+              if (d && d.id && !remoteDocs.some(r => r.id === d.id)) {
+                remoteDocs.push(d);
+              }
+            });
+            fetchedRemote = true;
+          }
+        }
+      } catch (eSrv) {
+        // Quiet fallback when operating in purely static or offline mode
+      }
+
+      // 3. Bidirectional Merge: Blend remote documents with local documents
+      if (fetchedRemote && remoteDocs.length > 0) {
+        const docMap = new Map();
+        remoteDocs.forEach(d => { if (d && d.id) docMap.set(d.id, d); });
+
+        // Retain and protect local documents, preserving local binary data URLs
+        this.documents.forEach(d => {
+          if (d && d.id) {
+            if (!docMap.has(d.id)) {
+              docMap.set(d.id, d);
+            } else {
+              const rDoc = docMap.get(d.id);
+              if (!rDoc.fileDataUrl && d.fileDataUrl) {
+                rDoc.fileDataUrl = d.fileDataUrl;
+              }
+            }
+          }
+        });
+
+        this.documents = Array.from(docMap.values());
+        await this.saveDocuments();
+        this.render();
+      }
+
+      // 4. Auto-Push Local Documents: Any document in local storage not yet on remote is pushed up
+      await this.autoPushLocalDocuments(remoteDocs);
+
+      this.updateSyncStatus('synced');
+      if (showToast) {
+        notify(`Cloud Synced: ${this.documents.length} compliance document(s) verified on file.`);
+      }
+    }
+
+    async autoPushLocalDocuments(remoteDocs = []) {
+      if (!this.documents || this.documents.length === 0) return;
+      const remoteIds = new Set((remoteDocs || []).map(r => r.id));
+
+      const missingFromRemote = this.documents.filter(d => !remoteIds.has(d.id));
+      if (missingFromRemote.length > 0) {
+        console.log(`[ComplianceDocs] Auto-uploading ${missingFromRemote.length} local document(s) to cloud...`);
+        // Push to Supabase Cloud
+        if (window.supabaseSync && typeof window.supabaseSync.syncEmployeeDocument === 'function') {
+          for (const doc of missingFromRemote) {
+            await window.supabaseSync.syncEmployeeDocument(doc);
+          }
+        }
+        // Push to Server REST API
+        if (typeof fetch === 'function') {
+          try {
+            await fetch('/api/employee-documents', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ documents: this.documents })
+            });
+          } catch (e) {}
+        }
+      }
+    }
+
+    handleRealtimeUpdate(payload) {
+      if (!payload) return;
+      const { eventType, new: newRec, old: oldRec } = payload;
+      console.log('[ComplianceDocs] Received live cloud event:', eventType, newRec || oldRec);
+
+      if (eventType === 'INSERT' || eventType === 'UPDATE') {
+        if (!newRec || !newRec.id) return;
+        const mapped = {
+          id: newRec.id,
+          employeeId: newRec.employee_id,
+          employeeName: newRec.employee_name,
+          position: newRec.position,
+          documentType: newRec.document_type,
+          status: newRec.status,
+          dateUploaded: newRec.date_uploaded,
+          expiryDate: newRec.expiry_date,
+          fileName: newRec.file_name,
+          fileSize: newRec.file_size,
+          fileType: newRec.file_type,
+          fileDataUrl: newRec.file_data_url,
+          notes: newRec.notes
+        };
+        const idx = this.documents.findIndex(d => d.id === mapped.id);
+        if (idx !== -1) {
+          if (!mapped.fileDataUrl && this.documents[idx].fileDataUrl) {
+            mapped.fileDataUrl = this.documents[idx].fileDataUrl;
+          }
+          this.documents[idx] = mapped;
+        } else {
+          this.documents.unshift(mapped);
+        }
+        this.saveDocuments();
+        this.render();
+      } else if (eventType === 'DELETE') {
+        if (!oldRec || !oldRec.id) return;
+        this.documents = this.documents.filter(d => d.id !== oldRec.id);
+        this.saveDocuments();
+        this.render();
+      }
+    }
+
+    updateSyncStatus(status) {
+      const badge = document.getElementById('docs-sync-status-badge');
+      if (!badge) return;
+      if (status === 'syncing') {
+        badge.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;color:#60a5fa;font-size:11px;font-weight:700;"><span class="spinner-border spinner-border-sm" style="width:10px;height:10px;border-width:1.5px;display:inline-block;"></span> Syncing...</span>`;
+      } else if (status === 'synced') {
+        badge.innerHTML = `<span style="color:#4ade80;font-size:11px;font-weight:700;">☁️ Cloud Synced (${this.documents.length})</span>`;
+      } else {
+        badge.innerHTML = `<span style="color:var(--text-muted);font-size:11px;">⚪ Local Cache (${this.documents.length})</span>`;
       }
     }
 
@@ -234,6 +423,8 @@
           console.warn('[ComplianceDocs] localStorage mirror failed, full data safely preserved in IndexedDB.');
         }
       }
+
+      this.updateSyncStatus('synced');
     }
 
     // Helper: Map document type to HTML element ID key
@@ -798,6 +989,21 @@
         // Persist to IndexedDB & localStorage safely
         this.saveDocuments();
 
+        // Broadcast to Supabase Cloud Database & Node Server for cross-device sync
+        const savedBatch = this.documents.filter(d => this.pendingUploads.some(p => this.isSameEmployee(d, p.employeeId, p.employeeName) && d.documentType === p.documentType));
+        if (window.supabaseSync && typeof window.supabaseSync.syncEmployeeDocument === 'function') {
+          savedBatch.forEach(doc => {
+            window.supabaseSync.syncEmployeeDocument(doc);
+          });
+        }
+        if (typeof fetch === 'function') {
+          fetch('/api/employee-documents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ documents: this.documents })
+          }).catch(() => {});
+        }
+
         const docNames = this.pendingUploads.map(u => u.documentType).join(', ');
         const empName = this.pendingUploads[0].employeeName;
         const empId = this.pendingUploads[0].employeeId;
@@ -1172,6 +1378,12 @@
         await this.saveDocuments();
         if (typeof indexedDB !== 'undefined') {
           await deleteDocFromDB(id);
+        }
+        if (window.supabaseSync && typeof window.supabaseSync.deleteEmployeeDocument === 'function') {
+          window.supabaseSync.deleteEmployeeDocument(id);
+        }
+        if (typeof fetch === 'function') {
+          fetch(`/api/employee-documents?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
         }
         this.render();
       }

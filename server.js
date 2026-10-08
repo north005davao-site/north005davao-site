@@ -83,6 +83,69 @@ function writePersistentThermalPaper(payload) {
   }
 }
 
+const DOCS_FILE = path.join(DATA_DIR, 'employee_documents.json');
+
+function readPersistentEmployeeDocuments() {
+  try {
+    if (fs.existsSync(DOCS_FILE)) {
+      return JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading persistent employee documents:', e);
+  }
+  return null;
+}
+
+function writePersistentEmployeeDocuments(payload) {
+  try {
+    fs.writeFileSync(DOCS_FILE, JSON.stringify(payload, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Error writing persistent employee documents:', e);
+  }
+}
+
+const SNAPSHOTS_FILE = path.join(DATA_DIR, 'snapshots.json');
+
+function readPersistentSnapshots() {
+  try {
+    if (fs.existsSync(SNAPSHOTS_FILE)) {
+      return JSON.parse(fs.readFileSync(SNAPSHOTS_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading persistent snapshots:', e);
+  }
+  return null;
+}
+
+function writePersistentSnapshots(payload) {
+  try {
+    fs.writeFileSync(SNAPSHOTS_FILE, JSON.stringify(payload, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Error writing persistent snapshots:', e);
+  }
+}
+
+const SESSIONS_FILE = path.join(DATA_DIR, 'user_sessions.json');
+
+function readPersistentSessions() {
+  try {
+    if (fs.existsSync(SESSIONS_FILE)) {
+      return JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading persistent user sessions:', e);
+  }
+  return {};
+}
+
+function writePersistentSessions(payload) {
+  try {
+    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(payload, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Error writing persistent user sessions:', e);
+  }
+}
+
 const MIME_TYPES = {
   '.html': 'text/html',
   '.css': 'text/css',
@@ -284,6 +347,158 @@ const server = http.createServer((req, res) => {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err.message }));
       }
+      return;
+    }
+
+    // 0c2. API ROUTING: /api/employee-documents (Persistent Cross-Device CRUD for Employee Compliance Documents)
+    if (pathname === '/api/employee-documents' && req.method === 'GET') {
+      const data = readPersistentEmployeeDocuments();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data || { documents: [], deletedDocIds: [] }));
+      return;
+    }
+
+    if (pathname === '/api/employee-documents' && req.method === 'POST') {
+      const chunks = [];
+      req.on('data', chunk => chunks.push(chunk));
+      req.on('end', () => {
+        try {
+          const raw = Buffer.concat(chunks).toString('utf8');
+          const payload = JSON.parse(raw);
+          writePersistentEmployeeDocuments(payload);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, count: payload.documents ? payload.documents.length : 0 }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
+    if (pathname === '/api/employee-documents' && req.method === 'DELETE') {
+      const docId = parsedUrl.searchParams.get('id');
+      if (!docId) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing document id' }));
+        return;
+      }
+      try {
+        let data = readPersistentEmployeeDocuments() || { documents: [], deletedDocIds: [] };
+        if (Array.isArray(data)) {
+          data = { documents: data, deletedDocIds: [] };
+        }
+        data.documents = (data.documents || []).filter(d => d.id !== docId);
+        if (!data.deletedDocIds) data.deletedDocIds = [];
+        if (!data.deletedDocIds.includes(docId)) {
+          data.deletedDocIds.push(docId);
+        }
+        writePersistentEmployeeDocuments(data);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, deletedId: docId }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // 0c3. API ROUTING: /api/snapshots (Persistent Cross-Device Snapshots & Auto-Repair Checkpoints)
+    if (pathname === '/api/snapshots' && req.method === 'GET') {
+      const data = readPersistentSnapshots();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data || { snapshots: [], deletedSnapshotIds: [] }));
+      return;
+    }
+
+    if (pathname === '/api/snapshots' && req.method === 'POST') {
+      const chunks = [];
+      req.on('data', chunk => chunks.push(chunk));
+      req.on('end', () => {
+        try {
+          const raw = Buffer.concat(chunks).toString('utf8');
+          const payload = JSON.parse(raw);
+          writePersistentSnapshots(payload);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, count: payload.snapshots ? payload.snapshots.length : 0 }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
+    if (pathname === '/api/snapshots' && req.method === 'DELETE') {
+      const snapId = parsedUrl.searchParams.get('id');
+      if (!snapId) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing snapshot id' }));
+        return;
+      }
+      try {
+        let data = readPersistentSnapshots() || { snapshots: [], deletedSnapshotIds: [] };
+        if (Array.isArray(data)) {
+          data = { snapshots: data, deletedSnapshotIds: [] };
+        }
+        data.snapshots = (data.snapshots || []).filter(s => s.id !== snapId);
+        if (!data.deletedSnapshotIds) data.deletedSnapshotIds = [];
+        if (!data.deletedSnapshotIds.includes(snapId)) {
+          data.deletedSnapshotIds.push(snapId);
+        }
+        writePersistentSnapshots(data);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, deletedId: snapId }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // 0c4. API ROUTING: /api/user-sessions (Single-Device Session Security & Active Token Tracking)
+    if (pathname === '/api/user-sessions' && req.method === 'GET') {
+      const username = (parsedUrl.searchParams.get('username') || '').toLowerCase();
+      const sessions = readPersistentSessions();
+      if (!username) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(sessions));
+      } else {
+        const sess = sessions[username] || null;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(sess || {}));
+      }
+      return;
+    }
+
+    if (pathname === '/api/user-sessions' && req.method === 'POST') {
+      const chunks = [];
+      req.on('data', chunk => chunks.push(chunk));
+      req.on('end', () => {
+        try {
+          const raw = Buffer.concat(chunks).toString('utf8');
+          const payload = JSON.parse(raw);
+          const username = (payload.username || '').toLowerCase();
+          if (!username) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Username required' }));
+            return;
+          }
+          const sessions = readPersistentSessions();
+          sessions[username] = {
+            username,
+            active_session_token: payload.active_session_token || null,
+            active_device_name: payload.active_device_name || null,
+            last_active_at: payload.last_active_at || new Date().toISOString()
+          };
+          writePersistentSessions(sessions);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, session: sessions[username] }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
       return;
     }
 
