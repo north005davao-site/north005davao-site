@@ -236,7 +236,10 @@ const ROUTE_MAP = {
   '/documents': 'view-employee-documents',
   '/thermal-paper': 'view-thermal-paper',
   '/thermal': 'view-thermal-paper',
-  '/thermal-summary': 'view-thermal-paper'
+  '/thermal-summary': 'view-thermal-paper',
+  '/audit-discrepancy': 'view-audit-discrepancy',
+  '/discrepancy': 'view-audit-discrepancy',
+  '/settings': 'view-settings'
 };
 
 const VIEW_TO_ROUTE = {
@@ -250,39 +253,48 @@ const VIEW_TO_ROUTE = {
   'view-workforce-attendance': '/workforce-attendance',
   'view-org-chart': '/org-chart',
   'view-employee-documents': '/employee-documents',
-  'view-thermal-paper': '/thermal-paper'
+  'view-thermal-paper': '/thermal-paper',
+  'view-audit-discrepancy': '/audit-discrepancy',
+  'view-settings': '/settings'
 };
 
 function resolveCurrentRoute() {
-  let path = window.location.pathname.replace(/\/$/, '') || '/';
-
-  // Check URL hash if present (e.g. #/live-tracking or #live-tracking)
+  // 1. Check URL hash (e.g. #/employee-documents or #view-employee-documents)
   if (window.location.hash) {
     const hashClean = window.location.hash.replace(/^#\/?/, '/');
+    const hashRaw = window.location.hash.replace(/^#/, '');
     if (ROUTE_MAP[hashClean]) return ROUTE_MAP[hashClean];
+    if (VIEW_TO_ROUTE[hashRaw]) return hashRaw;
   }
 
-  // Check search params fallback (?view=view-tracking or ?route=/live-tracking)
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('route') && ROUTE_MAP[params.get('route')]) {
-    return ROUTE_MAP[params.get('route')];
-  }
-  if (params.get('view') && VIEW_TO_ROUTE[params.get('view')]) {
-    return params.get('view');
-  }
+  // 2. Check search params fallback (?view=view-employee-documents or ?route=/employee-documents)
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('route') && ROUTE_MAP[params.get('route')]) {
+      return ROUTE_MAP[params.get('route')];
+    }
+    if (params.get('view') && VIEW_TO_ROUTE[params.get('view')]) {
+      return params.get('view');
+    }
+  } catch (e) {}
 
-  if (ROUTE_MAP[path]) {
+  // 3. Check URL pathname
+  let path = window.location.pathname.replace(/\/$/, '') || '/';
+  if (path !== '/' && path !== '' && ROUTE_MAP[path]) {
     return ROUTE_MAP[path];
   }
 
-  // If root '/', check if previously visited route exists in storage
-  if (path === '/' || path === '') {
-    try {
-      const stored = localStorage.getItem('NORTH005_CURRENT_ROUTE');
-      if (stored && ROUTE_MAP[stored]) return ROUTE_MAP[stored];
-    } catch (e) {}
-    return 'view-dashboard';
-  }
+  // 4. Check persistent storage (retains active module when browser is refreshed!)
+  try {
+    const storedView = localStorage.getItem('NORTH005_ACTIVE_VIEW');
+    if (storedView && VIEW_TO_ROUTE[storedView]) {
+      return storedView;
+    }
+    const storedRoute = localStorage.getItem('NORTH005_CURRENT_ROUTE');
+    if (storedRoute && ROUTE_MAP[storedRoute]) {
+      return ROUTE_MAP[storedRoute];
+    }
+  } catch (e) {}
 
   return 'view-dashboard';
 }
@@ -563,9 +575,10 @@ window.switchView = function(viewId, updateHistory = true, skipAnimation = false
     }
   }
 
-  // Update URL route and browser history
+  // Update URL route, browser history, and persistent active view storage
   const routePath = VIEW_TO_ROUTE[viewId] || '/dashboard';
   try {
+    localStorage.setItem('NORTH005_ACTIVE_VIEW', viewId);
     localStorage.setItem('NORTH005_CURRENT_ROUTE', routePath);
   } catch (e) {}
 

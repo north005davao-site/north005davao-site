@@ -20,24 +20,9 @@ function formatPdfName(fullName) {
 
 const docs = [];
 
-// 1. Rhea Desnacido (2 records as seen in Desktop Image 2)
+// 1. Rhea Desnacido (Single canonical record, strictly deduplicated)
 docs.push({
   id: 'DOC-DDN005-SR000-CBTA-1760000000000-101',
-  employeeId: 'DDN005-SR000',
-  employeeName: 'Rhea Desnacido',
-  position: 'Reliever',
-  documentType: 'CBTA',
-  status: 'Complete',
-  dateUploaded: '2026-10-07',
-  expiryDate: '—',
-  fileName: 'Desnacido, Rhea B..pdf',
-  fileSize: '1121 KB',
-  fileType: 'application/pdf',
-  notes: 'Verified official compliance record on file.'
-});
-
-docs.push({
-  id: 'DOC-DDN005-SR000-CBTA-1760000000000-102',
   employeeId: 'DDN005-SR000',
   employeeName: 'Rhea Desnacido',
   position: 'Reliever',

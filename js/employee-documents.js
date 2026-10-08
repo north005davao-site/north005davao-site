@@ -188,25 +188,69 @@
         });
       }
     }
+ 
+    // Generates a canonical logical key for an employee's compliance document
+    getDocCompositeKey(doc) {
+      if (!doc) return '';
+      const empId = (doc.employeeId || '').trim();
+      const empName = (doc.employeeName || '').trim().toLowerCase();
+      const docType = (doc.documentType || 'CBTA').trim().toUpperCase();
+
+      // For shared reliever ID DDN005-SR000 or missing ID, disambiguate strictly by employee name
+      if (empId === 'DDN005-SR000' || !empId) {
+        return `${empName}::${docType}`;
+      }
+      return `${empId}::${docType}`;
+    }
+
+    // Intelligent deduplication: Merges duplicates, preserves binary fileDataUrls, eliminates redundant rows
+    deduplicateDocuments(docList = []) {
+      if (!Array.isArray(docList)) return [];
+      const map = new Map();
+
+      docList.forEach(doc => {
+        if (!doc) return;
+        const key = this.getDocCompositeKey(doc);
+        if (!key) return;
+
+        if (!map.has(key)) {
+          map.set(key, Object.assign({}, doc));
+        } else {
+          const existing = map.get(key);
+          // 1. Preserve local binary fileDataUrl if present
+          if (!existing.fileDataUrl && doc.fileDataUrl) {
+            existing.fileDataUrl = doc.fileDataUrl;
+            existing.fileSize = doc.fileSize || existing.fileSize;
+            existing.fileName = doc.fileName || existing.fileName;
+            existing.fileType = doc.fileType || existing.fileType;
+          }
+          // 2. Keep newer upload date or more complete metadata
+          if (doc.dateUploaded && (!existing.dateUploaded || doc.dateUploaded >= existing.dateUploaded)) {
+            existing.dateUploaded = doc.dateUploaded;
+          }
+          if (doc.status && doc.status !== 'Pending') {
+            existing.status = doc.status;
+          }
+          if (doc.notes && !existing.notes) {
+            existing.notes = doc.notes;
+          }
+        }
+      });
+
+      return Array.from(map.values());
+    }
 
     async loadFromIndexedDB() {
       if (typeof indexedDB === 'undefined') return;
       try {
         const idbDocs = await getAllDocsFromDB();
         if (idbDocs && idbDocs.length > 0) {
-          // Merge IndexedDB docs with this.documents
-          const mergedMap = new Map();
-          // IndexedDB has authoritative full data (with binary data URLs)
-          idbDocs.forEach(d => { if (d && d.id) mergedMap.set(d.id, d); });
-          this.documents.forEach(d => {
-            if (d && d.id && !mergedMap.has(d.id)) {
-              mergedMap.set(d.id, d);
-            }
-          });
-          this.documents = Array.from(mergedMap.values());
+          // Merge & deduplicate IndexedDB docs with this.documents
+          this.documents = this.deduplicateDocuments([...idbDocs, ...this.documents]);
+          await saveAllDocsToDB(this.documents);
           this.render();
         } else if (this.documents.length > 0) {
-          // Seed IndexedDB from existing documents
+          this.documents = this.deduplicateDocuments(this.documents);
           await saveAllDocsToDB(this.documents);
         }
       } catch (err) {
@@ -231,7 +275,7 @@
             try {
               const parsed = JSON.parse(stored);
               if (Array.isArray(parsed) && parsed.length > 0) {
-                return parsed;
+                return this.deduplicateDocuments(parsed);
               }
             } catch (e) {}
           }
@@ -299,26 +343,15 @@
           console.warn('[ComplianceDocs] Supabase sync fetch notice:', eSupa);
         }
 
-        // 4. Bidirectional Merge: Blend remote documents with local documents
+        // 4. Bidirectional Merge: Blend remote documents with local documents using composite key deduplication
         if (fetchedRemote && remoteDocs.length > 0) {
-          const docMap = new Map();
-          remoteDocs.forEach(d => { if (d && d.id) docMap.set(d.id, d); });
-
-          // Retain and protect local documents, preserving local binary data URLs
-          this.documents.forEach(d => {
-            if (d && d.id) {
-              if (!docMap.has(d.id)) {
-                docMap.set(d.id, d);
-              } else {
-                const rDoc = docMap.get(d.id);
-                if (!rDoc.fileDataUrl && d.fileDataUrl) {
-                  rDoc.fileDataUrl = d.fileDataUrl;
-                }
-              }
-            }
-          });
-
-          this.documents = Array.from(docMap.values());
+          // Merge remote and local documents, preserving local binary data URLs and eliminating duplicates
+          this.documents = this.deduplicateDocuments([...remoteDocs, ...this.documents]);
+          await this.saveDocuments();
+          this.render();
+        } else if (this.documents.length > 0) {
+          // Ensure local documents are strictly deduplicated even if offline
+          this.documents = this.deduplicateDocuments(this.documents);
           await this.saveDocuments();
           this.render();
         }
@@ -984,9 +1017,8 @@
 
       try {
         this.pendingUploads.forEach(p => {
-          if (isReplace) {
-            this.documents = this.documents.filter(d => !(this.isSameEmployee(d, p.employeeId, p.employeeName) && d.documentType === p.documentType));
-          }
+          // Enforce 1 document per employee & type to strictly prevent duplicate entries
+          this.documents = this.documents.filter(d => !(this.isSameEmployee(d, p.employeeId, p.employeeName) && d.documentType === p.documentType));
 
           const newDoc = {
             id: `DOC-${p.employeeId}-${p.documentType.replace(/[\/\s]+/g, '_')}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -1006,6 +1038,9 @@
 
           this.documents.unshift(newDoc);
         });
+
+        // Ensure canonical deduplication
+        this.documents = this.deduplicateDocuments(this.documents);
 
         // Persist to IndexedDB & localStorage safely
         this.saveDocuments();
@@ -1411,6 +1446,7 @@
     }
   }
 
+  window.EmployeeDocumentsModule = EmployeeDocumentsModule;
   window.employeeDocumentsModule = new EmployeeDocumentsModule();
 
   // Automatic boot initialization

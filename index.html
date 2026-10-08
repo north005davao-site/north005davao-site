@@ -34,7 +34,6 @@
     (function () {
       const ROUTE_MAP = {
         '/dashboard': 'view-dashboard',
-        '/': 'view-dashboard',
         '/master-registry': 'view-employees',
         '/employees': 'view-employees',
         '/live-tracking': 'view-tracking',
@@ -47,32 +46,82 @@
         '/expenses-payment': 'view-finance',
         '/outlet-rentals': 'view-inventory',
         '/inventory': 'view-inventory',
-        '/thermal-paper': 'view-thermal-paper',
-        '/thermal': 'view-thermal-paper',
-        '/thermal-summary': 'view-thermal-paper',
+        '/user-management': 'view-user-management',
+        '/users': 'view-user-management',
+        '/workforce-attendance': 'view-workforce-attendance',
+        '/attendance': 'view-workforce-attendance',
         '/org-chart': 'view-org-chart',
         '/organizational-charts': 'view-org-chart',
         '/organization': 'view-org-chart',
-        '/teams': 'view-org-chart'
+        '/teams': 'view-org-chart',
+        '/employee-documents': 'view-employee-documents',
+        '/documents': 'view-employee-documents',
+        '/thermal-paper': 'view-thermal-paper',
+        '/thermal': 'view-thermal-paper',
+        '/thermal-summary': 'view-thermal-paper',
+        '/audit-discrepancy': 'view-audit-discrepancy',
+        '/discrepancy': 'view-audit-discrepancy',
+        '/settings': 'view-settings'
       };
 
-      let path = window.location.pathname.replace(/\/$/, '') || '/';
+      const VALID_VIEWS = {
+        'view-dashboard': true,
+        'view-employees': true,
+        'view-tracking': true,
+        'view-pipelines': true,
+        'view-finance': true,
+        'view-inventory': true,
+        'view-user-management': true,
+        'view-workforce-attendance': true,
+        'view-org-chart': true,
+        'view-employee-documents': true,
+        'view-thermal-paper': true,
+        'view-audit-discrepancy': true,
+        'view-settings': true
+      };
+
+      let targetView = null;
+
+      // 1. Check URL Hash (e.g. #/employee-documents or #view-employee-documents)
       if (window.location.hash) {
         const hashClean = window.location.hash.replace(/^#\/?/, '/');
-        if (ROUTE_MAP[hashClean]) path = hashClean;
-      }
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('route') && ROUTE_MAP[params.get('route')]) {
-        path = params.get('route');
+        const hashRaw = window.location.hash.replace(/^#/, '');
+        if (ROUTE_MAP[hashClean]) targetView = ROUTE_MAP[hashClean];
+        else if (VALID_VIEWS[hashRaw]) targetView = hashRaw;
       }
 
-      let targetView = ROUTE_MAP[path];
-      if (!targetView && (path === '/' || path === '')) {
-        try {
-          const stored = localStorage.getItem('NORTH005_CURRENT_ROUTE');
-          if (stored && ROUTE_MAP[stored]) targetView = ROUTE_MAP[stored];
-        } catch (e) { }
+      // 2. Check URL Pathname (non-root)
+      const path = window.location.pathname.replace(/\/$/, '') || '/';
+      if (!targetView && path !== '/' && path !== '' && ROUTE_MAP[path]) {
+        targetView = ROUTE_MAP[path];
       }
+
+      // 3. Check Query Parameters (?route= or ?view=)
+      if (!targetView) {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          if (params.get('route') && ROUTE_MAP[params.get('route')]) {
+            targetView = ROUTE_MAP[params.get('route')];
+          } else if (params.get('view') && VALID_VIEWS[params.get('view')]) {
+            targetView = params.get('view');
+          }
+        } catch (e) {}
+      }
+
+      // 4. Check Stored Active View in LocalStorage (Ensures refreshes stay on current module!)
+      if (!targetView) {
+        try {
+          const storedView = localStorage.getItem('NORTH005_ACTIVE_VIEW');
+          const storedRoute = localStorage.getItem('NORTH005_CURRENT_ROUTE');
+          if (storedView && VALID_VIEWS[storedView]) {
+            targetView = storedView;
+          } else if (storedRoute && ROUTE_MAP[storedRoute]) {
+            targetView = ROUTE_MAP[storedRoute];
+          }
+        } catch (e) {}
+      }
+
+      // 5. Default fallback to Dashboard
       if (!targetView) targetView = 'view-dashboard';
 
       window.__INITIAL_ROUTE_VIEW__ = targetView;
