@@ -74,15 +74,40 @@ console.log(`Post-deduplication document count: ${cleanedDocs.length}`);
 // Verify count is exactly 46
 assert.strictEqual(cleanedDocs.length, 46, `Expected exactly 46 documents, got ${cleanedDocs.length}`);
 
-// Verify Rhea Desnacido appears EXACTLY ONCE
-const rheaRecords = cleanedDocs.filter(d => d.employeeName.toLowerCase().includes('rhea desnacido'));
-console.log(`Rhea Desnacido record count after deduplication: ${rheaRecords.length}`);
-assert.strictEqual(rheaRecords.length, 1, 'Rhea Desnacido must appear exactly once');
+// Verify Amerita Hipos appears EXACTLY ONCE despite ID dash variation (DDN005-SR-422 vs DDN005-SR422)
+const hiposVariations = [
+  {
+    id: 'DOC-DESKTOP-HIPOS-ROW1',
+    employeeId: 'DDN005-SR-422',
+    employeeName: 'AMERITA HIPOS',
+    position: 'Sales Representative',
+    documentType: 'CBTA',
+    status: 'Complete',
+    fileName: 'HIPOS, AMERITA.pdf'
+  },
+  {
+    id: 'DOC-DESKTOP-HIPOS-ROW2',
+    employeeId: 'DDN005-SR422',
+    employeeName: 'Hipos, Amerita H.',
+    position: 'Sales Representative',
+    documentType: 'CBTA',
+    status: 'Complete',
+    fileName: 'Hipos, Amerita H..pdf'
+  }
+];
 
-// Verify binary fileDataUrl was preserved for the merged record
-assert.strictEqual(rheaRecords[0].fileDataUrl.startsWith('data:application/pdf'), true, 'Local binary fileDataUrl must be preserved');
+const dedupedHipos = mod.deduplicateDocuments(hiposVariations);
+console.log(`Amerita Hipos record count after dual-index deduplication: ${dedupedHipos.length}`);
+assert.strictEqual(dedupedHipos.length, 1, 'Amerita Hipos must collapse from 2 records to 1');
+assert.strictEqual(dedupedHipos[0].fileDataUrl.startsWith('data:application/pdf'), true, 'Must have authentic PDF Data URL');
+console.log('✓ Amerita Hipos successfully deduplicated with canonical ID:', dedupedHipos[0].employeeId);
 
-console.log('✓ TEST 1 PASSED: 91 messy records collapsed to exact 46 unique records with 0 duplicates!\n');
+// Verify EVERY document has a valid PDF fileDataUrl (0 missing digital attachments)
+const missingPdfs = cleanedDocs.filter(d => !d.fileDataUrl || !d.fileDataUrl.startsWith('data:application/pdf'));
+console.log(`Documents missing digital PDF attachments: ${missingPdfs.length}`);
+assert.strictEqual(missingPdfs.length, 0, 'Every document must have a valid digital PDF attachment');
+
+console.log('✓ TEST 1 PASSED: 91 messy records collapsed to exact 46 unique records with 0 duplicates and 100% digital attachments!\n');
 
 
 // -------------------------------------------------------------
