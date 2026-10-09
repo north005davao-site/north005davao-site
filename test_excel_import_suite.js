@@ -153,7 +153,7 @@ async function runTestSuite() {
   const findMatchingTarget = (s) => {
     const raw = String(s || '').trim();
     const norm = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (norm.includes('reliever') || norm.includes('buffer')) return { sheetName: 'RELIEVERS', municipality: 'Davao Sector', isRelieversSheet: true, isOptional: true };
+    if (norm.includes('reliever') || norm.includes('buffer')) return { sheetName: 'RELIEVERS', municipality: 'Sto. Tomas', isRelieversSheet: true, isOptional: true };
     if (norm.includes('tagum')) return { sheetName: 'DDN 01 TAGUM', municipality: 'Tagum' };
     if (norm.includes('panabo')) return { sheetName: 'DDN 02 PANABO', municipality: 'Panabo' };
     if (norm.includes('carmen')) return { sheetName: 'DDN 03 CARMEN', municipality: 'Carmen' };

@@ -1371,7 +1371,9 @@ function renderEmployeesTable(customList = null) {
     if (roleUpper.includes('SUPERVISOR')) roleBadge = 'badge-purple';
     else if (roleUpper.includes('TEAM LEADER')) roleBadge = 'badge-teal';
     else if (roleUpper.includes('COLLECTOR')) roleBadge = 'badge-warning';
-    else if (roleUpper.includes('RELIEVER')) roleBadge = 'badge-neutral';
+    else if (roleUpper.includes('RELIEVER') || roleUpper.includes('BUFFER') || emp.id === 'DDN005-SR000') roleBadge = 'badge-neutral';
+
+    const isReliever = roleUpper.includes('RELIEVER') || roleUpper.includes('BUFFER') || emp.id === 'DDN005-SR000';
 
     // 1. Purok / Street / Barangay & 2. Municipality
     // Auto-clean any legacy dangling slash puroks
@@ -1381,24 +1383,59 @@ function renderEmployeesTable(customList = null) {
       emp.purok = '-';
     }
 
-    let purok = (rawP !== undefined && rawP !== null && String(rawP).trim() !== '') ? String(rawP).trim() : '-';
-    let muni = (emp.municipality !== undefined && emp.municipality !== null && String(emp.municipality).trim() !== '' && String(emp.municipality).trim() !== '-' && String(emp.municipality).trim() !== 'Davao Sector' && String(emp.municipality).trim() !== 'Davao Del Norte') 
-      ? String(emp.municipality).trim() 
-      : ((emp.area && emp.area !== '-' && emp.area !== 'Davao Sector' && emp.area !== 'Davao Del Norte') ? emp.area : '-');
+    let purok = '-';
+    let muni = '-';
 
-    // Only fallback to address parsing if NEITHER purok nor municipality was ever defined on the record or was generic
-    if ((emp.purok === undefined || emp.purok === null || emp.purok === '-') || (!muni || muni === '-' || muni === 'Davao Sector' || muni === 'Davao Del Norte')) {
-      const parsed = parseAddressHelper(emp.address || emp.area || '');
-      if (purok === '-' || !purok) purok = parsed.purok;
-      if (!muni || muni === '-' || muni === 'Davao Sector' || muni === 'Davao Del Norte') muni = parsed.municipality;
+    if (isReliever) {
+      purok = '-';
+      const normName = (emp.name || '').toLowerCase().trim();
+      const authMuni = (typeof window.getRelieverMunicipality === 'function')
+        ? window.getRelieverMunicipality(emp.name)
+        : ((typeof getRelieverMunicipality === 'function')
+          ? getRelieverMunicipality(emp.name)
+          : (typeof OFFICIAL_RELIEVER_MUNICIPALITIES !== 'undefined' && OFFICIAL_RELIEVER_MUNICIPALITIES[normName]
+            ? OFFICIAL_RELIEVER_MUNICIPALITIES[normName]
+            : (emp.municipality && !emp.municipality.includes('Davao Sector') && emp.municipality !== '-' && emp.municipality !== 'N/A' ? emp.municipality : 'Sto. Tomas')));
+      muni = authMuni;
+      // Self-heal reliever state in memory
+      emp.municipality = authMuni;
+      emp.purok = '-';
+      emp.address = `-, ${authMuni}`;
+      emp.area = emp.address;
+      emp.booth = '-';
+      emp.boothCode = '-';
+      emp.lat = null;
+      emp.lng = null;
+      emp.coordinates = null;
+      emp.etsStatus = 'Offline';
+    } else {
+      purok = (rawP !== undefined && rawP !== null && String(rawP).trim() !== '') ? String(rawP).trim() : '-';
+      const rawM = (emp.municipality !== undefined && emp.municipality !== null) ? String(emp.municipality).trim() : '';
+      const isBadMuni = !rawM || rawM === '-' || rawM === 'N/A' || rawM.includes('Davao Sector') || rawM.includes('Davao Del Norte');
+      if (!isBadMuni) {
+        muni = rawM;
+      } else {
+        const rawA = (emp.area && emp.area !== '-' && !emp.area.includes('Davao Sector') && !emp.area.includes('Davao Del Norte')) ? emp.area : '';
+        if (rawA) {
+          muni = rawA;
+        } else {
+          const parsed = parseAddressHelper(emp.address || emp.area || '');
+          if (parsed.municipality && parsed.municipality !== '-' && !parsed.municipality.includes('Davao Sector') && !parsed.municipality.includes('Davao Del Norte')) {
+            muni = parsed.municipality;
+          } else {
+            muni = 'Sto. Tomas';
+          }
+          if (purok === '-' || !purok) purok = parsed.purok;
+        }
+      }
     }
 
     // 3. Booth Code (Checks boothCode or booth)
-    const displayBooth = (emp.boothCode && emp.boothCode !== '-') ? emp.boothCode : (emp.booth && emp.booth !== '-' ? emp.booth : '-');
+    const displayBooth = isReliever ? '-' : ((emp.boothCode && emp.boothCode !== '-') ? emp.boothCode : (emp.booth && emp.booth !== '-' ? emp.booth : '-'));
 
     // 4. GPS Coordinates (Checks lat/lng or coordinates object)
-    let latVal = (emp.lat !== undefined && emp.lat !== null && emp.lat !== '' && !isNaN(emp.lat)) ? Number(emp.lat) : (emp.coordinates && emp.coordinates.lat !== undefined && emp.coordinates.lat !== null && emp.coordinates.lat !== '' && !isNaN(emp.coordinates.lat) ? Number(emp.coordinates.lat) : null);
-    let lngVal = (emp.lng !== undefined && emp.lng !== null && emp.lng !== '' && !isNaN(emp.lng)) ? Number(emp.lng) : (emp.coordinates && emp.coordinates.lng !== undefined && emp.coordinates.lng !== null && emp.coordinates.lng !== '' && !isNaN(emp.coordinates.lng) ? Number(emp.coordinates.lng) : null);
+    let latVal = isReliever ? null : ((emp.lat !== undefined && emp.lat !== null && emp.lat !== '' && !isNaN(emp.lat)) ? Number(emp.lat) : (emp.coordinates && emp.coordinates.lat !== undefined && emp.coordinates.lat !== null && emp.coordinates.lat !== '' && !isNaN(emp.coordinates.lat) ? Number(emp.coordinates.lat) : null));
+    let lngVal = isReliever ? null : ((emp.lng !== undefined && emp.lng !== null && emp.lng !== '' && !isNaN(emp.lng)) ? Number(emp.lng) : (emp.coordinates && emp.coordinates.lng !== undefined && emp.coordinates.lng !== null && emp.coordinates.lng !== '' && !isNaN(emp.coordinates.lng) ? Number(emp.coordinates.lng) : null));
     const gpsDisplay = (latVal !== null && lngVal !== null) ? `${latVal.toFixed(6)}, ${lngVal.toFixed(6)}` : '-';
 
     // 5. Contact Phone
@@ -1851,23 +1888,30 @@ window.editEmployee = function(id, isViewOnly = false, empName = null) {
 
   // Municipality
   let rawMuni = '';
-  if (emp.municipality && emp.municipality !== '-' && emp.municipality !== 'Davao Sector' && emp.municipality !== 'Davao Del Norte') {
-    rawMuni = emp.municipality;
-  } else if (emp.area && emp.area !== '-' && emp.area !== 'Davao Sector' && emp.area !== 'Davao Del Norte') {
-    rawMuni = emp.area;
-  } else if (parsed.municipality && parsed.municipality !== '-' && parsed.municipality !== 'Davao Sector' && parsed.municipality !== 'Davao Del Norte') {
-    rawMuni = parsed.municipality;
-  }
-  if (!rawMuni || rawMuni === 'Davao Sector' || rawMuni === 'Davao Del Norte') {
-    const rawT = `${emp.address || ''} ${emp.area || ''} ${emp.purok || ''}`.toLowerCase();
-    if (rawT.includes('tagum')) rawMuni = 'Tagum City';
-    else if (rawT.includes('panabo')) rawMuni = 'Panabo City';
-    else if (rawT.includes('carmen')) rawMuni = 'Carmen';
-    else if (rawT.includes('tomas')) rawMuni = 'Sto. Tomas';
-    else if (rawT.includes('kapalong')) rawMuni = 'Kapalong';
-    else if (rawT.includes('talaingod')) rawMuni = 'Talaingod';
-    else if (rawT.includes('samal')) rawMuni = 'Samal';
-    else rawMuni = 'Sto. Tomas';
+  if (normalizedRole === 'RELIEVER') {
+    rawMuni = (typeof window.getRelieverMunicipality === 'function') 
+      ? window.getRelieverMunicipality(emp.name)
+      : ((typeof getRelieverMunicipality === 'function') ? getRelieverMunicipality(emp.name) : 'Sto. Tomas');
+    document.getElementById('emp-form-purok').value = '-';
+  } else {
+    if (emp.municipality && emp.municipality !== '-' && emp.municipality !== 'N/A' && !emp.municipality.includes('Davao Sector') && !emp.municipality.includes('Davao Del Norte')) {
+      rawMuni = emp.municipality;
+    } else if (emp.area && emp.area !== '-' && !emp.area.includes('Davao Sector') && !emp.area.includes('Davao Del Norte')) {
+      rawMuni = emp.area;
+    } else if (parsed.municipality && parsed.municipality !== '-' && !parsed.municipality.includes('Davao Sector') && !parsed.municipality.includes('Davao Del Norte')) {
+      rawMuni = parsed.municipality;
+    }
+    if (!rawMuni || rawMuni.includes('Davao Sector') || rawMuni.includes('Davao Del Norte')) {
+      const rawT = `${emp.address || ''} ${emp.area || ''} ${emp.purok || ''}`.toLowerCase();
+      if (rawT.includes('tagum')) rawMuni = 'Tagum City';
+      else if (rawT.includes('panabo')) rawMuni = 'Panabo City';
+      else if (rawT.includes('carmen')) rawMuni = 'Carmen';
+      else if (rawT.includes('tomas')) rawMuni = 'Sto. Tomas';
+      else if (rawT.includes('kapalong')) rawMuni = 'Kapalong';
+      else if (rawT.includes('talaingod')) rawMuni = 'Talaingod';
+      else if (rawT.includes('samal')) rawMuni = 'Samal';
+      else rawMuni = 'Sto. Tomas';
+    }
   }
   document.getElementById('emp-form-muni').value = rawMuni;
 
@@ -2071,10 +2115,17 @@ window.filterFleetActivityList = function(query) {
   // If user searched for a specific booth code, coordinates, or name, focus map on first match
   if (fleetSearchQuery.length >= 3) {
     const store = window.appStore;
-    const employees = store.getEmployees();
-    const relievers = store.data.relievers || [];
-    const allStaff = [...employees, ...relievers.filter(r => !employees.some(e => e.id === r.id))];
-    const match = allStaff.find(e => 
+    const employees = store.getEmployees() || [];
+    // Only booth-assigned Sales Representatives with valid coordinates appear in ETS Map
+    const operationalStaff = employees.filter(e => {
+      const r = (e.role || '').toUpperCase();
+      const isRel = r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('BUFFER') || e.id === 'DDN005-SR000';
+      const isAdm = r.includes('ADMIN') || (e.department || '').includes('admin');
+      const isSup = r.includes('SUPERVISOR') || (e.department || '').includes('sup');
+      const isCol = r.includes('COLLECTOR') || (e.department || '').includes('col');
+      return !isRel && !isAdm && !isSup && !isCol;
+    });
+    const match = operationalStaff.find(e => 
       (e.boothCode && e.boothCode.toLowerCase().includes(fleetSearchQuery)) ||
       (e.name && e.name.toLowerCase().includes(fleetSearchQuery)) ||
       (e.id && e.id.toLowerCase().includes(fleetSearchQuery)) ||
@@ -2095,18 +2146,17 @@ function renderFleetTrackingList() {
   const store = window.appStore;
   if (!store) return;
   const employees = store.getEmployees() || [];
-  const relievers = (store.data && store.data.relievers) || [];
-  const allStaff = [...employees, ...relievers.filter(r => !employees.some(e => e.id === r.id))];
 
-  // Fleet Activity Monitor: Only show booth-assigned Sales Representatives and Relievers.
-  // Admins, Supervisors, and Collectors have no STL Booth assignments and must not appear here.
-  const boothStaff = allStaff.filter(emp => {
+  // Fleet Activity Monitor: Exclusively show booth-assigned Sales Representatives with STL Booths.
+  // Relievers, Admins, Supervisors, and Collectors have no STL Booth coordinates and must not appear here.
+  const boothStaff = employees.filter(emp => {
     const roleUpper = (emp.role || '').toUpperCase();
     const deptLower = (emp.department || '').toLowerCase();
     const isAdmin = roleUpper.includes('ADMIN') || deptLower === 'dept-admin' || deptLower.includes('admin');
     const isSupervisor = roleUpper.includes('SUPERVISOR') || roleUpper.includes('TEAM LEADER') || deptLower === 'dept-sup';
     const isCollector = roleUpper.includes('COLLECTOR') || deptLower === 'dept-col';
-    return !isAdmin && !isSupervisor && !isCollector;
+    const isReliever = roleUpper.includes('RELIEVER') || roleUpper.includes('RELIVER') || roleUpper.includes('BUFFER') || emp.id === 'DDN005-SR000';
+    return !isAdmin && !isSupervisor && !isCollector && !isReliever;
   });
 
   let list = boothStaff;
@@ -2206,18 +2256,15 @@ window.openPrecisionCalibrateModal = function(preselectedId = null) {
   const select = document.getElementById('calib-select-target');
   const store = window.appStore;
   if (!store || !select) return;
-  const employees = store.getEmployees();
-  const relievers = store.data.relievers || [];
-  const allStaff = [...employees, ...relievers.filter(r => !employees.some(e => e.id === r.id))];
-
-  // Precision Calibration is exclusively for booth-stationed field staff (Sales Reps & Relievers)
-  const boothStaff = allStaff.filter(emp => {
+  // Precision Calibration is exclusively for booth-stationed field staff (Sales Representatives)
+  const boothStaff = (store.getEmployees() || []).filter(emp => {
     const roleUpper = (emp.role || '').toUpperCase();
     const deptLower = (emp.department || '').toLowerCase();
     const isAdmin = roleUpper.includes('ADMIN') || deptLower === 'dept-admin' || deptLower.includes('admin');
     const isSupervisor = roleUpper.includes('SUPERVISOR') || roleUpper.includes('TEAM LEADER') || deptLower === 'dept-sup';
     const isCollector = roleUpper.includes('COLLECTOR') || deptLower === 'dept-col';
-    return !isAdmin && !isSupervisor && !isCollector;
+    const isReliever = roleUpper.includes('RELIEVER') || roleUpper.includes('RELIVER') || roleUpper.includes('BUFFER') || emp.id === 'DDN005-SR000';
+    return !isAdmin && !isSupervisor && !isCollector && !isReliever;
   });
 
   select.innerHTML = boothStaff.map(e => {
@@ -2289,11 +2336,15 @@ window.focusStaffMember = function(empId) {
   const store = window.appStore;
   if (!store) return;
   const employees = store.getEmployees() || [];
-  const relievers = (store.data && store.data.relievers) || [];
-  const allStaff = [...employees, ...relievers.filter(r => !employees.some(e => e.id === r.id))];
-
-  const emp = allStaff.find(e => e.id === empId || e.name === empId);
+  const emp = employees.find(e => e.id === empId || e.name === empId);
   if (!emp) return;
+
+  const roleUpper = (emp.role || '').toUpperCase();
+  const isReliever = roleUpper.includes('RELIEVER') || roleUpper.includes('RELIVER') || roleUpper.includes('BUFFER') || emp.id === 'DDN005-SR000';
+  if (isReliever) {
+    alert(`GPS TRACKING UNAVAILABLE: ${emp.name} is a Reliever with no fixed STL Booth or GPS coordinates.`);
+    return;
+  }
 
   let gps = (typeof window.parseGpsCoordinates === 'function') 
     ? window.parseGpsCoordinates(emp) 

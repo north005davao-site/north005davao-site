@@ -588,8 +588,15 @@
       // 2. CACHE MISS / REFRESH: Authoritative Parse from Master Registry
       const registeredBooths = store.getBooths() || [];
       const employees = store.getEmployees() || [];
-      const relievers = (store.data && store.data.relievers) || [];
-      const allStaff = [...employees, ...relievers.filter(r => !employees.some(e => e.id === r.id))];
+      // Relievers, Admins, Supervisors, and Collectors have no booths or coordinates and are excluded from STL Booth GPS Map
+      const operationalStaff = employees.filter(emp => {
+        const r = (emp.role || '').toUpperCase();
+        const isRel = r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('BUFFER') || emp.id === 'DDN005-SR000';
+        const isAdm = r.includes('ADMIN') || (emp.department || '').includes('admin');
+        const isSup = r.includes('SUPERVISOR') || (emp.department || '').includes('sup');
+        const isCol = r.includes('COLLECTOR') || (emp.department || '').includes('col');
+        return !isRel && !isAdm && !isSup && !isCol;
+      });
 
       // Collect all distinct booths keyed strictly by normalized Booth Code
       const boothMap = new Map();
@@ -613,7 +620,7 @@
       });
 
       // Associate assigned personnel to booths by normalized Booth Code
-      allStaff.forEach(emp => {
+      operationalStaff.forEach(emp => {
         const normCode = normalizeBoothCode(emp.boothCode || emp.booth);
         if (!normCode) return; // Skip collectors, admins, and unassigned roaming personnel
 

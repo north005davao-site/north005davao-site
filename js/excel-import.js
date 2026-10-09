@@ -86,7 +86,7 @@
     const raw = cleanStr(sheetName);
     const norm = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
     if (norm.includes('reliever') || norm.includes('buffer')) {
-      return { sheetName: 'RELIEVERS', municipality: 'Davao Sector', isRelieversSheet: true, isOptional: true };
+      return { sheetName: 'RELIEVERS', municipality: 'Sto. Tomas', isRelieversSheet: true, isOptional: true };
     }
     // Municipality checks
     if (norm.includes('tagum')) return { sheetName: 'DDN 01 TAGUM', municipality: 'Tagum' };
@@ -231,7 +231,7 @@
           matchedTargets.push({
             targetSheet: 'RELIEVERS',
             actualSheet: sheetName,
-            municipality: 'Davao Sector',
+            municipality: 'Sto. Tomas',
             isRelieversSheet: true
           });
         }
@@ -461,7 +461,7 @@
             record.notes = `New record with missing data (${record.missingFields.join(', ')}) — Status set to INACTIVE`;
           } else {
             record.notes = record.role === 'Reliever'
-              ? `New Reliever to be added to Reliever Registry (${record.municipality || 'Davao Sector'})`
+              ? `New Reliever to be added to Reliever Registry (${record.municipality || 'Sto. Tomas'})`
               : `New Sales Representative to be added to Master Registry (${record.municipality})`;
           }
         }
@@ -824,7 +824,15 @@
         muniVal = parsed.municipality || rawMuni;
       }
     }
-    if (!muniVal || muniVal === 'Davao Sector' || muniVal === 'Davao Del Norte' || muniVal === 'N/A' || muniVal === '-') {
+    if (isReliever) {
+      const authMuni = (typeof window !== 'undefined' && typeof window.getRelieverMunicipality === 'function')
+        ? window.getRelieverMunicipality(rawName)
+        : ((typeof getRelieverMunicipality === 'function') ? getRelieverMunicipality(rawName) : null);
+      if (authMuni && (!muniVal || muniVal.includes('Davao Sector') || muniVal.includes('Davao Del Norte') || muniVal === 'N/A' || muniVal === '-')) {
+        muniVal = authMuni;
+      }
+    }
+    if (!muniVal || muniVal.includes('Davao Sector') || muniVal.includes('Davao Del Norte') || muniVal === 'N/A' || muniVal === '-') {
       const testText = `${combinedAddress} ${sheetInfo.targetSheet} ${sheetInfo.actualSheet || ''}`.toLowerCase();
       if (testText.includes('tagum')) muniVal = 'Tagum City';
       else if (testText.includes('panabo')) muniVal = 'Panabo City';
@@ -833,35 +841,42 @@
       else if (testText.includes('talaingod')) muniVal = 'Talaingod';
       else if (testText.includes('kapalong')) muniVal = 'Kapalong';
       else if (testText.includes('samal') || testText.includes('babak') || testText.includes('penaplata') || testText.includes('kaputian') || testText.includes('igacos')) muniVal = 'Samal';
-      else muniVal = 'Sto. Tomas';
+      else muniVal = isReliever ? ((typeof getRelieverMunicipality === 'function' && getRelieverMunicipality(rawName)) || 'Sto. Tomas') : 'Sto. Tomas';
     }
 
     // 7. GPS Coordinates (Parsed accurately from COORDINATES or authentic registry)
     const rawCoords = getCell(headerAnalysis.coordsCol);
     let parsedLat = null;
     let parsedLng = null;
-    if (rawCoords) {
-      const m = rawCoords.match(/(-?\d+\.?\d*)[,\s;]+(-?\d+\.?\d*)/);
-      if (m) {
-        let lat = parseFloat(m[1]);
-        let lng = parseFloat(m[2]);
-        if (lat > 50 && lng < 50) {
-          const temp = lat;
-          lat = lng;
-          lng = temp;
-        }
-        if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-          parsedLat = parseFloat(lat.toFixed(6));
-          parsedLng = parseFloat(lng.toFixed(6));
+    if (isReliever) {
+      parsedLat = null;
+      parsedLng = null;
+      rawBooth = '-';
+      combinedAddress = '-';
+    } else {
+      if (rawCoords) {
+        const m = rawCoords.match(/(-?\d+\.?\d*)[,\s;]+(-?\d+\.?\d*)/);
+        if (m) {
+          let lat = parseFloat(m[1]);
+          let lng = parseFloat(m[2]);
+          if (lat > 50 && lng < 50) {
+            const temp = lat;
+            lat = lng;
+            lng = temp;
+          }
+          if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+            parsedLat = parseFloat(lat.toFixed(6));
+            parsedLng = parseFloat(lng.toFixed(6));
+          }
         }
       }
-    }
-    // Authentic Master Registry coordinate match if valid booth
-    if (parsedLat === null && rawBooth && rawBooth !== '-' && rawBooth !== 'N/A') {
-      const normB = normalizeBoothCode(rawBooth);
-      if (typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined' && AUTHENTIC_MASTER_REGISTRY_COORDINATES[normB]) {
-        parsedLat = AUTHENTIC_MASTER_REGISTRY_COORDINATES[normB].lat;
-        parsedLng = AUTHENTIC_MASTER_REGISTRY_COORDINATES[normB].lng;
+      // Authentic Master Registry coordinate match if valid booth
+      if (parsedLat === null && rawBooth && rawBooth !== '-' && rawBooth !== 'N/A') {
+        const normB = normalizeBoothCode(rawBooth);
+        if (typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined' && AUTHENTIC_MASTER_REGISTRY_COORDINATES[normB]) {
+          parsedLat = AUTHENTIC_MASTER_REGISTRY_COORDINATES[normB].lat;
+          parsedLng = AUTHENTIC_MASTER_REGISTRY_COORDINATES[normB].lng;
+        }
       }
     }
 
@@ -914,20 +929,27 @@
       finalId = (rawId && !rawId.startsWith('DDN005-REL') && rawId !== 'N/A') ? rawId : 'DDN005-SR000';
     }
 
+    const relieverMuni = isReliever
+      ? (muniVal && !muniVal.includes('Davao Sector') && !muniVal.includes('Davao Del Norte') && muniVal !== 'N/A' && muniVal !== '-'
+          ? muniVal
+          : ((typeof window !== 'undefined' && typeof window.getRelieverMunicipality === 'function' && window.getRelieverMunicipality(rawName)) || 
+             (typeof getRelieverMunicipality === 'function' && getRelieverMunicipality(rawName)) || 'Sto. Tomas'))
+      : (muniVal || 'N/A');
+
     return {
       rowNum: rowNum,
       sheetName: sheetInfo.targetSheet,
-      id: finalId,
+      id: isReliever ? 'DDN005-SR000' : finalId,
       name: rawName || 'N/A',
-      role: roleVal,
-      purok: combinedAddress || 'N/A',
-      barangay: rawBarangay || 'N/A',
-      municipality: muniVal || 'N/A',
-      booth: (rawBooth && rawBooth !== '-') ? rawBooth : 'N/A',
-      boothCode: (rawBooth && rawBooth !== '-') ? rawBooth : 'N/A',
-      coordinates: (parsedLat !== null && parsedLng !== null) ? { lat: parsedLat, lng: parsedLng } : null,
-      lat: parsedLat,
-      lng: parsedLng,
+      role: isReliever ? 'Reliever' : roleVal,
+      purok: isReliever ? '-' : (combinedAddress || 'N/A'),
+      barangay: isReliever ? '-' : (rawBarangay || 'N/A'),
+      municipality: relieverMuni,
+      booth: isReliever ? '-' : ((rawBooth && rawBooth !== '-') ? rawBooth : 'N/A'),
+      boothCode: isReliever ? '-' : ((rawBooth && rawBooth !== '-') ? rawBooth : 'N/A'),
+      coordinates: isReliever ? null : ((parsedLat !== null && parsedLng !== null) ? { lat: parsedLat, lng: parsedLng } : null),
+      lat: isReliever ? null : parsedLat,
+      lng: isReliever ? null : parsedLng,
       rawCoordinates: rawCoords,
       phone: cleanPhone || 'N/A',
       contact: cleanPhone || 'N/A',
