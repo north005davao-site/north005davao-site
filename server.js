@@ -218,6 +218,27 @@ function writePersistentSessions(payload) {
   }
 }
 
+const REGISTRY_FILE = path.join(DATA_DIR, 'master_registry.json');
+
+function readPersistentMasterRegistry() {
+  try {
+    if (fs.existsSync(REGISTRY_FILE)) {
+      return JSON.parse(fs.readFileSync(REGISTRY_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading persistent master registry:', e);
+  }
+  return null;
+}
+
+function writePersistentMasterRegistry(payload) {
+  try {
+    atomicWriteFileSync(REGISTRY_FILE, JSON.stringify(payload, null, 2));
+  } catch (e) {
+    console.error('Error writing persistent master registry:', e);
+  }
+}
+
 const MIME_TYPES = {
   '.html': 'text/html',
   '.css': 'text/css',
@@ -626,6 +647,37 @@ const server = http.createServer((req, res) => {
         writePersistentSessions(sessions);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, session: sessions[username] }));
+      });
+      return;
+    }
+
+    // 0e. API ROUTING: /api/master-registry (Persistent Cross-Device Sync)
+    if (pathname === '/api/master-registry' && req.method === 'GET') {
+      const data = readPersistentMasterRegistry();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data || { employees: [], booths: [], version: 0 }));
+      return;
+    }
+
+    if (pathname === '/api/master-registry' && req.method === 'POST') {
+      readJsonBody(req, res, (err, payload) => {
+        if (err) return;
+        if (!payload) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid master registry payload' }));
+          return;
+        }
+        const emps = Array.isArray(payload) ? payload : (payload.employees || []);
+        const dataToSave = {
+          employees: emps,
+          booths: payload.booths || [],
+          relievers: payload.relievers || [],
+          version: Date.now(),
+          lastUpdated: new Date().toISOString()
+        };
+        writePersistentMasterRegistry(dataToSave);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, count: dataToSave.employees.length, version: dataToSave.version }));
       });
       return;
     }

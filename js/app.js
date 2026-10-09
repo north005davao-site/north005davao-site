@@ -1237,16 +1237,38 @@ function renderEmployeesTable(customList = null) {
            d.includes('collector');
   };
 
-  // Operational staff list for All Staff (excluding Leadership and Collectors)
-  const allStaffOperational = allStaff.filter(e => !isLeadershipOrCollector(e));
-
-  const supervisors = allStaff.filter(e => (e.role || '').toUpperCase().includes('SUPERVISOR') || (e.role || '').toUpperCase().includes('TEAM LEADER'));
-  const collectors = allStaff.filter(e => (e.role || '').toUpperCase().includes('COLLECTOR'));
-  const relieversList = allStaff.filter(e => {
+  const isRelieverItem = (e) => {
+    if (!e) return false;
     const r = (e.role || '').toUpperCase();
     const id = (e.id || '').toUpperCase();
     return r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('BUFFER') || id.includes('-REL');
-  });
+  };
+
+  // Operational staff list for All Staff (excluding Leadership and Collectors)
+  // STRICT RULE: Sales Representatives MUST ALWAYS appear first on display, Relievers NEVER first!
+  const allStaffOperational = allStaff
+    .filter(e => !isLeadershipOrCollector(e))
+    .sort((a, b) => {
+      const aRel = isRelieverItem(a);
+      const bRel = isRelieverItem(b);
+      if (!aRel && bRel) return -1; // Sales Representative strictly precedes Reliever
+      if (aRel && !bRel) return 1;  // Reliever strictly follows Sales Representative
+      if (!aRel && !bRel) {
+        const bA = (a.boothCode || a.booth || '').trim();
+        const bB = (b.boothCode || b.booth || '').trim();
+        if (bA && bB && bA !== '-' && bB !== '-') {
+          const numA = parseInt(bA.replace(/\D/g, ''), 10) || 0;
+          const numB = parseInt(bB.replace(/\D/g, ''), 10) || 0;
+          if (numA !== numB) return numA - numB;
+        }
+        return (a.name || '').localeCompare(b.name || '');
+      }
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+  const supervisors = allStaff.filter(e => (e.role || '').toUpperCase().includes('SUPERVISOR') || (e.role || '').toUpperCase().includes('TEAM LEADER'));
+  const collectors = allStaff.filter(e => (e.role || '').toUpperCase().includes('COLLECTOR'));
+  const relieversList = allStaff.filter(e => isRelieverItem(e));
 
   // Section 4: 3. Sales Representatives Registry must count ACTIVE Sales Representatives only.
   // Inactive Sales Representatives must NOT be included in this count.
@@ -1368,6 +1390,14 @@ function renderEmployeesTable(customList = null) {
     } else {
       list = allStaffOperational;
     }
+  } else if (!currentRegistryCategory || currentRegistryCategory === 'all') {
+    list.sort((a, b) => {
+      const aRel = isRelieverItem(a);
+      const bRel = isRelieverItem(b);
+      if (!aRel && bRel) return -1;
+      if (aRel && !bRel) return 1;
+      return 0;
+    });
   }
 
   // Pagination calculation

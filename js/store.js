@@ -1399,6 +1399,150 @@ class Store {
     this.data = this.load();
     this.listeners = [];
     this.syncWithServer();
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('focus', () => this.syncMasterRegistryWithServer());
+      if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            this.syncMasterRegistryWithServer();
+          }
+        });
+      }
+      const syncTimer = setInterval(() => {
+        this.syncMasterRegistryWithServer();
+      }, 15000);
+      if (syncTimer && typeof syncTimer.unref === 'function') {
+        syncTimer.unref();
+      }
+    }
+  }
+
+  sortEmployeesStrict(employees) {
+    if (!Array.isArray(employees)) return [];
+    const leadershipAndCollectors = [];
+    const salesReps = [];
+    const relievers = [];
+
+    const isLeadershipOrCollector = (emp) => {
+      if (!emp) return false;
+      const r = (emp.role || '').toUpperCase();
+      const d = (emp.department || '').toLowerCase();
+      return r.includes('ADMIN') || 
+             r.includes('SUPERVISOR') || 
+             r.includes('TEAM LEADER') || 
+             r.includes('COLLECTOR') || 
+             d === 'dept-admin' || 
+             d === 'dept-sup' || 
+             d === 'dept-col' || 
+             d.includes('admin') || 
+             d.includes('supervisor') || 
+             d.includes('collector');
+    };
+
+    const isRel = (emp) => {
+      if (!emp) return false;
+      const r = (emp.role || '').toUpperCase();
+      const id = (emp.id || '').toUpperCase();
+      return r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('BUFFER') || id.includes('-REL');
+    };
+
+    employees.forEach(emp => {
+      if (!emp) return;
+      if (isLeadershipOrCollector(emp)) {
+        leadershipAndCollectors.push(emp);
+      } else if (isRel(emp)) {
+        relievers.push(emp);
+      } else {
+        salesReps.push(emp);
+      }
+    });
+
+    // Sales Representatives sorted cleanly by booth number or ID
+    salesReps.sort((a, b) => {
+      const bA = (a.boothCode || a.booth || '').trim();
+      const bB = (b.boothCode || b.booth || '').trim();
+      if (bA && bB && bA !== '-' && bB !== '-') {
+        const numA = parseInt(bA.replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt(bB.replace(/\D/g, ''), 10) || 0;
+        if (numA !== numB) return numA - numB;
+      }
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    // Relievers sorted alphabetically by name
+    relievers.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    return [...leadershipAndCollectors, ...salesReps, ...relievers];
+  }
+
+  async syncMasterRegistryWithServer() {
+    try {
+      if (typeof fetch !== 'function') return;
+      const res = await fetch('/api/master-registry');
+      if (!res.ok) return;
+      const srv = await res.json();
+      if (!srv || !Array.isArray(srv.employees) || srv.employees.length === 0) {
+        if (this.data && Array.isArray(this.data.employees) && this.data.employees.length > 0) {
+          fetch('/api/master-registry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              employees: this.data.employees,
+              booths: this.data.booths || [],
+              relievers: this.data.relievers || [],
+              version: this.data.masterRegistryVersion || Date.now()
+            })
+          }).catch(() => {});
+        }
+        return;
+      }
+
+      const serverEmps = srv.employees;
+      const charlyn = serverEmps.find(e => e.name && e.name.toLowerCase().trim() === 'charlyn dela vega');
+      if (charlyn) {
+        charlyn.id = 'DDN005-SR1799';
+        charlyn.role = 'TELLER';
+        charlyn.boothCode = 'DDN-1799';
+        charlyn.booth = 'DDN-1799';
+        charlyn.status = 'Active';
+      }
+
+      const sortedServer = this.sortEmployeesStrict(serverEmps);
+      const localCount = (this.data.employees || []).length;
+      const serverCount = sortedServer.length;
+      const localHash = JSON.stringify((this.data.employees || []).map(e => e.id + e.role + (e.status || '')));
+      const serverHash = JSON.stringify(sortedServer.map(e => e.id + e.role + (e.status || '')));
+
+      if (localHash !== serverHash || localCount !== serverCount) {
+        this.data.employees = sortedServer;
+        if (Array.isArray(srv.booths) && srv.booths.length > 0) {
+          this.data.booths = srv.booths;
+        }
+        if (Array.isArray(srv.relievers) && srv.relievers.length > 0) {
+          this.data.relievers = srv.relievers;
+        }
+        this.data.masterRegistryVersion = 'MRV-20261009-003';
+        this.data.masterRegistryUpdatedAt = new Date().toISOString();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
+        this.notify();
+
+        if (typeof window !== 'undefined') {
+          if (typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
+            try {
+              window.dispatchEvent(new CustomEvent('master-registry-synced', {
+                detail: { employees: this.data.employees }
+              }));
+            } catch (eEvt) {}
+          }
+          if (typeof window.renderEmployeesTable === 'function' && typeof document !== 'undefined' && document.getElementById && document.getElementById('employee-table-tbody')) {
+            window.renderEmployeesTable();
+          }
+          if (window.employeeDocuments && typeof window.employeeDocuments.render === 'function') {
+            window.employeeDocuments.render();
+          }
+        }
+      }
+    } catch (e) {}
   }
 
   async syncWithServer() {
@@ -1456,6 +1600,9 @@ class Store {
           }
         }
       } catch (eOr) {}
+
+      // Sync Master Registry with Server
+      await this.syncMasterRegistryWithServer();
 
       if (changed) {
         this.save();
@@ -2150,8 +2297,51 @@ class Store {
             if (admDept) admDept.head = 'Peter John Carrillo';
           }
 
-          if (parsed.masterRegistryVersion !== 'MRV-20261009-002') {
-            parsed.masterRegistryVersion = 'MRV-20261009-002';
+          if (parsed.masterRegistryVersion !== 'MRV-20261009-003') {
+            // 1. Sanitize Charlyn Dela Vega: She is authentic Sales Representative DDN005-SR1799, NOT a Reliever!
+            if (Array.isArray(parsed.employees)) {
+              parsed.employees.forEach(e => {
+                if (e && e.name && e.name.toLowerCase().trim() === 'charlyn dela vega') {
+                  e.id = 'DDN005-SR1799';
+                  e.role = 'TELLER';
+                  e.department = 'dept-tel';
+                  e.booth = 'DDN-1799';
+                  e.boothCode = 'DDN-1799';
+                  e.area = 'Kape-Kape St., Prk 1-A, Balagunan, Sto. Tomas';
+                  e.address = 'Kape-Kape St., Prk 1-A, Balagunan, Sto. Tomas';
+                  e.purok = 'Kape-Kape St., Prk 1-A, Balagunan';
+                  e.municipality = 'Sto. Tomas';
+                  e.lat = 7.485317;
+                  e.lng = 125.592014;
+                  e.coordinates = { lat: 7.485317, lng: 125.592014 };
+                  e.posSerial = 'POS-DDN-1799';
+                  e.printerSerial = 'PRT-DDN-1799';
+                  e.status = 'Active';
+                  e.etsStatus = 'Active';
+                  needsSave = true;
+                }
+              });
+
+              // 2. Deduplicate relievers to ensure only unique authentic relievers exist
+              const seenRelNames = new Set();
+              parsed.employees = parsed.employees.filter(e => {
+                if (!e || !e.name) return false;
+                const r = (e.role || '').toUpperCase();
+                const id = (e.id || '').toUpperCase();
+                const isRel = r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('BUFFER') || id.includes('-REL');
+                if (isRel) {
+                  const norm = e.name.trim().toLowerCase();
+                  if (seenRelNames.has(norm)) return false;
+                  seenRelNames.add(norm);
+                }
+                return true;
+              });
+
+              // 3. Strict Role-Priority Sort: Sales Representatives ALWAYS first, Relievers ALWAYS last
+              parsed.employees = this.sortEmployeesStrict(parsed.employees);
+            }
+
+            parsed.masterRegistryVersion = 'MRV-20261009-003';
             parsed.masterRegistryUpdatedAt = new Date().toISOString();
             needsSave = true;
           }
@@ -2211,6 +2401,17 @@ class Store {
             body: JSON.stringify({
               outletRentals: this.data.outletRentals || [],
               deletedOutletRentalIds: this.data.deletedOutletRentalIds || []
+            })
+          }).catch(() => {});
+
+          fetch('/api/master-registry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              employees: this.data.employees || [],
+              booths: this.data.booths || [],
+              relievers: this.data.relievers || [],
+              version: this.data.masterRegistryVersion || Date.now()
             })
           }).catch(() => {});
         }
@@ -2330,7 +2531,10 @@ class Store {
     this.save();
   }
 
-  getEmployees() { return this.data.employees; }
+  getEmployees() {
+    if (!this.data || !Array.isArray(this.data.employees)) return [];
+    return this.sortEmployeesStrict(this.data.employees);
+  }
   getBooths() { return this.data.booths; }
   getInventory(includeArchived = false) { 
     return includeArchived ? (this.data.inventory || []) : (this.data.inventory || []).filter(i => !i.isArchived); 
@@ -3080,7 +3284,23 @@ class Store {
     }
     const sUp = (emp.status || 'ACTIVE').toUpperCase();
     emp.status = sUp === 'TERMINATED' ? 'TERMINATED' : (sUp === 'INACTIVE' ? 'INACTIVE' : (sUp === 'UNUSED' ? 'UNUSED' : 'ACTIVE'));
-    this.data.employees.unshift(emp);
+    // STRICT RULE: Relievers must NEVER be placed at the top of the list.
+    // They are appended to the end, ensuring Sales Representatives always remain first.
+    if (isRel) {
+      this.data.employees.push(emp);
+    } else {
+      const firstRelIdx = this.data.employees.findIndex(e => {
+        const r = (e.role || '').toUpperCase();
+        const id = (e.id || '').toUpperCase();
+        return r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('BUFFER') || id.includes('-REL');
+      });
+      if (firstRelIdx >= 0) {
+        this.data.employees.splice(firstRelIdx, 0, emp);
+      } else {
+        this.data.employees.push(emp);
+      }
+    }
+    this.data.employees = this.sortEmployeesStrict(this.data.employees);
     if (isRel) {
       if (!this.data.relievers) this.data.relievers = [];
       if (!this.data.relievers.some(r => r.name && emp.name && r.name.toLowerCase() === emp.name.toLowerCase())) {
@@ -3328,6 +3548,9 @@ class Store {
     }
 
     if (result) {
+      if (this.data.employees) {
+        this.data.employees = this.sortEmployeesStrict(this.data.employees);
+      }
       this.bumpMasterRegistryVersion();
       this.save();
     }

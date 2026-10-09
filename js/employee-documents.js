@@ -164,6 +164,13 @@
       }
       this.updateSyncStatus('synced');
 
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        window.addEventListener('master-registry-synced', () => {
+          this.populateDatalist();
+          this.render();
+        });
+      }
+
       // Close employee search dropdown when clicking outside
       if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
         document.addEventListener('click', (e) => {
@@ -673,9 +680,10 @@
     }
 
     // Returns the 150 active field personnel: Tellers / Sales Reps & Relievers
+    // STRICT RULE: Sales Representatives always appear first, Relievers strictly last
     getFieldPersonnel() {
       const emps = this.getEmployees();
-      return emps.filter(e => {
+      const filtered = emps.filter(e => {
         const role = (e.role || e.position || '').toUpperCase();
         const dept = (e.department || '').toUpperCase();
         if (role.includes('ADMIN') || role.includes('SUPERVISOR') || role.includes('COLLECTOR') ||
@@ -683,6 +691,20 @@
           return false;
         }
         return true;
+      });
+
+      const isRel = (e) => {
+        const r = (e.role || e.position || '').toUpperCase();
+        const id = (e.id || '').toUpperCase();
+        return r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('BUFFER') || id.includes('-REL');
+      };
+
+      return filtered.sort((a, b) => {
+        const aRel = isRel(a);
+        const bRel = isRel(b);
+        if (!aRel && bRel) return -1;
+        if (aRel && !bRel) return 1;
+        return (a.name || '').localeCompare(b.name || '');
       });
     }
 
