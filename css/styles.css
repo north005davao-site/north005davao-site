@@ -2442,7 +2442,7 @@ button, input, select, textarea {
   background: rgba(3, 7, 18, 0.65);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  z-index: 998;
+  z-index: 99998 !important;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -2473,6 +2473,15 @@ button, input, select, textarea {
   .sidebar-backdrop {
     display: none !important;
   }
+}
+
+/* Stacking Context Isolation: Prevent Leaflet map controls from overlaying drawers, headers, and modals */
+.leaflet-container {
+  z-index: 1 !important;
+}
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 10 !important;
 }
 
 /* ==========================================================================
@@ -2513,7 +2522,7 @@ button, input, select, textarea {
     height: 100dvh !important;
     width: 84vw !important;
     max-width: 320px !important;
-    z-index: 1000 !important;
+    z-index: 99999 !important;
     transform: translateX(-100%) !important;
     transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 250ms ease !important;
     box-shadow: none !important;
@@ -2544,6 +2553,11 @@ button, input, select, textarea {
     padding: 12px 14px;
     font-size: 14px;
     margin-bottom: 4px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.08);
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
   }
 
   .sidebar-nav .nav-item .icon {

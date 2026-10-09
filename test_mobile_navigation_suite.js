@@ -94,7 +94,11 @@ assert.ok(cssContent.includes('#sidebar.mobile-open'), 'Defines #sidebar.mobile-
 assert.ok(cssContent.includes('transform: translateX(-100%)'), 'Sidebar is off-canvas when closed');
 assert.ok(cssContent.includes('transform: translateX(0)'), 'Sidebar slides into view when open');
 assert.ok(cssContent.includes('@media (min-width: 1025px)'), 'Preserves standard static layout on desktop');
-console.log('✓ CSS responsive drawer styles and breakpoints verified');
+assert.ok(cssContent.includes('z-index: 99999 !important'), 'Sidebar has elevated z-index 99999 to sit above Leaflet controls');
+assert.ok(cssContent.includes('z-index: 99998 !important'), 'Backdrop has elevated z-index 99998');
+assert.ok(cssContent.includes('.leaflet-container'), 'Leaflet container stacking isolation present');
+assert.ok(cssContent.includes('touch-action: manipulation'), 'Sidebar nav items have touch-action manipulation for instant mobile response');
+console.log('✓ CSS responsive drawer styles, elevated z-index, and breakpoints verified');
 
 console.log('\n--- 3. Testing Interactive Mobile Drawer State & Handlers ---');
 require('./js/store.js');
@@ -136,6 +140,19 @@ window.switchView('view-employees', false);
 assert.strictEqual(sidebar.classList.contains('mobile-open'), false, 'Sidebar auto-closes on switchView');
 assert.strictEqual(backdrop.classList.contains('active'), false, 'Backdrop auto-dismisses on switchView');
 console.log('✓ TEST 5: Selecting any module automatically closes drawer and reflows view');
+
+// TEST 6: Fleet Activity Monitor rendering & search filter
+const fleetEl = getOrCreateEl('ets-fleet-list');
+assert.doesNotThrow(() => {
+  window.renderFleetTrackingList();
+}, 'renderFleetTrackingList must execute without ReferenceError');
+assert.ok(fleetEl.innerHTML.includes('Sales Representative'), 'Fleet activity list renders sales representatives');
+assert.ok(fleetEl.innerHTML.includes('GPS ACTIVE'), 'Fleet activity list displays GPS ACTIVE');
+
+// Search filter test (e.g. DDN-761 from user screenshot)
+window.filterFleetActivityList('DDN-761');
+assert.ok(fleetEl.innerHTML.includes('DDN-761'), 'Fleet activity list filters and finds DDN-761');
+console.log('✓ TEST 6: Fleet Activity Monitor renders without error and filters DDN-761 properly');
 
 console.log('\n======================================================');
 console.log('ALL MOBILE RESPONSIVE SIDEBAR TESTS PASSED! 🚀');

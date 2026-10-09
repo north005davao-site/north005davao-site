@@ -421,12 +421,32 @@ function initMobileSidebarGestures() {
 }
 
 function initNavigation() {
+  const navContainer = document.querySelector('.sidebar-nav');
+  if (navContainer) {
+    navContainer.addEventListener('click', (e) => {
+      const item = e.target.closest('.nav-item');
+      if (item) {
+        const viewId = item.getAttribute('data-view');
+        if (viewId) {
+          switchView(viewId, true);
+          if (typeof window.closeMobileSidebar === 'function') {
+            window.closeMobileSidebar();
+          }
+        }
+      }
+    });
+  }
+
   const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
   navItems.forEach(item => {
     item.addEventListener('click', () => {
       const viewId = item.getAttribute('data-view');
-      switchView(viewId, true);
-      window.closeMobileSidebar();
+      if (viewId) {
+        switchView(viewId, true);
+        if (typeof window.closeMobileSidebar === 'function') {
+          window.closeMobileSidebar();
+        }
+      }
     });
   });
 
@@ -2156,143 +2176,162 @@ window.filterFleetActivityList = function(query) {
   }
 };
 
+function resolveEmployeeGps(emp, store) {
+  if (!emp) return { isValid: false };
+  let gps = (typeof window.parseGpsCoordinates === 'function')
+    ? window.parseGpsCoordinates(emp)
+    : { isValid: false };
+
+  // Resolve GPS from authentic coordinates or linked booth if not on employee directly
+  if (!gps.isValid) {
+    const rawB = emp.boothCode || emp.booth;
+    const cleanB = (typeof window.cleanBoothId === 'function')
+      ? window.cleanBoothId(rawB)
+      : ((typeof cleanBoothId === 'function')
+        ? cleanBoothId(rawB)
+        : String(rawB || '').trim().toUpperCase().replace(/^BOOTH[\s-]*/i, '').replace(/^DDN[\s_]+(\d+)/i, 'DDN-$1'));
+
+    const authCoords = (typeof window !== 'undefined' && window.AUTHENTIC_MASTER_REGISTRY_COORDINATES)
+      ? window.AUTHENTIC_MASTER_REGISTRY_COORDINATES
+      : ((typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined') ? AUTHENTIC_MASTER_REGISTRY_COORDINATES : null);
+
+    if (authCoords && cleanB && authCoords[cleanB]) {
+      const mc = authCoords[cleanB];
+      gps = { isValid: true, lat: mc.lat, lng: mc.lng };
+      emp.lat = mc.lat;
+      emp.lng = mc.lng;
+      emp.coordinates = { lat: mc.lat, lng: mc.lng };
+    } else if (store) {
+      const boothRec = (store.getBooths() || []).find(b => {
+        const bNorm = (typeof window.cleanBoothId === 'function') ? window.cleanBoothId(b.id || b.code) : (b.id || b.code);
+        return bNorm === cleanB;
+      });
+      if (boothRec) {
+        const bGps = (typeof window.parseGpsCoordinates === 'function') ? window.parseGpsCoordinates(boothRec) : { isValid: false };
+        if (bGps.isValid) {
+          gps = bGps;
+          emp.lat = bGps.lat;
+          emp.lng = bGps.lng;
+          emp.coordinates = { lat: bGps.lat, lng: bGps.lng };
+        }
+      }
+    }
+  }
+  return gps;
+}
+
 function renderFleetTrackingList() {
   const container = document.getElementById('ets-fleet-list');
   if (!container) return;
 
   const store = window.appStore;
   if (!store) return;
-  const employees = store.getEmployees() || [];
 
-  // Fleet Activity Monitor: Exclusively show booth-assigned Sales Representatives with STL Booths.
-  // Relievers, Admins, Supervisors, and Collectors have no STL Booths and must NOT appear here.
-  const boothStaff = employees.filter(emp => {
-    if (!emp) return false;
-    const roleUpper = (emp.role || '').toUpperCase();
-    const deptLower = (emp.department || '').toLowerCase();
-    const nameNorm = (emp.name || '').trim().toLowerCase();
+  try {
+    const employees = store.getEmployees() || [];
 
-    // 1. Strictly exclude Relievers, Admins, Supervisors, Collectors, Buffer staff
-    if (roleUpper.includes('RELIEVER') || roleUpper.includes('RELIVER') || roleUpper.includes('BUFFER')) return false;
-    if (roleUpper.includes('ADMIN') || deptLower.includes('admin') || deptLower === 'dept-admin') return false;
-    if (roleUpper.includes('SUPERVISOR') || roleUpper.includes('TEAM LEADER') || deptLower.includes('sup') || deptLower === 'dept-sup') return false;
-    if (roleUpper.includes('COLLECTOR') || deptLower.includes('col') || deptLower === 'dept-col') return false;
-    if (emp.id === 'DDN005-SR000' || (emp.id && emp.id.startsWith('DDN005-REL'))) return false;
-    if (typeof window.isOfficialRelieverName === 'function' && window.isOfficialRelieverName(nameNorm)) return false;
-    if (typeof window.OFFICIAL_RELIEVER_MUNICIPALITIES !== 'undefined' && window.OFFICIAL_RELIEVER_MUNICIPALITIES[nameNorm]) return false;
+    // Fleet Activity Monitor: Exclusively show booth-assigned Sales Representatives with STL Booths.
+    // Relievers, Admins, Supervisors, and Collectors have no STL Booths and must NOT appear here.
+    const boothStaff = employees.filter(emp => {
+      if (!emp) return false;
+      const roleUpper = (emp.role || '').toUpperCase();
+      const deptLower = (emp.department || '').toLowerCase();
+      const nameNorm = (emp.name || '').trim().toLowerCase();
 
-    // 2. Must have an assigned STL Booth! (Fleet Activity Monitor tracks STL Booths)
-    const boothCode = (emp.boothCode || emp.booth || '').trim().toUpperCase();
-    if (!boothCode || boothCode === '-' || boothCode === 'N/A' || boothCode === 'NONE' || boothCode === 'UNASSIGNED') {
-      return false;
+      // 1. Strictly exclude Relievers, Admins, Supervisors, Collectors, Buffer staff
+      if (roleUpper.includes('RELIEVER') || roleUpper.includes('RELIVER') || roleUpper.includes('BUFFER')) return false;
+      if (roleUpper.includes('ADMIN') || deptLower.includes('admin') || deptLower === 'dept-admin') return false;
+      if (roleUpper.includes('SUPERVISOR') || roleUpper.includes('TEAM LEADER') || deptLower.includes('sup') || deptLower === 'dept-sup') return false;
+      if (roleUpper.includes('COLLECTOR') || deptLower.includes('col') || deptLower === 'dept-col') return false;
+      if (emp.id === 'DDN005-SR000' || (emp.id && emp.id.startsWith('DDN005-REL'))) return false;
+      if (typeof window.isOfficialRelieverName === 'function' && window.isOfficialRelieverName(nameNorm)) return false;
+      if (typeof window.OFFICIAL_RELIEVER_MUNICIPALITIES !== 'undefined' && window.OFFICIAL_RELIEVER_MUNICIPALITIES[nameNorm]) return false;
+
+      // 2. Must have an assigned STL Booth! (Fleet Activity Monitor tracks STL Booths)
+      const boothCode = (emp.boothCode || emp.booth || '').trim().toUpperCase();
+      if (!boothCode || boothCode === '-' || boothCode === 'N/A' || boothCode === 'NONE' || boothCode === 'UNASSIGNED') {
+        return false;
+      }
+
+      return true;
+    });
+
+    // Ensure coordinates are pre-resolved for all booth staff
+    boothStaff.forEach(emp => resolveEmployeeGps(emp, store));
+
+    let list = boothStaff;
+    if (fleetSearchQuery) {
+      const q = fleetSearchQuery.toLowerCase().trim();
+      list = boothStaff.filter(emp => {
+        const gps = resolveEmployeeGps(emp, store);
+        const coordStr = gps.isValid ? `${gps.lat.toFixed(6)}, ${gps.lng.toFixed(6)}` : '';
+        return (emp.name && emp.name.toLowerCase().includes(q)) ||
+               (emp.id && emp.id.toLowerCase().includes(q)) ||
+               (emp.boothCode && emp.boothCode.toLowerCase().includes(q)) ||
+               (emp.booth && emp.booth.toLowerCase().includes(q)) ||
+               (emp.role && emp.role.toLowerCase().includes(q)) ||
+               (emp.address && emp.address.toLowerCase().includes(q)) ||
+               (emp.purok && emp.purok.toLowerCase().includes(q)) ||
+               (emp.municipality && emp.municipality.toLowerCase().includes(q)) ||
+               (emp.area && emp.area.toLowerCase().includes(q)) ||
+               (coordStr && coordStr.includes(q));
+      });
     }
 
-    return true;
-  });
+    if (list.length === 0) {
+      const emptyMsg = fleetSearchQuery 
+        ? `🔍 No staff records found matching "<strong>${fleetSearchQuery}</strong>"`
+        : `📍 No booth-assigned staff records found in Master Registry.`;
+      container.innerHTML = `
+        <div style="text-align: center; padding: 24px 12px; color: var(--text-muted); font-size: 12px;">
+          ${emptyMsg}
+        </div>
+      `;
+      return;
+    }
 
-  let list = boothStaff;
-  if (fleetSearchQuery) {
-    const q = fleetSearchQuery.toLowerCase().trim();
-    list = boothStaff.filter(emp => {
-      const gps = (typeof window.parseGpsCoordinates === 'function') 
-        ? window.parseGpsCoordinates(emp) 
-        : { isValid: false };
-      const coordStr = gps.isValid ? `${gps.lat.toFixed(6)}, ${gps.lng.toFixed(6)}` : '';
-      return (emp.name && emp.name.toLowerCase().includes(q)) ||
-             (emp.id && emp.id.toLowerCase().includes(q)) ||
-             (emp.boothCode && emp.boothCode.toLowerCase().includes(q)) ||
-             (emp.booth && emp.booth.toLowerCase().includes(q)) ||
-             (emp.role && emp.role.toLowerCase().includes(q)) ||
-             (emp.address && emp.address.toLowerCase().includes(q)) ||
-             (emp.purok && emp.purok.toLowerCase().includes(q)) ||
-             (emp.municipality && emp.municipality.toLowerCase().includes(q)) ||
-             (emp.area && emp.area.toLowerCase().includes(q)) ||
-             (coordStr && coordStr.includes(q));
-    });
-  }
+    const statusBg = 'rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);';
 
-  if (list.length === 0) {
-    const emptyMsg = fleetSearchQuery 
-      ? `🔍 No staff records found matching "<strong>${fleetSearchQuery}</strong>"`
-      : `📍 No booth-assigned staff records found in Master Registry.`;
+    container.innerHTML = list.map(emp => {
+      const gps = resolveEmployeeGps(emp, store);
+      const displayRole = 'Sales Representative';
+      const boothDisplay = emp.boothCode || emp.booth || '-';
+      const muniDisplay = emp.municipality || emp.address || emp.area || '-';
+
+      const gpsStatusHtml = gps.isValid
+        ? `<span style="font-size: 10px; font-weight: 700; color: #10b981; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); padding: 1px 6px; border-radius: 3px;">GPS ACTIVE</span>`
+        : `<span style="font-size: 10px; font-weight: 700; color: #ef4444; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); padding: 1px 6px; border-radius: 3px;">GPS UNAVAILABLE</span>`;
+
+      const gpsCoordsHtml = gps.isValid
+        ? `<span style="font-size: 10.5px; font-family: monospace; color: var(--primary); font-weight: 700;">📍 ${gps.lat.toFixed(6)}, ${gps.lng.toFixed(6)}</span>`
+        : `<span style="font-size: 10.5px; color: var(--text-muted); font-style: italic;">No Coordinates</span>`;
+
+      return `
+        <div style="padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-surface); border: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s;" onclick="window.focusStaffMember('${emp.id}')" title="Click to track ${emp.name}'s STL BOOTH">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="font-size: 13px; font-weight: 700; color: var(--text-main);">${emp.name}</div>
+            <span style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: ${statusBg}">${displayRole}</span>
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+            Outlet: <code>${boothDisplay}</code> • ${muniDisplay}
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+            ${gpsCoordsHtml}
+            ${gpsStatusHtml}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('Error rendering fleet tracking list:', err);
     container.innerHTML = `
       <div style="text-align: center; padding: 24px 12px; color: var(--text-muted); font-size: 12px;">
-        ${emptyMsg}
+        ⚠️ Error displaying fleet list. Please refresh the page.
       </div>
     `;
-    return;
   }
-
-  container.innerHTML = list.map(emp => {
-    let gps = (typeof window.parseGpsCoordinates === 'function')
-      ? window.parseGpsCoordinates(emp)
-      : { isValid: false };
-
-    // Resolve GPS from authentic coordinates or linked booth if not on employee directly
-    if (!gps.isValid) {
-      const rawB = emp.boothCode || emp.booth;
-      const cleanB = (typeof window.cleanBoothId === 'function')
-        ? window.cleanBoothId(rawB)
-        : ((typeof cleanBoothId === 'function')
-          ? cleanBoothId(rawB)
-          : String(rawB || '').trim().toUpperCase().replace(/^BOOTH[\s-]*/i, '').replace(/^DDN[\s_]+(\d+)/i, 'DDN-$1'));
-
-      const authCoords = (typeof window !== 'undefined' && window.AUTHENTIC_MASTER_REGISTRY_COORDINATES)
-        ? window.AUTHENTIC_MASTER_REGISTRY_COORDINATES
-        : ((typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined') ? AUTHENTIC_MASTER_REGISTRY_COORDINATES : null);
-
-      if (authCoords && cleanB && authCoords[cleanB]) {
-        const mc = authCoords[cleanB];
-        gps = { isValid: true, lat: mc.lat, lng: mc.lng };
-        emp.lat = mc.lat;
-        emp.lng = mc.lng;
-        emp.coordinates = { lat: mc.lat, lng: mc.lng };
-      } else {
-        const boothRec = (store.getBooths() || []).find(b => {
-          const bNorm = (typeof window.cleanBoothId === 'function') ? window.cleanBoothId(b.id || b.code) : (b.id || b.code);
-          return bNorm === cleanB;
-        });
-        if (boothRec) {
-          const bGps = (typeof window.parseGpsCoordinates === 'function') ? window.parseGpsCoordinates(boothRec) : { isValid: false };
-          if (bGps.isValid) {
-            gps = bGps;
-            emp.lat = bGps.lat;
-            emp.lng = bGps.lng;
-            emp.coordinates = { lat: bGps.lat, lng: bGps.lng };
-          }
-        }
-      }
-    }
-
-    const displayRole = 'Sales Representative';
-    const boothDisplay = emp.boothCode || emp.booth || '-';
-    const muniDisplay = emp.municipality || emp.address || emp.area || '-';
-
-    const gpsStatusHtml = gps.isValid
-      ? `<span style="font-size: 10px; font-weight: 700; color: #10b981; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); padding: 1px 6px; border-radius: 3px;">GPS ACTIVE</span>`
-      : `<span style="font-size: 10px; font-weight: 700; color: #ef4444; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); padding: 1px 6px; border-radius: 3px;">GPS UNAVAILABLE</span>`;
-
-    const gpsCoordsHtml = gps.isValid
-      ? `<span style="font-size: 10.5px; font-family: monospace; color: var(--primary); font-weight: 700;">📍 ${gps.lat.toFixed(6)}, ${gps.lng.toFixed(6)}</span>`
-      : `<span style="font-size: 10.5px; color: var(--text-muted); font-style: italic;">No Coordinates</span>`;
-
-    return `
-      <div style="padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-surface); border: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s;" onclick="window.focusStaffMember('${emp.id}')" title="Click to track ${emp.name}'s STL BOOTH">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-          <div style="font-size: 13px; font-weight: 700; color: var(--text-main);">${emp.name}</div>
-          <span style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: ${statusBg}">${displayRole}</span>
-        </div>
-        <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
-          Outlet: <code>${boothDisplay}</code> • ${muniDisplay}
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
-          ${gpsCoordsHtml}
-          ${gpsStatusHtml}
-        </div>
-      </div>
-    `;
-  }).join('');
 }
+window.renderFleetTrackingList = renderFleetTrackingList;
 
 // Precision GPS Pin Calibration Modal Logic
 window.openPrecisionCalibrateModal = function(preselectedId = null) {
@@ -2390,22 +2429,7 @@ window.focusStaffMember = function(empId) {
     return;
   }
 
-  let gps = (typeof window.parseGpsCoordinates === 'function') 
-    ? window.parseGpsCoordinates(emp) 
-    : { isValid: false };
-
-  // Resolve GPS from linked Master Registry booth if not on employee directly
-  if (!gps.isValid && emp.boothCode && emp.boothCode !== '-') {
-    const normB = (typeof window.normalizeBoothCode === 'function') ? window.normalizeBoothCode(emp.boothCode) : emp.boothCode;
-    const boothRec = (store.getBooths() || []).find(b => {
-      const bNorm = (typeof window.normalizeBoothCode === 'function') ? window.normalizeBoothCode(b.id || b.code) : (b.id || b.code);
-      return bNorm === normB;
-    });
-    if (boothRec) {
-      const bGps = window.parseGpsCoordinates(boothRec);
-      if (bGps.isValid) gps = bGps;
-    }
-  }
+  let gps = resolveEmployeeGps(emp, store);
 
   if (!gps.isValid) {
     const boothName = emp.boothCode || emp.booth || 'Unassigned';
