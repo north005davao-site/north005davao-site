@@ -720,7 +720,7 @@ function requestHandler(req, res) {
       } else {
         const sess = sessions[username] || null;
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(sess || {}));
+        res.end(JSON.stringify(sess ? { success: true, session: sess, ...sess } : { success: true, session: null }));
       }
       return;
     }
@@ -926,24 +926,64 @@ function requestHandler(req, res) {
         if (err) return;
         try {
           let source = null;
-          if (payload.id) {
-            source = getBackupEngine().getBackupFilePath(payload.id);
-            if (!source) {
-              res.writeHead(404, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'Backup ID not found on server.' }));
-              return;
-            }
-          } else if (payload.base64Zip) {
+          let requestedId = payload.id;
+
+          if (payload.base64Zip) {
             source = Buffer.from(payload.base64Zip, 'base64');
+          } else if (requestedId) {
+            source = getBackupEngine().getBackupFilePath(requestedId);
           } else {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Expected either id or base64Zip in request.' }));
             return;
           }
 
+          if (!source && requestedId) {
+            // Check if metadata record exists in catalog index
+            const index = getBackupEngine().readBackupIndex();
+            const entry = index.find(b => b.backupId === requestedId || b.filename === requestedId || b.filename === `${requestedId}.zip`);
+
+            if (entry) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: false,
+                verification: {
+                  valid: false,
+                  status: 'MISSING_ARTIFACT',
+                  backupId: requestedId,
+                  versionName: entry.versionName || requestedId,
+                  createdAt: entry.createdAt || entry.createdTimestamp,
+                  declaredChecksum: entry.packageChecksum || 'N/A',
+                  errors: [
+                    `Backup archive file '${entry.filename || requestedId + '.zip'}' was not found in persistent server storage. The metadata record exists, but the physical archive package is missing from the server filesystem.`
+                  ],
+                  warnings: [],
+                  checks: {
+                    metadataFound: true,
+                    artifactAccessible: false,
+                    manifestValid: false,
+                    filesIntact: 0,
+                    filesChecked: entry.filesCount || 0,
+                    checksumsMatched: false,
+                    dataIntegrity: false
+                  },
+                  recoveryPath: "Upload the downloaded .zip backup package via the 'Upload Backup File' box to restore and verify the archive on this server."
+                }
+              }));
+              return;
+            } else {
+              res.writeHead(404, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: false,
+                error: `Backup ID '${requestedId}' was not found in the backup catalog or server storage.`
+              }));
+              return;
+            }
+          }
+
           const report = await getBackupEngine().verifyBackup(source);
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, verification: report }));
+          res.end(JSON.stringify({ success: report.valid, verification: report }));
         } catch (verifyErr) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: verifyErr.message }));

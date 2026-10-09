@@ -14,7 +14,7 @@
 (function () {
   'use strict';
 
-  const SUPABASE_URL = 'https://hokykdkyyuarrelxcychy.supabase.co';
+  const SUPABASE_URL = 'https://hokykdkyyuarrelxychy.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhva3lrZGt5eXVhcnJlbHh5Y2h5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5Mzc5ODQsImV4cCI6MjEwNjUxMzk4NH0.YKlQEM90r5LBEyRKr-qy0YSxYXFhumeYW8o9G6C0V9k';
 
   class SupabaseSyncManager {
@@ -440,9 +440,28 @@
     async updateActiveUserSession(username, sessionToken, deviceName) {
       if (!username) return false;
       let success = false;
+
+      // 1. Authoritative Server ERP Session API
       try {
-        if (this.client) {
-          const { error } = await this.client
+        if (typeof fetch !== 'undefined') {
+          const res = await fetch('/api/user-sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username,
+              active_session_token: sessionToken,
+              active_device_name: deviceName,
+              last_active_at: new Date().toISOString()
+            })
+          });
+          if (res.ok) success = true;
+        }
+      } catch (_) {}
+
+      // 2. Best-effort Supabase cloud database sync
+      try {
+        if (this.client && this.isOnline) {
+          await this.client
             .from('system_users')
             .update({
               active_session_token: sessionToken,
@@ -450,58 +469,41 @@
               last_active_at: new Date().toISOString()
             })
             .eq('username', username);
-
-          if (!error) success = true;
-          else console.warn('Supabase updateActiveUserSession notice:', error.message);
         }
+      } catch (_) {}
 
-        // Server API fallback
-        try {
-          if (typeof fetch !== 'undefined') {
-            await fetch('/api/user-sessions', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                username,
-                active_session_token: sessionToken,
-                active_device_name: deviceName,
-                last_active_at: new Date().toISOString()
-              })
-            });
-            success = true;
-          }
-        } catch (e) {}
-
-        return success;
-      } catch (err) {
-        console.error('Failed to update active user session in Supabase:', err);
-        return false;
-      }
+      return success;
     }
 
     async fetchUserSession(username) {
       if (!username) return null;
+
+      // 1. Authoritative Server ERP Session API (same-origin, zero CORS preflight overhead)
       try {
-        if (this.client) {
+        if (typeof fetch !== 'undefined') {
+          const res = await fetch(`/api/user-sessions?username=${encodeURIComponent(username)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && (data.session || data.active_session_token || data.username)) {
+              return data.session || data;
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 2. Fallback to Supabase cloud database if available
+      try {
+        if (this.client && this.isOnline) {
           const { data, error } = await this.client
             .from('system_users')
             .select('active_session_token, active_device_name, last_active_at')
             .eq('username', username)
-            .single();
+            .maybeSingle();
 
           if (!error && data) return data;
         }
+      } catch (_) {}
 
-        // Server API fallback
-        if (typeof fetch !== 'undefined') {
-          const res = await fetch(`/api/user-sessions?username=${encodeURIComponent(username)}`);
-          if (res.ok) {
-            return await res.json();
-          }
-        }
-      } catch (err) {
-        return null;
-      }
       return null;
     }
   }

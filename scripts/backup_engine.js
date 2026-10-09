@@ -89,30 +89,55 @@ function calculateFileSha256(filePath) {
 }
 
 /**
- * Read backup catalog index safely
+ * Read backup catalog index safely (merges static committed catalog and dynamic runtime entries)
  */
 function readBackupIndex() {
-  // 1. Check writable index path
-  try {
-    const idxPath = getIndexFilePath();
-    if (fs.existsSync(idxPath)) {
-      return JSON.parse(fs.readFileSync(idxPath, 'utf8'));
-    }
-  } catch (e) {
-    console.warn('Notice reading index from writable base:', e.message);
-  }
+  const map = new Map();
 
-  // 2. Fall back to static committed index in repository root
+  // 1. Static committed index in repository root first (baseline records)
   try {
-    const staticIdx = path.join(ROOT_DIR, 'backups', 'index.json');
-    if (fs.existsSync(staticIdx)) {
-      return JSON.parse(fs.readFileSync(staticIdx, 'utf8'));
+    const staticCandidates = [
+      path.join(ROOT_DIR, 'backups', 'index.json'),
+      path.join(process.cwd(), 'backups', 'index.json'),
+      path.join(__dirname, '..', 'backups', 'index.json')
+    ];
+    for (const sc of staticCandidates) {
+      if (fs.existsSync(sc)) {
+        const parsed = JSON.parse(fs.readFileSync(sc, 'utf8'));
+        if (Array.isArray(parsed)) {
+          parsed.forEach(b => {
+            if (b && b.backupId) map.set(b.backupId, b);
+          });
+          break;
+        }
+      }
     }
   } catch (e) {
     console.warn('Notice reading static repository index:', e.message);
   }
 
-  return [];
+  // 2. Writable dynamic index path (runtime created / uploaded records override/prepend)
+  try {
+    const idxPath = getIndexFilePath();
+    if (fs.existsSync(idxPath)) {
+      const parsed = JSON.parse(fs.readFileSync(idxPath, 'utf8'));
+      if (Array.isArray(parsed)) {
+        parsed.forEach(b => {
+          if (b && b.backupId) map.set(b.backupId, b);
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('Notice reading index from writable base:', e.message);
+  }
+
+  const list = Array.from(map.values());
+  list.sort((a, b) => {
+    const timeA = a.createdTimestamp || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+    const timeB = b.createdTimestamp || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+    return timeB - timeA;
+  });
+  return list;
 }
 
 /**
@@ -857,19 +882,25 @@ function deleteBackup(backupId) {
  * Get archive file path for download
  */
 function getBackupFilePath(backupId) {
+  if (!backupId) return null;
+  const cleanId = String(backupId).trim();
   const index = readBackupIndex();
-  const entry = index.find(b => b.backupId === backupId || b.filename === backupId || b.filename === `${backupId}.zip`);
-  const filename = entry ? entry.filename : (backupId.endsWith('.zip') ? backupId : `${backupId}.zip`);
+  const entry = index.find(b => b.backupId === cleanId || b.filename === cleanId || b.filename === `${cleanId}.zip`);
+  const filename = entry && entry.filename ? entry.filename : (cleanId.endsWith('.zip') ? cleanId : `${cleanId}.zip`);
 
   const candidates = [
     path.join(getWritableArchivesDir(), filename),
     path.join(TMP_BACKUPS_DIR, 'archive', filename),
     path.join(LOCAL_BACKUPS_DIR, 'archive', filename),
-    path.join(ROOT_DIR, 'backups', 'archive', filename)
+    path.join(ROOT_DIR, 'backups', 'archive', filename),
+    path.join(process.cwd(), 'backups', 'archive', filename),
+    path.join(__dirname, '..', 'backups', 'archive', filename)
   ];
 
   for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
+    try {
+      if (fs.existsSync(c)) return c;
+    } catch (_) {}
   }
   return null;
 }

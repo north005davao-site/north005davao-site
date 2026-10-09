@@ -6,7 +6,13 @@
     { "src": "js/**", "use": "@vercel/static" },
     { "src": "assets/**", "use": "@vercel/static" },
     { "src": "data/**", "use": "@vercel/static" },
-    { "src": "api/index.js", "use": "@vercel/node" }
+    {
+      "src": "api/index.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["backups/**", "data/**", "templates/**"]
+      }
+    }
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "api/index.js" },
