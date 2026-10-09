@@ -199,6 +199,8 @@ const UNWANTED_SEEDER_NAMES_SERVER = new Set([
 
 function isServerUnwantedSeededDoc(d) {
   if (!d) return false;
+  // Authentic user uploads must never be dropped as unwanted seeds
+  if (d.isUserUploaded || d.userUploaded || d.fileDataUrl || d.hasStoredAttachment) return false;
   const name = (d.employeeName || '').toLowerCase().trim();
   const file = (d.fileName || '').toLowerCase().trim();
   for (const s of UNWANTED_SEEDER_NAMES_SERVER) {
@@ -248,6 +250,14 @@ const SNAPSHOTS_FILE = path.join(DATA_DIR, 'snapshots.json');
 
 function readPersistentSnapshots() {
   try {
+    if (inMemoryDataCache.has(SNAPSHOTS_FILE)) {
+      const data = inMemoryDataCache.get(SNAPSHOTS_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'snapshots.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
     if (fs.existsSync(SNAPSHOTS_FILE)) {
       return JSON.parse(fs.readFileSync(SNAPSHOTS_FILE, 'utf8'));
     }
@@ -269,6 +279,14 @@ const SESSIONS_FILE = path.join(DATA_DIR, 'user_sessions.json');
 
 function readPersistentSessions() {
   try {
+    if (inMemoryDataCache.has(SESSIONS_FILE)) {
+      const data = inMemoryDataCache.get(SESSIONS_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'user_sessions.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
     if (fs.existsSync(SESSIONS_FILE)) {
       return JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
     }
@@ -290,6 +308,14 @@ const REGISTRY_FILE = path.join(DATA_DIR, 'master_registry.json');
 
 function readPersistentMasterRegistry() {
   try {
+    if (inMemoryDataCache.has(REGISTRY_FILE)) {
+      const data = inMemoryDataCache.get(REGISTRY_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'master_registry.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
     if (fs.existsSync(REGISTRY_FILE)) {
       return JSON.parse(fs.readFileSync(REGISTRY_FILE, 'utf8'));
     }
@@ -769,8 +795,8 @@ function requestHandler(req, res) {
           employees: emps,
           booths: payload.booths || [],
           relievers: payload.relievers || [],
-          version: Date.now(),
-          lastUpdated: new Date().toISOString()
+          version: payload.version || Date.now(),
+          lastUpdated: payload.lastUpdated || new Date().toISOString()
         };
         writePersistentMasterRegistry(dataToSave);
         res.writeHead(200, { 'Content-Type': 'application/json' });

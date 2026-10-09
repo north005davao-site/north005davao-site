@@ -198,6 +198,10 @@
 
     isUnwantedSeededDoc(doc) {
       if (!doc) return false;
+      // Authentic user uploads must never be purged as unwanted seeds
+      if (doc.isUserUploaded || doc.userUploaded || doc.fileDataUrl || doc.hasStoredAttachment) {
+        return false;
+      }
       const name = (doc.employeeName || '').toLowerCase().trim();
       const file = (doc.fileName || '').toLowerCase().trim();
 
@@ -1215,7 +1219,9 @@
             fileSize: p.fileSize,
             fileDataUrl: p.fileDataUrl,
             fileType: p.fileType,
-            notes: p.notes
+            notes: p.notes,
+            isUserUploaded: true,
+            userUploaded: true
           };
 
           this.documents.unshift(newDoc);

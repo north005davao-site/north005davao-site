@@ -1507,11 +1507,33 @@ class Store {
         charlyn.status = 'Active';
       }
 
+      // Check version & timestamp precedence between local store and server
+      const localTime = this.data.masterRegistryUpdatedAt ? new Date(this.data.masterRegistryUpdatedAt).getTime() : 0;
+      const serverTime = srv.lastUpdated ? new Date(srv.lastUpdated).getTime() : (typeof srv.version === 'number' ? srv.version : 0);
+      const userEditedRecently = this._lastUserEditTimestamp && (Date.now() - this._lastUserEditTimestamp < 180000);
+
+      // If local store was modified more recently than the server or user edited in this session:
+      if (localTime > serverTime || userEditedRecently) {
+        // Push local changes to server to keep server updated, rather than wiping local edits!
+        fetch('/api/master-registry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            employees: this.data.employees,
+            booths: this.data.booths || [],
+            relievers: this.data.relievers || [],
+            version: this.data.masterRegistryVersion || Date.now(),
+            lastUpdated: this.data.masterRegistryUpdatedAt || new Date().toISOString()
+          })
+        }).catch(() => {});
+        return;
+      }
+
       const sortedServer = this.sortEmployeesStrict(serverEmps);
       const localCount = (this.data.employees || []).length;
       const serverCount = sortedServer.length;
-      const localHash = JSON.stringify((this.data.employees || []).map(e => e.id + e.role + (e.status || '')));
-      const serverHash = JSON.stringify(sortedServer.map(e => e.id + e.role + (e.status || '')));
+      const localHash = JSON.stringify((this.data.employees || []).map(e => e.id + (e.name || '') + e.role + (e.status || '')));
+      const serverHash = JSON.stringify(sortedServer.map(e => e.id + (e.name || '') + e.role + (e.status || '')));
 
       if (localHash !== serverHash || localCount !== serverCount) {
         this.data.employees = sortedServer;
@@ -1521,8 +1543,8 @@ class Store {
         if (Array.isArray(srv.relievers) && srv.relievers.length > 0) {
           this.data.relievers = srv.relievers;
         }
-        this.data.masterRegistryVersion = 'MRV-20261009-003';
-        this.data.masterRegistryUpdatedAt = new Date().toISOString();
+        this.data.masterRegistryVersion = srv.version || 'MRV-20261009-003';
+        this.data.masterRegistryUpdatedAt = srv.lastUpdated || new Date().toISOString();
         localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
         this.notify();
 
@@ -2411,7 +2433,8 @@ class Store {
               employees: this.data.employees || [],
               booths: this.data.booths || [],
               relievers: this.data.relievers || [],
-              version: this.data.masterRegistryVersion || Date.now()
+              version: this.data.masterRegistryVersion || Date.now(),
+              lastUpdated: this.data.masterRegistryUpdatedAt || new Date().toISOString()
             })
           }).catch(() => {});
         }
@@ -3320,6 +3343,8 @@ class Store {
         });
       }
     }
+    this.data.masterRegistryUpdatedAt = new Date().toISOString();
+    this._lastUserEditTimestamp = Date.now();
     this.bumpMasterRegistryVersion();
     this.save();
     return emp;
@@ -3551,6 +3576,8 @@ class Store {
       if (this.data.employees) {
         this.data.employees = this.sortEmployeesStrict(this.data.employees);
       }
+      this.data.masterRegistryUpdatedAt = new Date().toISOString();
+      this._lastUserEditTimestamp = Date.now();
       this.bumpMasterRegistryVersion();
       this.save();
     }
@@ -3601,6 +3628,8 @@ class Store {
       });
     }
 
+    this.data.masterRegistryUpdatedAt = new Date().toISOString();
+    this._lastUserEditTimestamp = Date.now();
     this.bumpMasterRegistryVersion();
     this.save();
   }
