@@ -20,6 +20,7 @@
       this.selectedBackup = null;
       this.currentVerifyReport = null;
       this.isLoading = false;
+      this.createdBackupsCache = new Map();
       this.init();
     }
 
@@ -54,6 +55,33 @@
       return headers;
     }
 
+    async safeFetchJson(url, options = {}) {
+      try {
+        const res = await fetch(url, options);
+        const contentType = (res.headers.get('content-type') || '').toLowerCase();
+        let data = null;
+
+        if (contentType.includes('application/json')) {
+          try {
+            data = await res.json();
+          } catch (parseErr) {
+            data = { error: 'Invalid JSON response from server: ' + parseErr.message, parseFailed: true };
+          }
+        } else {
+          let rawText = '';
+          try { rawText = await res.text(); } catch (_) {}
+          let cleanMessage = rawText;
+          if (rawText.includes('<html') || rawText.includes('<!DOCTYPE') || rawText.includes('A server error has occurred')) {
+            cleanMessage = `Server error (HTTP ${res.status}): A backend server error occurred.`;
+          }
+          data = { error: cleanMessage || `Request failed with status ${res.status}`, rawText, status: res.status };
+        }
+        return { res, data };
+      } catch (networkErr) {
+        return { res: { ok: false, status: 0 }, data: { error: 'Network request error: ' + networkErr.message } };
+      }
+    }
+
     async render() {
       this.updateAdminVisibility();
       const container = document.getElementById('view-backup-restore');
@@ -64,16 +92,15 @@
 
     async loadBackups() {
       try {
-        const res = await fetch('/api/backups', {
+        const { res, data } = await this.safeFetchJson('/api/backups', {
           headers: this.getAuthHeaders()
         });
-        if (res.ok) {
-          const data = await res.json();
-          this.backups = Array.isArray(data.backups) ? data.backups : [];
+        if (res.ok && data && Array.isArray(data.backups)) {
+          this.backups = data.backups;
           this.renderKpis();
           this.renderTable();
         } else {
-          console.warn('Could not fetch backups from server, checking local cache.');
+          console.warn('Could not fetch backups from server:', data && data.error);
           this.renderKpis();
           this.renderTable();
         }
@@ -256,7 +283,7 @@
       }
 
       try {
-        const res = await fetch('/api/backups/create', {
+        const { res, data } = await this.safeFetchJson('/api/backups/create', {
           method: 'POST',
           headers: this.getAuthHeaders(),
           body: JSON.stringify({
@@ -268,15 +295,17 @@
           })
         });
 
-        const data = await res.json();
-        if (res.ok && data.success) {
+        if (res.ok && data && data.success) {
+          if (data.backupId && data.base64Zip) {
+            this.createdBackupsCache.set(data.backupId, data.base64Zip);
+          }
           this.closeCreateModal();
           await this.loadBackups();
           
           // Show success dialog with instant download prompt
           this.showCreatedSuccessModal(data);
         } else {
-          alert(`Backup creation failed: ${data.error || 'Server error'}`);
+          alert(`Backup creation failed: ${(data && data.error) || 'Server error'}`);
         }
       } catch (err) {
         console.error('Backup creation error:', err);
@@ -327,14 +356,41 @@
 
     downloadBackup(backupId) {
       if (!backupId) return;
+      const cachedBase64 = this.createdBackupsCache && this.createdBackupsCache.get(backupId);
+      if (cachedBase64) {
+        this.downloadBase64(cachedBase64, `${backupId}.zip`);
+        return;
+      }
       const downloadUrl = `/api/backups/download?id=${encodeURIComponent(backupId)}`;
-      
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.setAttribute('download', `${backupId}.zip`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+
+    downloadBase64(base64Data, filename) {
+      try {
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/zip' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename || 'backup.zip';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+      } catch (err) {
+        console.error('Error in direct base64 download:', err);
+        window.location.href = `/api/backups/download?id=${encodeURIComponent(filename.replace('.zip', ''))}`;
+      }
     }
 
     /* ------------------------------------------------------------------ */
@@ -362,20 +418,19 @@
       modal.style.display = 'flex';
 
       try {
-        const res = await fetch('/api/backups/verify', {
+        const { res, data } = await this.safeFetchJson('/api/backups/verify', {
           method: 'POST',
           headers: this.getAuthHeaders(),
           body: JSON.stringify({ id: backupId })
         });
-        const data = await res.json();
 
-        if (res.ok && data.success) {
+        if (res.ok && data && data.success) {
           this.renderVerifyReport(data.verification, backupId);
         } else {
           if (bodyEl) {
             bodyEl.innerHTML = `
               <div class="alert alert-danger" style="margin-bottom: 0;">
-                <strong>Verification Failed:</strong> ${data.error || 'Unknown error'}
+                <strong>Verification Failed:</strong> ${(data && data.error) || 'Unknown error'}
               </div>
             `;
           }
@@ -497,7 +552,7 @@
             `;
           }
 
-          const res = await fetch('/api/backups/upload', {
+          const { res, data } = await this.safeFetchJson('/api/backups/upload', {
             method: 'POST',
             headers: this.getAuthHeaders(),
             body: JSON.stringify({
@@ -507,13 +562,12 @@
             })
           });
 
-          const data = await res.json();
-          if (res.ok && data.success) {
+          if (res.ok && data && data.success) {
             this.closeUploadModal();
             await this.loadBackups();
             alert(`Backup package verified and registered successfully! ID: ${data.backup.backupId}`);
           } else {
-            alert(`Upload validation failed: ${data.error || 'Server rejected package'}`);
+            alert(`Upload validation failed: ${(data && data.error) || 'Server rejected package'}`);
           }
         };
         reader.readAsArrayBuffer(file);
@@ -618,7 +672,7 @@
 
         setStep('Step 3/5: Restoring database records and configurations...');
         
-        const res = await fetch('/api/backups/restore', {
+        const { res, data } = await this.safeFetchJson('/api/backups/restore', {
           method: 'POST',
           headers: this.getAuthHeaders(),
           body: JSON.stringify({
@@ -629,12 +683,10 @@
           })
         });
 
-        const data = await res.json();
-
         setStep('Step 4/5: Running post-restoration self-diagnostics...');
         await new Promise(r => setTimeout(r, 400));
 
-        if (res.ok && data.success) {
+        if (res.ok && data && data.success) {
           setStep('Step 5/5: System verified successfully! 158 Master Registry personnel intact.');
           await new Promise(r => setTimeout(r, 600));
 
@@ -643,7 +695,7 @@
           await this.loadBackups();
         } else {
           setStep('❌ Restoration Failed. Emergency safety state maintained.');
-          alert(`Restoration failed: ${data.error || 'Server error during restore'}`);
+          alert(`Restoration failed: ${(data && data.error) || 'Server error during restore'}`);
         }
       } catch (err) {
         console.error('Restoration error:', err);
@@ -696,18 +748,17 @@
       }
 
       try {
-        const res = await fetch('/api/backups/delete', {
+        const { res, data } = await this.safeFetchJson('/api/backups/delete', {
           method: 'POST',
           headers: this.getAuthHeaders(),
           body: JSON.stringify({ id: backupId })
         });
 
-        const data = await res.json();
-        if (res.ok && data.success) {
+        if (res.ok && data && data.success) {
           await this.loadBackups();
           alert(`Backup point ${backupId} deleted successfully.`);
         } else {
-          alert(`Deletion blocked: ${data.error || 'Could not delete backup'}`);
+          alert(`Deletion blocked: ${(data && data.error) || 'Could not delete backup'}`);
         }
       } catch (err) {
         console.error('Delete backup error:', err);

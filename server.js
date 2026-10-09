@@ -1,49 +1,98 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const backupEngine = require('./scripts/backup_engine');
+const os = require('os');
+
+// Lazy-load backup engine so ordinary API requests never initialize backup modules
+let _backupEngine = null;
+function getBackupEngine() {
+  if (!_backupEngine) {
+    _backupEngine = require('./scripts/backup_engine');
+  }
+  return _backupEngine;
+}
 
 const PORT = process.env.PORT || 3000;
 const REPORTS_DIR = path.join(__dirname, 'generated_reports');
-
-// Ensure reports directory exists
-if (!fs.existsSync(REPORTS_DIR)) {
-  fs.mkdirSync(REPORTS_DIR, { recursive: true });
-}
-
 const INDEX_FILE = path.join(REPORTS_DIR, 'index.json');
-if (!fs.existsSync(INDEX_FILE)) {
-  fs.writeFileSync(INDEX_FILE, JSON.stringify([], null, 2), 'utf8');
-}
-
-// Ensure persistent data directory and transactions database file exist
 const DATA_DIR = path.join(__dirname, 'data');
 const TXN_FILE = path.join(DATA_DIR, 'transactions.json');
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+const OUTLET_FILE = path.join(DATA_DIR, 'outlet_rentals.json');
+const THERMAL_FILE = path.join(DATA_DIR, 'thermal_paper.json');
+const DOCS_FILE = path.join(DATA_DIR, 'employee_documents.json');
+
+// Ephemeral serverless fallback directories and memory cache
+const TMP_DATA_DIR = path.join(os.tmpdir(), 'north005-data');
+const inMemoryDataCache = new Map();
+
+// Safe directory initialization that never crashes in read-only serverless environments
+try {
+  if (!fs.existsSync(REPORTS_DIR)) {
+    fs.mkdirSync(REPORTS_DIR, { recursive: true });
+  }
+} catch (_) {}
+
+try {
+  if (!fs.existsSync(INDEX_FILE)) {
+    fs.writeFileSync(INDEX_FILE, JSON.stringify([], null, 2), 'utf8');
+  }
+} catch (_) {}
+
+try {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+} catch (_) {}
 
 /**
- * Atomic file writer to prevent corruption during concurrent writes or server crashes (Issue F2)
+ * Atomic file writer to prevent corruption during concurrent writes or server crashes (Issue F2).
+ * Automatically redirects to /tmp and in-memory cache when running in read-only serverless environments.
  */
 function atomicWriteFileSync(filePath, content) {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  const tempPath = path.join(dir, `.${path.basename(filePath)}.tmp.${Date.now()}_${Math.random().toString(36).substr(2, 6)}`);
-  fs.writeFileSync(tempPath, content);
+  const contentStr = Buffer.isBuffer(content) ? content : (typeof content === 'string' ? content : JSON.stringify(content, null, 2));
+  inMemoryDataCache.set(filePath, contentStr);
+
   try {
-    fs.renameSync(tempPath, filePath);
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const tempPath = path.join(dir, `.${path.basename(filePath)}.tmp.${Date.now()}_${Math.random().toString(36).substr(2, 6)}`);
+    fs.writeFileSync(tempPath, content);
+    try {
+      fs.renameSync(tempPath, filePath);
+    } catch (err) {
+      fs.writeFileSync(filePath, content);
+      try { fs.unlinkSync(tempPath); } catch (_) {}
+    }
+    return true;
   } catch (err) {
-    // Fallback if atomic rename fails on Windows locked descriptor
-    fs.writeFileSync(filePath, content);
-    try { fs.unlinkSync(tempPath); } catch (_) {}
+    // Read-only filesystem detected (e.g. Vercel Serverless /var/task). Fall back gracefully to os.tmpdir().
+    try {
+      if (!fs.existsSync(TMP_DATA_DIR)) {
+        fs.mkdirSync(TMP_DATA_DIR, { recursive: true });
+      }
+      const tmpFilePath = path.join(TMP_DATA_DIR, path.basename(filePath));
+      fs.writeFileSync(tmpFilePath, content);
+      inMemoryDataCache.set(tmpFilePath, contentStr);
+      return true;
+    } catch (tmpErr) {
+      console.warn(`Notice: In-memory persistence only for ${filePath} (${tmpErr.message})`);
+      return false;
+    }
   }
 }
 
 function readPersistentTransactions() {
   try {
+    if (inMemoryDataCache.has(TXN_FILE)) {
+      const data = inMemoryDataCache.get(TXN_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'transactions.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
     if (fs.existsSync(TXN_FILE)) {
       return JSON.parse(fs.readFileSync(TXN_FILE, 'utf8'));
     }
@@ -61,10 +110,16 @@ function writePersistentTransactions(payload) {
   }
 }
 
-const OUTLET_FILE = path.join(DATA_DIR, 'outlet_rentals.json');
-
 function readPersistentOutletRentals() {
   try {
+    if (inMemoryDataCache.has(OUTLET_FILE)) {
+      const data = inMemoryDataCache.get(OUTLET_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'outlet_rentals.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
     if (fs.existsSync(OUTLET_FILE)) {
       return JSON.parse(fs.readFileSync(OUTLET_FILE, 'utf8'));
     }
@@ -82,10 +137,16 @@ function writePersistentOutletRentals(payload) {
   }
 }
 
-const THERMAL_FILE = path.join(DATA_DIR, 'thermal_paper.json');
-
 function readPersistentThermalPaper() {
   try {
+    if (inMemoryDataCache.has(THERMAL_FILE)) {
+      const data = inMemoryDataCache.get(THERMAL_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'thermal_paper.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
     if (fs.existsSync(THERMAL_FILE)) {
       return JSON.parse(fs.readFileSync(THERMAL_FILE, 'utf8'));
     }
@@ -103,10 +164,16 @@ function writePersistentThermalPaper(payload) {
   }
 }
 
-const DOCS_FILE = path.join(DATA_DIR, 'employee_documents.json');
-
 function readPersistentEmployeeDocuments() {
   try {
+    if (inMemoryDataCache.has(DOCS_FILE)) {
+      const data = inMemoryDataCache.get(DOCS_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'employee_documents.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
     if (fs.existsSync(DOCS_FILE)) {
       return JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8'));
     }
@@ -258,6 +325,14 @@ const MIME_TYPES = {
 
 function readReportsIndex() {
   try {
+    if (inMemoryDataCache.has(INDEX_FILE)) {
+      const data = inMemoryDataCache.get(INDEX_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpIndex = path.join(TMP_DATA_DIR, 'reports_index.json');
+    if (fs.existsSync(tmpIndex)) {
+      return JSON.parse(fs.readFileSync(tmpIndex, 'utf8'));
+    }
     if (fs.existsSync(INDEX_FILE)) {
       return JSON.parse(fs.readFileSync(INDEX_FILE, 'utf8'));
     }
@@ -760,7 +835,7 @@ function requestHandler(req, res) {
         return;
       }
       try {
-        const backups = backupEngine.readBackupIndex();
+        const backups = getBackupEngine().readBackupIndex();
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, backups }));
       } catch (err) {
@@ -780,7 +855,7 @@ function requestHandler(req, res) {
       readJsonBody(req, res, async (err, payload) => {
         if (err) return;
         try {
-          const result = await backupEngine.createBackupPoint({
+          const result = await getBackupEngine().createBackupPoint({
             versionName: payload.versionName,
             description: payload.description,
             plannedChanges: payload.plannedChanges,
@@ -794,7 +869,8 @@ function requestHandler(req, res) {
             filename: result.filename,
             sizeBytes: result.sizeBytes,
             backup: result.indexEntry,
-            manifest: result.manifest
+            manifest: result.manifest,
+            base64Zip: result.base64Zip
           }));
         } catch (createErr) {
           console.error('Error creating backup point:', createErr);
@@ -813,7 +889,7 @@ function requestHandler(req, res) {
         res.end('Invalid or missing backup ID parameter.');
         return;
       }
-      const filePath = backupEngine.getBackupFilePath(backupId);
+      const filePath = getBackupEngine().getBackupFilePath(backupId);
       if (!filePath || !fs.existsSync(filePath)) {
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         res.end('Backup archive file not found.');
@@ -851,7 +927,7 @@ function requestHandler(req, res) {
         try {
           let source = null;
           if (payload.id) {
-            source = backupEngine.getBackupFilePath(payload.id);
+            source = getBackupEngine().getBackupFilePath(payload.id);
             if (!source) {
               res.writeHead(404, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ error: 'Backup ID not found on server.' }));
@@ -865,7 +941,7 @@ function requestHandler(req, res) {
             return;
           }
 
-          const report = await backupEngine.verifyBackup(source);
+          const report = await getBackupEngine().verifyBackup(source);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true, verification: report }));
         } catch (verifyErr) {
@@ -888,7 +964,7 @@ function requestHandler(req, res) {
         try {
           let source = null;
           if (payload.id) {
-            source = backupEngine.getBackupFilePath(payload.id);
+            source = getBackupEngine().getBackupFilePath(payload.id);
             if (!source) {
               res.writeHead(404, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ error: 'Backup ID not found on server.' }));
@@ -902,7 +978,7 @@ function requestHandler(req, res) {
             return;
           }
 
-          const restoreResult = await backupEngine.restoreBackup(source, {
+          const restoreResult = await getBackupEngine().restoreBackup(source, {
             restoreCode: payload.restoreCode !== false,
             restoreData: payload.restoreData !== false,
             autoSafetyBackup: payload.autoSafetyBackup !== false
@@ -935,7 +1011,7 @@ function requestHandler(req, res) {
 
         try {
           const zipBuffer = Buffer.from(payload.base64Zip, 'base64');
-          const verification = await backupEngine.verifyBackup(zipBuffer);
+          const verification = await getBackupEngine().verifyBackup(zipBuffer);
           if (!verification.valid) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
@@ -948,11 +1024,15 @@ function requestHandler(req, res) {
           const manifest = verification.manifest;
           const backupId = manifest.backupId;
           const zipFilename = `${backupId}.zip`;
-          const savePath = path.join(backupEngine.ARCHIVES_DIR, zipFilename);
+          const savePath = path.join(getBackupEngine().ARCHIVES_DIR, zipFilename);
 
-          fs.writeFileSync(savePath, zipBuffer);
+          try {
+            fs.writeFileSync(savePath, zipBuffer);
+          } catch (writeErr) {
+            console.warn('Could not write archive to disk, continuing in memory:', writeErr.message);
+          }
 
-          const index = backupEngine.readBackupIndex();
+          const index = getBackupEngine().readBackupIndex();
           const existingIdx = index.findIndex(b => b.backupId === backupId);
           const indexEntry = {
             backupId,
@@ -966,7 +1046,7 @@ function requestHandler(req, res) {
             sizeBytes: zipBuffer.length,
             sizeFormatted: (zipBuffer.length / (1024 * 1024)).toFixed(2) + ' MB',
             filesCount: manifest.filesCount || (manifest.files ? manifest.files.length : 0),
-            packageChecksum: backupEngine.calculateSha256(zipBuffer),
+            packageChecksum: getBackupEngine().calculateSha256(zipBuffer),
             filename: zipFilename,
             isVerified: true,
             verificationStatus: 'VERIFIED',
@@ -978,11 +1058,9 @@ function requestHandler(req, res) {
           } else {
             index.unshift(indexEntry);
           }
-          const tmp = path.join(backupEngine.BACKUPS_DIR, `.index.tmp.${Date.now()}`);
-          fs.writeFileSync(tmp, JSON.stringify(index, null, 2), 'utf8');
-          fs.renameSync(tmp, path.join(backupEngine.BACKUPS_DIR, 'index.json'));
+          getBackupEngine().writeBackupIndex(index);
 
-          backupEngine.logAudit('BACKUP_UPLOADED', { backupId, size: zipBuffer.length });
+          getBackupEngine().logAudit('BACKUP_UPLOADED', { backupId, size: zipBuffer.length });
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true, backup: indexEntry, verification }));
@@ -1009,7 +1087,7 @@ function requestHandler(req, res) {
           return;
         }
         try {
-          const delRes = backupEngine.deleteBackup(payload.id);
+          const delRes = getBackupEngine().deleteBackup(payload.id);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify(delRes));
         } catch (delErr) {
