@@ -334,7 +334,7 @@ function validateSafeId(id) {
   return /^[A-Za-z0-9_-]{1,120}$/.test(id);
 }
 
-const server = http.createServer((req, res) => {
+function requestHandler(req, res) {
   const host = req.headers.host || `127.0.0.1:${PORT}`;
   const parsedUrl = new URL(req.url, `http://${host}`);
   const pathname = parsedUrl.pathname;
@@ -1102,8 +1102,14 @@ const server = http.createServer((req, res) => {
       res.end(content);
     }
   });
-});
+}
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}...`);
-});
+const server = http.createServer(requestHandler);
+
+if (require.main === module) {
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}...`);
+  });
+}
+
+module.exports = requestHandler;
