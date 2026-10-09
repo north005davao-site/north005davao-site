@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
@@ -47,16 +47,51 @@ relievers.forEach(r => {
   assert.strictEqual(r.coordinates, null, 'Reliever ' + r.name + ' must not have coordinates');
 });
 
-// Verify ETS Live Tracking exclusions
-const operationalStaff = employees.filter(emp => {
-  const r = (emp.role || '').toUpperCase();
-  const isRel = r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('BUFFER') || emp.id === 'DDN005-SR000';
-  const isAdm = r.includes('ADMIN') || (emp.department || '').includes('admin');
-  const isSup = r.includes('SUPERVISOR') || (emp.department || '').includes('sup');
-  const isCol = r.includes('COLLECTOR') || (emp.department || '').includes('col');
-  return !isRel && !isAdm && !isSup && !isCol;
+// 2. Verify all 123 booths are covered by AUTHENTIC_MASTER_REGISTRY_COORDINATES
+const authCoords = sandbox.window.AUTHENTIC_MASTER_REGISTRY_COORDINATES;
+assert(authCoords, 'AUTHENTIC_MASTER_REGISTRY_COORDINATES must be defined');
+const booths = store.getBooths();
+assert.strictEqual(booths.length, 123, 'Must have 123 total registered booths');
+booths.forEach(b => {
+  const norm = sandbox.window.cleanBoothId(b.id || b.code);
+  assert(authCoords[norm], 'Booth ' + (b.id || b.code) + ' must exist in AUTHENTIC_MASTER_REGISTRY_COORDINATES');
+  assert(typeof authCoords[norm].lat === 'number' && typeof authCoords[norm].lng === 'number', 'Coordinates must be valid numbers');
 });
 
-assert.strictEqual(operationalStaff.filter(s => (s.role || '').toUpperCase().includes('RELIEVER')).length, 0, 'No relievers in ETS map staff');
+// 3. Verify Fleet Activity Monitor filtering excludes relievers, admins, supervisors, collectors
+const boothStaff = employees.filter(emp => {
+  if (!emp) return false;
+  const roleUpper = (emp.role || '').toUpperCase();
+  const deptLower = (emp.department || '').toLowerCase();
+  const nameNorm = (emp.name || '').trim().toLowerCase();
+
+  // 1. Strictly exclude Relievers, Admins, Supervisors, Collectors, Buffer staff
+  if (roleUpper.includes('RELIEVER') || roleUpper.includes('RELIVER') || roleUpper.includes('BUFFER')) return false;
+  if (roleUpper.includes('ADMIN') || deptLower.includes('admin') || deptLower === 'dept-admin') return false;
+  if (roleUpper.includes('SUPERVISOR') || roleUpper.includes('TEAM LEADER') || deptLower.includes('sup') || deptLower === 'dept-sup') return false;
+  if (roleUpper.includes('COLLECTOR') || deptLower.includes('col') || deptLower === 'dept-col') return false;
+  if (emp.id === 'DDN005-SR000' || (emp.id && emp.id.startsWith('DDN005-REL'))) return false;
+
+  // 2. Must have an assigned STL Booth! (Fleet Activity Monitor tracks STL Booths)
+  const boothCode = (emp.boothCode || emp.booth || '').trim().toUpperCase();
+  if (!boothCode || boothCode === '-' || boothCode === 'N/A' || boothCode === 'NONE' || boothCode === 'UNASSIGNED') {
+    return false;
+  }
+  return true;
+});
+
+assert.strictEqual(boothStaff.length, 116, 'Exactly 116 active primary sales representatives must be in boothStaff');
+assert(!boothStaff.some(s => s.name.toUpperCase().includes('PRECIOUS NICA TORREFIEL')), 'Precious Nica Torrefiel must NOT be in Fleet Activity');
+assert(!boothStaff.some(s => s.role.toUpperCase().includes('RELIEVER')), 'No reliever allowed in Fleet Activity');
+
+// 4. Verify search for 'admin' never returns Precious Nica Torrefiel or any reliever
+const searchAdminQuery = 'admin';
+const searchAdminMatches = boothStaff.filter(emp => {
+  const q = searchAdminQuery.toLowerCase();
+  return (emp.name && emp.name.toLowerCase().includes(q)) ||
+         (emp.id && emp.id.toLowerCase().includes(q)) ||
+         (emp.boothCode && emp.boothCode.toLowerCase().includes(q));
+});
+assert.strictEqual(searchAdminMatches.length, 0, "Query 'admin' must return 0 booth staff since Peter John Carrillo and relievers are excluded");
 
 console.log('✅ Relievers GPS Exclusion & Authentic Municipality Suite Passed Successfully.');

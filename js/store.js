@@ -135,13 +135,36 @@ function getRelieverMunicipality(name) {
   return 'Sto. Tomas';
 }
 
+function isOfficialRelieverName(name) {
+  if (!name || typeof name !== 'string') return false;
+  const n = name.trim().toLowerCase();
+  if (OFFICIAL_RELIEVER_MUNICIPALITIES[n]) return true;
+  for (const rName of Object.keys(OFFICIAL_RELIEVER_MUNICIPALITIES)) {
+    if (n.includes(rName) || rName.includes(n)) return true;
+  }
+  return false;
+}
+
+function cleanBoothId(code) {
+  if (!code || typeof code !== 'string') return null;
+  const trimmed = String(code).trim().toUpperCase();
+  if (trimmed === '-' || trimmed === 'N/A' || trimmed === 'NONE' || trimmed === '' || trimmed === 'UNASSIGNED') return null;
+  let clean = trimmed.replace(/^BOOTH[\s-]*/i, '').replace(/^DDN[\s_]+(\d+)/i, 'DDN-$1');
+  if (/^\d+$/.test(clean)) clean = `DDN-${clean}`;
+  return clean;
+}
+
 if (typeof window !== 'undefined') {
   window.OFFICIAL_RELIEVER_MUNICIPALITIES = OFFICIAL_RELIEVER_MUNICIPALITIES;
   window.getRelieverMunicipality = getRelieverMunicipality;
+  window.isOfficialRelieverName = isOfficialRelieverName;
+  window.cleanBoothId = cleanBoothId;
 }
 if (typeof global !== 'undefined') {
   global.OFFICIAL_RELIEVER_MUNICIPALITIES = OFFICIAL_RELIEVER_MUNICIPALITIES;
   global.getRelieverMunicipality = getRelieverMunicipality;
+  global.isOfficialRelieverName = isOfficialRelieverName;
+  global.cleanBoothId = cleanBoothId;
 }
 
 function parseAddress(rawAddress) {
@@ -347,6 +370,13 @@ const AUTHENTIC_MASTER_REGISTRY_COORDINATES = {
   'DDN-1761': { lat: 7.008400, lng: 125.756400, municipality: 'Samal' },
   'DDN-1764': { lat: 6.981264, lng: 125.732830, municipality: 'Samal' },
   'DDN-1765': { lat: 6.990609, lng: 125.733920, municipality: 'Samal' },
+  'DDN-766': { lat: 7.471085, lng: 125.760813, municipality: 'Tagum City' },
+  'DDN-1750': { lat: 7.312412, lng: 125.593712, municipality: 'Panabo City' },
+  'DDN-1753': { lat: 7.525676, lng: 125.713530, municipality: 'Sto. Tomas' },
+  'DDN-1680': { lat: 7.530783, lng: 125.655975, municipality: 'Sto. Tomas' },
+  'DDN-1635': { lat: 7.145169, lng: 125.726759, municipality: 'Samal' },
+  'DDN-1630': { lat: 7.018645, lng: 125.742199, municipality: 'Samal' },
+  'DDN-1763': { lat: 6.997705, lng: 125.733667, municipality: 'Samal' },
 };
 
 const MASTER_REGISTRY_BOOTH_COORDINATES = AUTHENTIC_MASTER_REGISTRY_COORDINATES;
@@ -1514,14 +1544,38 @@ class Store {
                 lngVal = Number(e.coordinates.lng);
               }
 
-              if (latVal !== null && lngVal !== null) {
+              const rCheck = (e.role || '').toUpperCase();
+              const bCodeRaw = cleanBoothId(e.boothCode || e.booth);
+              const isRelStaff = (rCheck.includes('RELIEVER') || rCheck.includes('RELIVER') || rCheck.includes('BUFFER') || e.id === 'DDN005-SR000' || isOfficialRelieverName(e.name)) && (!bCodeRaw || bCodeRaw === '-');
+
+              if (isRelStaff) {
+                e.lat = null;
+                e.lng = null;
+                e.coordinates = null;
+                e.booth = '-';
+                e.boothCode = '-';
+                e.etsStatus = 'Offline';
+              } else if (latVal !== null && lngVal !== null) {
                 e.lat = latVal;
                 e.lng = lngVal;
                 e.coordinates = { lat: latVal, lng: lngVal };
               } else {
-                e.lat = null;
-                e.lng = null;
-                e.coordinates = null;
+                // Self-heal Sales Rep coordinates from authentic booth coordinates
+                const cleanB = cleanBoothId(e.boothCode || e.booth);
+                if (cleanB && AUTHENTIC_MASTER_REGISTRY_COORDINATES[cleanB]) {
+                  const mc = AUTHENTIC_MASTER_REGISTRY_COORDINATES[cleanB];
+                  e.lat = mc.lat;
+                  e.lng = mc.lng;
+                  e.coordinates = { lat: mc.lat, lng: mc.lng };
+                  if (!e.municipality || e.municipality === '-' || e.municipality.includes('Davao Sector')) {
+                    e.municipality = mc.municipality;
+                  }
+                  needsSave = true;
+                } else {
+                  e.lat = null;
+                  e.lng = null;
+                  e.coordinates = null;
+                }
               }
 
               // POS and printer
@@ -1600,7 +1654,7 @@ class Store {
               seenStaffKeys.add(dedupKey);
 
               let id = (e.id || '').trim();
-              const isRel = roleNorm.includes('RELIEVER') || roleNorm.includes('RELIVER') || roleNorm.includes('BUFFER');
+              const isRel = (roleNorm.includes('RELIEVER') || roleNorm.includes('RELIVER') || roleNorm.includes('BUFFER') || e.id === 'DDN005-SR000' || isOfficialRelieverName(e.name)) && (!cleanB || cleanB === '-');
               if (isRel) {
                 // Relievers default ID No is DDN005-SR000 for all assigned relievers
                 e.id = 'DDN005-SR000';
@@ -1627,8 +1681,21 @@ class Store {
                   needsSave = true;
                 }
               } else {
-                // If non-reliever employee has corrupted municipality like 'Davao Sector' or 'N/A, Davao Sector'
-                if (!e.municipality || e.municipality === '-' || e.municipality.includes('Davao Sector') || e.municipality.includes('Davao Del Norte')) {
+                // If non-reliever employee has booth code, ensure authentic coordinates are populated
+                const bCode = cleanBoothId(e.boothCode || e.booth);
+                if (bCode && AUTHENTIC_MASTER_REGISTRY_COORDINATES[bCode]) {
+                  const mc = AUTHENTIC_MASTER_REGISTRY_COORDINATES[bCode];
+                  if (!e.lat || !e.lng || isNaN(e.lat) || isNaN(e.lng) || !e.coordinates) {
+                    e.lat = mc.lat;
+                    e.lng = mc.lng;
+                    e.coordinates = { lat: mc.lat, lng: mc.lng };
+                    needsSave = true;
+                  }
+                  if (!e.municipality || e.municipality === '-' || e.municipality.includes('Davao Sector') || e.municipality.includes('Davao Del Norte')) {
+                    e.municipality = mc.municipality;
+                    needsSave = true;
+                  }
+                } else if (!e.municipality || e.municipality === '-' || e.municipality.includes('Davao Sector') || e.municipality.includes('Davao Del Norte')) {
                   const parsed = parseAddress(e.address || e.area || '');
                   if (parsed.municipality && parsed.municipality !== '-' && !parsed.municipality.includes('Davao Sector') && !parsed.municipality.includes('Davao Del Norte')) {
                     e.municipality = parsed.municipality;
@@ -1755,19 +1822,11 @@ class Store {
             needsSave = true;
           }
 
-          // Strict Master Registry GPS Sync (Purge fake radial fallback coordinates on first run)
-          if (!parsed._gpsStrictMasterV1) {
+          // Strict Master Registry GPS Sync (Ensure all 123 authentic booths and Sales Reps have verified coordinates)
+          if (!parsed._gpsStrictMasterV1 || !parsed._gpsStrictMasterV2) {
             parsed._gpsStrictMasterV1 = true;
+            parsed._gpsStrictMasterV2 = true;
             if (typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined') {
-              const cleanBoothId = (code) => {
-                if (!code || typeof code !== 'string') return null;
-                const trimmed = code.trim().toUpperCase();
-                if (trimmed === '-' || trimmed === 'N/A' || trimmed === 'NONE' || trimmed === '' || trimmed === 'UNASSIGNED') return null;
-                let clean = trimmed.replace(/^BOOTH[\s-]*/i, '').replace(/^DDN[\s_]+(\d+)/i, 'DDN-$1');
-                if (/^\d+$/.test(clean)) clean = `DDN-${clean}`;
-                return clean;
-              };
-
               if (Array.isArray(parsed.booths)) {
                 parsed.booths.forEach((b) => {
                   if (b._userCalibrated) return;
@@ -1791,15 +1850,25 @@ class Store {
                 parsed.employees.forEach((e) => {
                   if (e._userCalibrated) return;
                   const rU = (e.role || '').toUpperCase();
-                  if (rU.includes('COLLECTOR') || rU.includes('ADMIN')) return; // Retain collector/admin territory
-                  const bCode = e.boothCode || e.booth;
-                  const norm = cleanBoothId(bCode);
-                  if (norm && AUTHENTIC_MASTER_REGISTRY_COORDINATES[norm]) {
-                    const masterCoord = AUTHENTIC_MASTER_REGISTRY_COORDINATES[norm];
+                  const bCode = cleanBoothId(e.boothCode || e.booth);
+                  const isRel = (rU.includes('RELIEVER') || rU.includes('RELIVER') || rU.includes('BUFFER') || e.id === 'DDN005-SR000' || isOfficialRelieverName(e.name)) && (!bCode || bCode === '-');
+                  if (isRel) {
+                    e.lat = null;
+                    e.lng = null;
+                    e.coordinates = null;
+                    e.booth = '-';
+                    e.boothCode = '-';
+                    return;
+                  }
+                  if (rU.includes('COLLECTOR') || rU.includes('ADMIN')) return;
+                  if (bCode && AUTHENTIC_MASTER_REGISTRY_COORDINATES[bCode]) {
+                    const masterCoord = AUTHENTIC_MASTER_REGISTRY_COORDINATES[bCode];
                     e.lat = masterCoord.lat;
                     e.lng = masterCoord.lng;
                     e.coordinates = { lat: masterCoord.lat, lng: masterCoord.lng };
-                    if (masterCoord.municipality) e.municipality = masterCoord.municipality;
+                    if (masterCoord.municipality && (!e.municipality || e.municipality === '-' || e.municipality.includes('Davao Sector'))) {
+                      e.municipality = masterCoord.municipality;
+                    }
                   } else {
                     // Purge previous fake/radial fallback coordinates
                     e.lat = null;
@@ -2081,8 +2150,8 @@ class Store {
             if (admDept) admDept.head = 'Peter John Carrillo';
           }
 
-          if (parsed.masterRegistryVersion !== 'MRV-20261006-003') {
-            parsed.masterRegistryVersion = 'MRV-20261006-003';
+          if (parsed.masterRegistryVersion !== 'MRV-20261009-002') {
+            parsed.masterRegistryVersion = 'MRV-20261009-002';
             parsed.masterRegistryUpdatedAt = new Date().toISOString();
             needsSave = true;
           }
@@ -3971,10 +4040,20 @@ class Store {
   }
 }
 
-window.Store = Store;
-if (typeof global !== 'undefined') global.Store = Store;
-window.appStore = new Store();
-window.hasValidGpsCoordinates = function(emp) {
-  return window.appStore.hasValidGpsCoordinates(emp);
-};
+if (typeof window !== 'undefined') {
+  window.Store = Store;
+  window.appStore = new Store();
+  window.hasValidGpsCoordinates = function(emp) {
+    return window.appStore.hasValidGpsCoordinates(emp);
+  };
+}
+if (typeof global !== 'undefined') {
+  global.Store = Store;
+  if (!global.appStore && typeof window === 'undefined') {
+    global.appStore = new Store();
+  }
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = Store;
+}
 

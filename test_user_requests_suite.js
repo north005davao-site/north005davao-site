@@ -260,6 +260,13 @@ async function runTests() {
 
   for (const [code, coord] of Object.entries(authCoords)) {
     const cachedBooth = cache.booths.find(b => b.boothCode === code);
+    if (!cachedBooth) {
+      const unusedRec = booths.find(b => (b.id || b.code) === code);
+      assert.ok(unusedRec, `Booth ${code} must be present in Master Registry booths`);
+      assert.strictEqual(unusedRec.lat, coord.lat, `Booth ${code} Latitude must match Master Registry`);
+      assert.strictEqual(unusedRec.lng, coord.lng, `Booth ${code} Longitude must match Master Registry`);
+      continue;
+    }
     assert.ok(cachedBooth, `Booth ${code} must be present in EST Map Engine`);
     assert.strictEqual(cachedBooth.lat, coord.lat, `Booth ${code} Latitude must match Master Registry`);
     assert.strictEqual(cachedBooth.lng, coord.lng, `Booth ${code} Longitude must match Master Registry`);

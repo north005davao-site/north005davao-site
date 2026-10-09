@@ -1436,6 +1436,21 @@ function renderEmployeesTable(customList = null) {
     // 4. GPS Coordinates (Checks lat/lng or coordinates object)
     let latVal = isReliever ? null : ((emp.lat !== undefined && emp.lat !== null && emp.lat !== '' && !isNaN(emp.lat)) ? Number(emp.lat) : (emp.coordinates && emp.coordinates.lat !== undefined && emp.coordinates.lat !== null && emp.coordinates.lat !== '' && !isNaN(emp.coordinates.lat) ? Number(emp.coordinates.lat) : null));
     let lngVal = isReliever ? null : ((emp.lng !== undefined && emp.lng !== null && emp.lng !== '' && !isNaN(emp.lng)) ? Number(emp.lng) : (emp.coordinates && emp.coordinates.lng !== undefined && emp.coordinates.lng !== null && emp.coordinates.lng !== '' && !isNaN(emp.coordinates.lng) ? Number(emp.coordinates.lng) : null));
+
+    if (!isReliever && (latVal === null || lngVal === null) && displayBooth !== '-') {
+      const cleanB = (typeof window.cleanBoothId === 'function') ? window.cleanBoothId(displayBooth) : ((typeof cleanBoothId === 'function') ? cleanBoothId(displayBooth) : displayBooth);
+      const authCoords = (typeof window !== 'undefined' && window.AUTHENTIC_MASTER_REGISTRY_COORDINATES) 
+        ? window.AUTHENTIC_MASTER_REGISTRY_COORDINATES 
+        : ((typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined') ? AUTHENTIC_MASTER_REGISTRY_COORDINATES : null);
+      if (authCoords && cleanB && authCoords[cleanB]) {
+        latVal = authCoords[cleanB].lat;
+        lngVal = authCoords[cleanB].lng;
+        emp.lat = latVal;
+        emp.lng = lngVal;
+        emp.coordinates = { lat: latVal, lng: lngVal };
+      }
+    }
+
     const gpsDisplay = (latVal !== null && lngVal !== null) ? `${latVal.toFixed(6)}, ${lngVal.toFixed(6)}` : '-';
 
     // 5. Contact Phone
@@ -2119,11 +2134,13 @@ window.filterFleetActivityList = function(query) {
     // Only booth-assigned Sales Representatives with valid coordinates appear in ETS Map
     const operationalStaff = employees.filter(e => {
       const r = (e.role || '').toUpperCase();
-      const isRel = r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('BUFFER') || e.id === 'DDN005-SR000';
+      const isRel = r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('BUFFER') || e.id === 'DDN005-SR000' || (typeof window.isOfficialRelieverName === 'function' && window.isOfficialRelieverName(e.name));
       const isAdm = r.includes('ADMIN') || (e.department || '').includes('admin');
       const isSup = r.includes('SUPERVISOR') || (e.department || '').includes('sup');
       const isCol = r.includes('COLLECTOR') || (e.department || '').includes('col');
-      return !isRel && !isAdm && !isSup && !isCol;
+      const bCode = (e.boothCode || e.booth || '').trim().toUpperCase();
+      const hasBooth = bCode && bCode !== '-' && bCode !== 'N/A' && bCode !== 'NONE';
+      return !isRel && !isAdm && !isSup && !isCol && hasBooth;
     });
     const match = operationalStaff.find(e => 
       (e.boothCode && e.boothCode.toLowerCase().includes(fleetSearchQuery)) ||
@@ -2148,15 +2165,29 @@ function renderFleetTrackingList() {
   const employees = store.getEmployees() || [];
 
   // Fleet Activity Monitor: Exclusively show booth-assigned Sales Representatives with STL Booths.
-  // Relievers, Admins, Supervisors, and Collectors have no STL Booth coordinates and must not appear here.
+  // Relievers, Admins, Supervisors, and Collectors have no STL Booths and must NOT appear here.
   const boothStaff = employees.filter(emp => {
+    if (!emp) return false;
     const roleUpper = (emp.role || '').toUpperCase();
     const deptLower = (emp.department || '').toLowerCase();
-    const isAdmin = roleUpper.includes('ADMIN') || deptLower === 'dept-admin' || deptLower.includes('admin');
-    const isSupervisor = roleUpper.includes('SUPERVISOR') || roleUpper.includes('TEAM LEADER') || deptLower === 'dept-sup';
-    const isCollector = roleUpper.includes('COLLECTOR') || deptLower === 'dept-col';
-    const isReliever = roleUpper.includes('RELIEVER') || roleUpper.includes('RELIVER') || roleUpper.includes('BUFFER') || emp.id === 'DDN005-SR000';
-    return !isAdmin && !isSupervisor && !isCollector && !isReliever;
+    const nameNorm = (emp.name || '').trim().toLowerCase();
+
+    // 1. Strictly exclude Relievers, Admins, Supervisors, Collectors, Buffer staff
+    if (roleUpper.includes('RELIEVER') || roleUpper.includes('RELIVER') || roleUpper.includes('BUFFER')) return false;
+    if (roleUpper.includes('ADMIN') || deptLower.includes('admin') || deptLower === 'dept-admin') return false;
+    if (roleUpper.includes('SUPERVISOR') || roleUpper.includes('TEAM LEADER') || deptLower.includes('sup') || deptLower === 'dept-sup') return false;
+    if (roleUpper.includes('COLLECTOR') || deptLower.includes('col') || deptLower === 'dept-col') return false;
+    if (emp.id === 'DDN005-SR000' || (emp.id && emp.id.startsWith('DDN005-REL'))) return false;
+    if (typeof window.isOfficialRelieverName === 'function' && window.isOfficialRelieverName(nameNorm)) return false;
+    if (typeof window.OFFICIAL_RELIEVER_MUNICIPALITIES !== 'undefined' && window.OFFICIAL_RELIEVER_MUNICIPALITIES[nameNorm]) return false;
+
+    // 2. Must have an assigned STL Booth! (Fleet Activity Monitor tracks STL Booths)
+    const boothCode = (emp.boothCode || emp.booth || '').trim().toUpperCase();
+    if (!boothCode || boothCode === '-' || boothCode === 'N/A' || boothCode === 'NONE' || boothCode === 'UNASSIGNED') {
+      return false;
+    }
+
+    return true;
   });
 
   let list = boothStaff;
@@ -2183,7 +2214,7 @@ function renderFleetTrackingList() {
   if (list.length === 0) {
     const emptyMsg = fleetSearchQuery 
       ? `🔍 No staff records found matching "<strong>${fleetSearchQuery}</strong>"`
-      : `📍 No staff records found in Master Registry.`;
+      : `📍 No booth-assigned staff records found in Master Registry.`;
     container.innerHTML = `
       <div style="text-align: center; padding: 24px 12px; color: var(--text-muted); font-size: 12px;">
         ${emptyMsg}
@@ -2193,34 +2224,47 @@ function renderFleetTrackingList() {
   }
 
   container.innerHTML = list.map(emp => {
-    let statusBg = '#dcfce7; color: #166534;';
-    const roleUpper = (emp.role || '').toUpperCase();
-    if (roleUpper.includes('COLLECTOR')) statusBg = '#fef3c7; color: #b45309;';
-    else if (roleUpper.includes('SUPERVISOR')) statusBg = '#f3e8ff; color: #7e22ce;';
-    else if (roleUpper.includes('TEAM LEADER')) statusBg = '#ccfbf1; color: #0f766e;';
-    else if (roleUpper.includes('RELIEVER') || roleUpper.includes('RELIVER')) statusBg = '#e2e8f0; color: #334155;';
-
     let gps = (typeof window.parseGpsCoordinates === 'function')
       ? window.parseGpsCoordinates(emp)
       : { isValid: false };
 
-    // Resolve GPS from linked Master Registry booth if not on employee directly
-    if (!gps.isValid && emp.boothCode && emp.boothCode !== '-') {
-      const normB = (typeof window.normalizeBoothCode === 'function') ? window.normalizeBoothCode(emp.boothCode) : emp.boothCode;
-      const boothRec = (store.getBooths() || []).find(b => {
-        const bNorm = (typeof window.normalizeBoothCode === 'function') ? window.normalizeBoothCode(b.id || b.code) : (b.id || b.code);
-        return bNorm === normB;
-      });
-      if (boothRec) {
-        const bGps = window.parseGpsCoordinates(boothRec);
-        if (bGps.isValid) gps = bGps;
+    // Resolve GPS from authentic coordinates or linked booth if not on employee directly
+    if (!gps.isValid) {
+      const rawB = emp.boothCode || emp.booth;
+      const cleanB = (typeof window.cleanBoothId === 'function')
+        ? window.cleanBoothId(rawB)
+        : ((typeof cleanBoothId === 'function')
+          ? cleanBoothId(rawB)
+          : String(rawB || '').trim().toUpperCase().replace(/^BOOTH[\s-]*/i, '').replace(/^DDN[\s_]+(\d+)/i, 'DDN-$1'));
+
+      const authCoords = (typeof window !== 'undefined' && window.AUTHENTIC_MASTER_REGISTRY_COORDINATES)
+        ? window.AUTHENTIC_MASTER_REGISTRY_COORDINATES
+        : ((typeof AUTHENTIC_MASTER_REGISTRY_COORDINATES !== 'undefined') ? AUTHENTIC_MASTER_REGISTRY_COORDINATES : null);
+
+      if (authCoords && cleanB && authCoords[cleanB]) {
+        const mc = authCoords[cleanB];
+        gps = { isValid: true, lat: mc.lat, lng: mc.lng };
+        emp.lat = mc.lat;
+        emp.lng = mc.lng;
+        emp.coordinates = { lat: mc.lat, lng: mc.lng };
+      } else {
+        const boothRec = (store.getBooths() || []).find(b => {
+          const bNorm = (typeof window.cleanBoothId === 'function') ? window.cleanBoothId(b.id || b.code) : (b.id || b.code);
+          return bNorm === cleanB;
+        });
+        if (boothRec) {
+          const bGps = (typeof window.parseGpsCoordinates === 'function') ? window.parseGpsCoordinates(boothRec) : { isValid: false };
+          if (bGps.isValid) {
+            gps = bGps;
+            emp.lat = bGps.lat;
+            emp.lng = bGps.lng;
+            emp.coordinates = { lat: bGps.lat, lng: bGps.lng };
+          }
+        }
       }
     }
 
-    let displayRole = emp.role || 'Staff';
-    if (roleUpper === 'TELLER' || roleUpper === 'STATION TELLER') displayRole = 'Sales Representative';
-    else if (roleUpper === 'RELIVER') displayRole = 'Reliever';
-
+    const displayRole = 'Sales Representative';
     const boothDisplay = emp.boothCode || emp.booth || '-';
     const muniDisplay = emp.municipality || emp.address || emp.area || '-';
 

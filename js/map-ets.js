@@ -591,11 +591,13 @@
       // Relievers, Admins, Supervisors, and Collectors have no booths or coordinates and are excluded from STL Booth GPS Map
       const operationalStaff = employees.filter(emp => {
         const r = (emp.role || '').toUpperCase();
-        const isRel = r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('BUFFER') || emp.id === 'DDN005-SR000';
+        const bCode = (emp.boothCode || emp.booth || '').trim().toUpperCase();
+        const hasBooth = bCode && bCode !== '-' && bCode !== 'N/A' && bCode !== 'NONE';
+        const isRel = (r.includes('RELIEVER') || r.includes('RELIVER') || r.includes('BUFFER') || emp.id === 'DDN005-SR000' || (typeof window.isOfficialRelieverName === 'function' && window.isOfficialRelieverName(emp.name))) && !hasBooth;
         const isAdm = r.includes('ADMIN') || (emp.department || '').includes('admin');
         const isSup = r.includes('SUPERVISOR') || (emp.department || '').includes('sup');
         const isCol = r.includes('COLLECTOR') || (emp.department || '').includes('col');
-        return !isRel && !isAdm && !isSup && !isCol;
+        return !isRel && !isAdm && !isSup && !isCol && hasBooth;
       });
 
       // Collect all distinct booths keyed strictly by normalized Booth Code
