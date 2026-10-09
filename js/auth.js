@@ -302,8 +302,8 @@
       if (this.isAdmin()) return true;
 
       if (this.isSupervisor()) {
-        // Supervisors have operational oversight but no user management admin controls or system settings
-        return viewId !== 'view-user-management' && viewId !== 'view-settings';
+        // Supervisors have operational oversight but no user management admin controls, system settings, or backup & restore
+        return viewId !== 'view-user-management' && viewId !== 'view-settings' && viewId !== 'view-backup-restore';
       }
 
       if (this.isCollector()) {
@@ -706,6 +706,7 @@
         setNavVisibility('view-employee-documents', false);
         setNavVisibility('view-thermal-paper', false);
         setNavVisibility('view-audit-discrepancy', false);
+        setNavVisibility('view-backup-restore', false);
         setNavVisibility('view-settings', false);
 
         // Auto-redirect to attendance if currently viewing restricted module
@@ -730,6 +731,7 @@
         setNavVisibility('view-employee-documents', false); // Blocked
         setNavVisibility('view-thermal-paper', false); // Blocked
         setNavVisibility('view-audit-discrepancy', false);
+        setNavVisibility('view-backup-restore', false); // Blocked
         setNavVisibility('view-settings', false);
 
         // Auto-redirect to dashboard if currently viewing restricted module
@@ -754,7 +756,14 @@
         setNavVisibility('view-employee-documents', true);
         setNavVisibility('view-thermal-paper', true);
         setNavVisibility('view-audit-discrepancy', true);
+        setNavVisibility('view-backup-restore', isAdmin);
         setNavVisibility('view-settings', isAdmin);
+
+        const navSectionSystem = document.getElementById('nav-section-system');
+        if (navSectionSystem) navSectionSystem.style.display = isAdmin ? 'block' : 'none';
+        if (window.backupRestoreModule && typeof window.backupRestoreModule.updateAdminVisibility === 'function') {
+          window.backupRestoreModule.updateAdminVisibility();
+        }
       }
 
       // Master Registry action buttons

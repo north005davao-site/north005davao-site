@@ -1,0 +1,122 @@
+[
+  {
+    "timestamp": "2026-10-09T14:59:16.196Z",
+    "action": "BACKUP_CREATED",
+    "backupId": "BKP-20261009145915-b78d57",
+    "versionName": "Backup-2026-10-09",
+    "type": "full",
+    "size": 4689426,
+    "author": "Peter John Carrillo (Administrator)"
+  },
+  {
+    "timestamp": "2026-10-09T14:58:09.300Z",
+    "action": "BACKUP_UPLOADED",
+    "backupId": "BKP-20261009145808-eac097",
+    "size": 4689383
+  },
+  {
+    "timestamp": "2026-10-09T14:58:09.173Z",
+    "action": "SYSTEM_RESTORED",
+    "backupId": "BKP-20261009145808-eac097",
+    "versionName": "v1.4.0-test-baseline",
+    "restoredFilesCount": 7,
+    "scope": {
+      "restoreCode": false,
+      "restoreData": true
+    },
+    "safetyBackupId": "BKP-20261009145808-b2e3eb"
+  },
+  {
+    "timestamp": "2026-10-09T14:58:09.157Z",
+    "action": "BACKUP_CREATED",
+    "backupId": "BKP-20261009145808-b2e3eb",
+    "versionName": "SAFETY-SNAPSHOT-PRE-RESTORE-1791557888821",
+    "type": "full",
+    "size": 4689442,
+    "author": "System Safety Guard"
+  },
+  {
+    "timestamp": "2026-10-09T14:58:08.453Z",
+    "action": "BACKUP_CREATED",
+    "backupId": "BKP-20261009145808-eac097",
+    "versionName": "v1.4.0-test-baseline",
+    "type": "full",
+    "size": 4689383,
+    "author": "Peter John Carrillo (Administrator)"
+  },
+  {
+    "timestamp": "2026-10-09T14:58:02.063Z",
+    "action": "BACKUP_UPLOADED",
+    "backupId": "BKP-20261009145800-416365",
+    "size": 4689384
+  },
+  {
+    "timestamp": "2026-10-09T14:58:01.926Z",
+    "action": "SYSTEM_RESTORED",
+    "backupId": "BKP-20261009145800-416365",
+    "versionName": "v1.4.0-test-baseline",
+    "restoredFilesCount": 7,
+    "scope": {
+      "restoreCode": false,
+      "restoreData": true
+    },
+    "safetyBackupId": "BKP-20261009145801-87cea6"
+  },
+  {
+    "timestamp": "2026-10-09T14:58:01.910Z",
+    "action": "BACKUP_CREATED",
+    "backupId": "BKP-20261009145801-87cea6",
+    "versionName": "SAFETY-SNAPSHOT-PRE-RESTORE-1791557881571",
+    "type": "full",
+    "size": 4689444,
+    "author": "System Safety Guard"
+  },
+  {
+    "timestamp": "2026-10-09T14:58:01.163Z",
+    "action": "BACKUP_CREATED",
+    "backupId": "BKP-20261009145800-416365",
+    "versionName": "v1.4.0-test-baseline",
+    "type": "full",
+    "size": 4689384,
+    "author": "Peter John Carrillo (Administrator)"
+  },
+  {
+    "timestamp": "2026-10-09T14:50:21.401Z",
+    "action": "SYSTEM_RESTORED",
+    "backupId": "BKP-20261009145013-3f4eeb",
+    "versionName": "v1.4.1-test",
+    "restoredFilesCount": 7,
+    "scope": {
+      "restoreCode": false,
+      "restoreData": true
+    },
+    "safetyBackupId": "BKP-20261009145020-88030d"
+  },
+  {
+    "timestamp": "2026-10-09T14:50:21.382Z",
+    "action": "BACKUP_CREATED",
+    "backupId": "BKP-20261009145020-88030d",
+    "versionName": "SAFETY-SNAPSHOT-PRE-RESTORE-1791557420988",
+    "type": "full",
+    "size": 4676272,
+    "author": "System Safety Guard"
+  },
+  {
+    "timestamp": "2026-10-09T14:50:14.199Z",
+    "action": "BACKUP_CREATED",
+    "backupId": "BKP-20261009145013-3f4eeb",
+    "versionName": "v1.4.1-test",
+    "type": "full",
+    "size": 4676192,
+    "author": "Peter John Carrillo (Administrator)"
+  },
+  {
+    "timestamp": "2026-10-09T14:47:53.587Z",
+    "action": "BACKUP_CREATED",
+    "backupId": "BKP-20261009144753-af4dce",
+    "versionName": "Backup-2026-10-09",
+    "type": "full",
+    "size": 4674366,
+    "author": "Peter John Carrillo (Administrator)"
+  }
+]

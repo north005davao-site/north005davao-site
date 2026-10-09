@@ -239,6 +239,9 @@ const ROUTE_MAP = {
   '/thermal-summary': 'view-thermal-paper',
   '/audit-discrepancy': 'view-audit-discrepancy',
   '/discrepancy': 'view-audit-discrepancy',
+  '/backup-restore': 'view-backup-restore',
+  '/backups': 'view-backup-restore',
+  '/backup': 'view-backup-restore',
   '/settings': 'view-settings'
 };
 
@@ -255,6 +258,7 @@ const VIEW_TO_ROUTE = {
   'view-employee-documents': '/employee-documents',
   'view-thermal-paper': '/thermal-paper',
   'view-audit-discrepancy': '/audit-discrepancy',
+  'view-backup-restore': '/backup-restore',
   'view-settings': '/settings'
 };
 
@@ -468,6 +472,7 @@ const MODULE_NAMES = {
   'view-thermal-paper': 'Thermal Paper Daily Summary',
   'view-audit-discrepancy': 'Audit & Discrepancy Engine',
   'view-inventory': 'Thermal & Equipment Inventory',
+  'view-backup-restore': 'Backup & Restore Control Center',
   'view-settings': 'System Settings'
 };
 
@@ -592,6 +597,10 @@ window.switchView = function(viewId, updateHistory = true, skipAnimation = false
   } else if (viewId === 'view-employee-documents') {
     if (window.employeeDocumentsModule) {
       window.employeeDocumentsModule.render();
+    }
+  } else if (viewId === 'view-backup-restore') {
+    if (window.backupRestoreModule) {
+      window.backupRestoreModule.render();
     }
   }
 

@@ -61,6 +61,9 @@
         '/thermal-summary': 'view-thermal-paper',
         '/audit-discrepancy': 'view-audit-discrepancy',
         '/discrepancy': 'view-audit-discrepancy',
+        '/backup-restore': 'view-backup-restore',
+        '/backups': 'view-backup-restore',
+        '/backup': 'view-backup-restore',
         '/settings': 'view-settings'
       };
 
@@ -77,6 +80,7 @@
         'view-employee-documents': true,
         'view-thermal-paper': true,
         'view-audit-discrepancy': true,
+        'view-backup-restore': true,
         'view-settings': true
       };
 
@@ -249,6 +253,13 @@
         <div class="nav-item" data-view="view-thermal-paper">
           <span class="icon">🧾</span>
           <span>Thermal Paper Daily Summary</span>
+        </div>
+
+        <div class="nav-section-title" id="nav-section-system" style="display: none;">System Administration</div>
+        <div class="nav-item" data-view="view-backup-restore" id="sidebar-nav-backup" style="display: none;">
+          <span class="icon">💾</span>
+          <span>Backup & Restore</span>
+          <span class="nav-badge badge-success" id="sidebar-backup-badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981;">Ready</span>
         </div>
       </nav>
 
@@ -2707,6 +2718,146 @@
             <div style="margin-top: 12px; font-size: 11.5px; color: var(--text-muted); padding-left: 2px;">
               💡 <strong>Automatic Derivation:</strong> Days Allocated and Total Rolls Used are calculated automatically
               from underlying daily records and update live when records are added, edited, or deleted.
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================================================================
+             VIEW: BACKUP & RESTORE CONTROL CENTER (ENTERPRISE RECOVERY)
+             =================================================================== -->
+        <section id="view-backup-restore" class="view-panel">
+          <div class="view-header">
+            <div class="view-title-group">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <h2 style="margin: 0;">Backup &amp; Restore Control Center</h2>
+                <span class="badge badge-success" style="font-size: 11px; padding: 3px 8px; font-weight: 700;">● ZERO-DATA-LOSS ACTIVE</span>
+              </div>
+              <p>Create verified recovery points before future modifications, download offline backups, and execute guided system restoration with zero data loss.</p>
+            </div>
+            <div class="view-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="window.backupRestoreModule.loadBackups()" title="Refresh catalog">
+                🔄 Refresh History
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="window.backupRestoreModule.openUploadModal()" title="Upload a previously saved .zip backup package">
+                📤 Upload Backup File
+              </button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="window.backupRestoreModule.openCreateModal()" style="font-weight: 800; background: linear-gradient(135deg, #10b981, #059669); border: none;">
+                ➕ Create Backup Now
+              </button>
+            </div>
+          </div>
+
+          <!-- KPI Summary Ribbon -->
+          <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 24px;">
+            <div class="stat-card" style="padding: 16px 20px; --stat-accent: #10b981;">
+              <div class="stat-header">
+                <span class="stat-label">TOTAL RECOVERY POINTS</span>
+                <div class="stat-icon-wrap" style="width: 28px; height: 28px; font-size: 14px;">💾</div>
+              </div>
+              <div class="stat-value" id="bkp-kpi-total" style="font-size: 24px; color: #10b981; font-weight: 800;">
+                0 Points
+              </div>
+              <div class="stat-sub">Available Verified Checkpoints</div>
+            </div>
+
+            <div class="stat-card" style="padding: 16px 20px; --stat-accent: var(--accent-gold);">
+              <div class="stat-header">
+                <span class="stat-label">LATEST BACKUP DATE</span>
+                <div class="stat-icon-wrap" style="width: 28px; height: 28px; font-size: 14px;">📅</div>
+              </div>
+              <div class="stat-value" id="bkp-kpi-last-date" style="font-size: 16px; color: var(--accent-gold); font-weight: 700; font-family: monospace; line-height: 1.4;">
+                Checking...
+              </div>
+              <div class="stat-sub">Last Known Working Version</div>
+            </div>
+
+            <div class="stat-card" style="padding: 16px 20px; --stat-accent: #3b82f6;">
+              <div class="stat-header">
+                <span class="stat-label">PROTECTION GUARD STATUS</span>
+                <div class="stat-icon-wrap" style="width: 28px; height: 28px; font-size: 14px;">🛡️</div>
+              </div>
+              <div class="stat-value" id="bkp-kpi-status" style="font-size: 20px; font-weight: 800;">
+                <span style="color: #10b981;">● PROTECTED</span>
+              </div>
+              <div class="stat-sub">Cannot delete only recovery point</div>
+            </div>
+
+            <div class="stat-card" style="padding: 16px 20px; --stat-accent: #8b5cf6;">
+              <div class="stat-header">
+                <span class="stat-label">TOTAL ARCHIVE STORAGE</span>
+                <div class="stat-icon-wrap" style="width: 28px; height: 28px; font-size: 14px;">📦</div>
+              </div>
+              <div class="stat-value" id="bkp-kpi-size" style="font-size: 22px; color: #8b5cf6; font-family: monospace; font-weight: 800;">
+                0 B
+              </div>
+              <div class="stat-sub">Compressed Deflate Packages</div>
+            </div>
+          </div>
+
+          <!-- History Table Card -->
+          <div class="card" style="padding: 20px; margin-bottom: 24px;">
+            <div class="card-header" style="padding: 0 0 14px 0; margin-bottom: 14px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+              <div>
+                <div class="card-title" style="font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                  <span>📋 System Backup History &amp; Recovery Points</span>
+                </div>
+                <div class="card-subtitle">Every modification checkpoint includes source code, operational records, and cryptographic SHA-256 validation.</div>
+              </div>
+              <div style="font-size: 12px; color: var(--text-dim);">
+                🔒 Admin Access Only (Peter John Carrillo)
+              </div>
+            </div>
+
+            <div class="table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th style="width: 170px;">BACKUP ID &amp; TYPE</th>
+                    <th style="width: 190px;">VERSION &amp; DATE</th>
+                    <th>DESCRIPTION &amp; PLANNED CHANGES</th>
+                    <th style="width: 180px;">INCLUDED DATA RECORDS</th>
+                    <th style="width: 100px;">SIZE</th>
+                    <th style="width: 110px;">INTEGRITY</th>
+                    <th style="width: 250px; text-align: right;">RECOVERY ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody id="bkp-history-tbody">
+                  <!-- Populated dynamically by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- System Architecture & Recovery Notice -->
+          <div class="card" style="padding: 20px; background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255, 255, 255, 0.08);">
+            <div style="display: flex; align-items: flex-start; gap: 14px;">
+              <div style="font-size: 28px; line-height: 1;">🛡️</div>
+              <div>
+                <h4 style="margin: 0 0 6px 0; font-size: 14px; font-weight: 800; color: #fff;">Deployment &amp; Multi-Tier Disaster Recovery Architecture</h4>
+                <p style="margin: 0 0 10px 0; font-size: 12.5px; color: #cbd5e1; line-height: 1.6;">
+                  This recovery system protects both your <strong>deployed hosting environment</strong> (<a href="https://north005davao.site" target="_blank" style="color: var(--accent-gold); text-decoration: underline;">north005davao.site</a> on Vercel), your <strong>serverless APIs</strong>, your <strong>Supabase cloud database</strong>, and your local/server operational files in <code>data/</code>.
+                </p>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 10px;">
+                  <div style="background: rgba(0, 0, 0, 0.25); padding: 10px 14px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                    <div style="font-size: 11px; font-weight: 700; color: var(--accent-gold); text-transform: uppercase;">1. Operational Data Protection</div>
+                    <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">
+                      Master Registry (158 staff), financial transactions, outlet leases, and compliance documents can be restored independently without breaking deployed code.
+                    </div>
+                  </div>
+                  <div style="background: rgba(0, 0, 0, 0.25); padding: 10px 14px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                    <div style="font-size: 11px; font-weight: 700; color: #10b981; text-transform: uppercase;">2. Automatic Safety Snapshots</div>
+                    <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">
+                      Before any restoration executes, a safety snapshot of current system state is automatically recorded. If verification fails, the system automatically rolls back.
+                    </div>
+                  </div>
+                  <div style="background: rgba(0, 0, 0, 0.25); padding: 10px 14px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                    <div style="font-size: 11px; font-weight: 700; color: #3b82f6; text-transform: uppercase;">3. Offline Computer Backups</div>
+                    <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">
+                      Download <code>.zip</code> packages to keep verified copies safe on your personal computer, completely independent of cloud hosting.
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -5894,26 +6045,333 @@
     </div>
   </div>
 
+  <!-- ===================================================================
+       BACKUP & RESTORE CONTROL CENTER MODALS
+       =================================================================== -->
+
+  <!-- 1. CREATE BACKUP POINT MODAL -->
+  <div id="modal-create-backup" class="modal-overlay" style="z-index: 100040; display: none; background: rgba(5, 10, 20, 0.85); backdrop-filter: blur(10px);">
+    <div class="modal-card" style="max-width: 560px; width: 94%; border: 1px solid rgba(16, 185, 129, 0.4); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(16, 185, 129, 0.15);">
+      <div class="modal-header" style="padding: 18px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; background: rgba(16, 185, 129, 0.08);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(16, 185, 129, 0.15); display: flex; align-items: center; justify-content: center; font-size: 20px;">
+            💾
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">Create System Backup Point</h3>
+            <span style="font-size: 12px; color: #10b981; font-weight: 600;">Save Verified Working State Before Modifications</span>
+          </div>
+        </div>
+        <button type="button" class="icon-btn" onclick="window.backupRestoreModule.closeCreateModal()">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 22px 24px;">
+        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 12px 16px; margin-bottom: 18px; font-size: 12px; color: #94a3b8; line-height: 1.5;">
+          🛡️ <strong>Safety Requirement:</strong> Creates an immutable, verified point in history including SHA-256 file hashes, Master Registry records, and operational databases.
+        </div>
+
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" style="font-size: 12px; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; display: block;">Version / Tag Name</label>
+          <input type="text" id="bkp-input-version" class="form-input" style="width: 100%; font-weight: 700; color: var(--accent-gold);" placeholder="e.g. v1.4.0-stable">
+        </div>
+
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" style="font-size: 12px; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; display: block;">Checkpoint Description</label>
+          <input type="text" id="bkp-input-desc" class="form-input" style="width: 100%;" placeholder="e.g. Pre-modification baseline before feature update">
+        </div>
+
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" style="font-size: 12px; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; display: block;">Planned Changes for Future Update</label>
+          <textarea id="bkp-input-changes" class="form-input" rows="2" style="width: 100%; font-size: 12px; resize: vertical;" placeholder="Describe what modifications or bug fixes are planned..."></textarea>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 18px;">
+          <label class="form-label" style="font-size: 12px; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; display: block;">Backup Scope</label>
+          <select id="bkp-select-scope" class="form-select" style="width: 100%; font-weight: 700;">
+            <option value="full">📦 Full System (Complete Source Code + Operational Database) [Recommended]</option>
+            <option value="data_only">🗄️ Operational Data Only (Master Registry, Transactions, Outlets, Documents)</option>
+            <option value="code_only">💻 Application Source Code Only (HTML, JS, CSS, Serverless API)</option>
+          </select>
+        </div>
+
+        <div id="bkp-create-progress" style="display: none; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 12px 16px; text-align: center;">
+          <div style="font-size: 13px; font-weight: 700; color: #10b981;">⏳ Packaging and computing SHA-256 file hashes...</div>
+          <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px;">Please wait while the backup archive is compiled.</div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: flex-end; gap: 10px; background: rgba(0,0,0,0.2);">
+        <button type="button" class="btn btn-secondary" onclick="window.backupRestoreModule.closeCreateModal()">Cancel</button>
+        <button type="button" id="bkp-submit-create-btn" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); font-weight: 800; border: none; padding: 8px 20px;" onclick="window.backupRestoreModule.submitCreateBackup()">
+          Create Backup Point
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. BACKUP CREATED SUCCESS MODAL -->
+  <div id="modal-backup-created-success" class="modal-overlay" style="z-index: 100045; display: none; background: rgba(5, 10, 20, 0.88); backdrop-filter: blur(12px);">
+    <div class="modal-card" style="max-width: 480px; width: 92%; border: 1px solid rgba(16, 185, 129, 0.5); text-align: center; padding: 28px 24px;">
+      <div style="width: 58px; height: 58px; border-radius: 50%; background: rgba(16, 185, 129, 0.2); border: 2px solid #10b981; display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 16px auto;">
+        ✓
+      </div>
+      <h3 style="margin: 0 0 6px 0; font-size: 18px; font-weight: 800; color: #fff;">Backup Point Created Successfully</h3>
+      <p style="margin: 0 0 18px 0; font-size: 13px; color: #cbd5e1;">
+        The system checkpoint was cryptographically verified and added to the recovery catalog.
+      </p>
+
+      <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; text-align: left;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Backup ID:</span>
+          <span id="bkp-created-id" style="font-size: 12px; font-family: monospace; font-weight: 700; color: var(--accent-gold);">--</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Version Name:</span>
+          <span id="bkp-created-name" style="font-size: 12px; font-weight: 700; color: #fff;">--</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Package Size:</span>
+          <span id="bkp-created-size" style="font-size: 12px; font-family: monospace; color: #94a3b8;">--</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button type="button" id="bkp-created-download-btn" class="btn btn-primary" style="width: 100%; height: 42px; font-weight: 800; font-size: 14px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: none; cursor: pointer;">
+          📥 Download Backup Package (.zip) to Computer
+        </button>
+        <button type="button" class="btn btn-secondary" style="width: 100%; height: 38px;" onclick="window.backupRestoreModule.closeSuccessModal()">
+          Close &amp; Keep in System History
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. VERIFY BACKUP MODAL -->
+  <div id="modal-verify-backup" class="modal-overlay" style="z-index: 100045; display: none; background: rgba(5, 10, 20, 0.85); backdrop-filter: blur(10px);">
+    <div class="modal-card" style="max-width: 580px; width: 94%; border: 1px solid rgba(59, 130, 246, 0.4);">
+      <div class="modal-header" style="padding: 18px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; background: rgba(59, 130, 246, 0.08);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(59, 130, 246, 0.15); display: flex; align-items: center; justify-content: center; font-size: 20px;">
+            🔍
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">Backup Integrity Report</h3>
+            <span id="verify-modal-id" style="font-size: 12px; font-family: monospace; color: var(--accent-gold); font-weight: 600;">--</span>
+          </div>
+        </div>
+        <button type="button" class="icon-btn" onclick="window.backupRestoreModule.closeVerifyModal()">✕</button>
+      </div>
+      <div class="modal-body" id="verify-modal-body" style="padding: 22px 24px;">
+        <!-- Injected dynamically by JS -->
+      </div>
+      <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: flex-end; background: rgba(0,0,0,0.2);">
+        <button type="button" class="btn btn-secondary" onclick="window.backupRestoreModule.closeVerifyModal()">Close Report</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. GUIDED RESTORATION MODAL (9-STEP SPECIFICATION) -->
+  <div id="modal-guided-restore" class="modal-overlay" style="z-index: 100045; display: none; background: rgba(5, 10, 20, 0.9); backdrop-filter: blur(14px);">
+    <div class="modal-card" style="max-width: 620px; width: 94%; border: 1px solid rgba(245, 158, 11, 0.5); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 35px rgba(245, 158, 11, 0.2);">
+      <div class="modal-header" style="padding: 18px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; background: rgba(245, 158, 11, 0.08);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(245, 158, 11, 0.2); display: flex; align-items: center; justify-content: center; font-size: 20px;">
+            🔄
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">Guided System Restoration</h3>
+            <span style="font-size: 12px; color: #f59e0b; font-weight: 600;">Controlled Recovery with Pre-Restore Safety Snapshot</span>
+          </div>
+        </div>
+        <button type="button" class="icon-btn" onclick="window.backupRestoreModule.closeRestoreModal()">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 22px 24px;">
+        <!-- Target Info Box -->
+        <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="font-size: 11.5px; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Restoring To Version:</span>
+            <span id="restore-target-version" style="font-size: 13px; font-weight: 800; color: #fff;">--</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="font-size: 11.5px; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Target Backup ID:</span>
+            <span id="restore-target-id" style="font-size: 12px; font-family: monospace; font-weight: 700; color: var(--accent-gold);">--</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="font-size: 11.5px; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Created At:</span>
+            <span id="restore-target-date" style="font-size: 12px; color: #cbd5e1;">--</span>
+          </div>
+          <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12px; color: #cbd5e1;" id="restore-target-metrics">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Warning Callout -->
+        <div style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid #f59e0b; border-radius: 4px; padding: 12px 16px; margin-bottom: 18px;">
+          <div style="font-size: 12.5px; font-weight: 800; color: #fbbf24; margin-bottom: 4px;">⚠️ Operational Data Impact Warning</div>
+          <div style="font-size: 12px; color: #e2e8f0; line-height: 1.5;">
+            Restoring database records will revert Master Registry, attendance logs, and financial transactions to the state captured in this backup. Any un-backed-up records created after this point will be overwritten.
+          </div>
+        </div>
+
+        <!-- Scope Selector -->
+        <div style="margin-bottom: 18px;">
+          <label style="font-size: 12px; font-weight: 700; color: #e2e8f0; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">Select Restoration Scope:</label>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label style="display: flex; align-items: flex-start; gap: 10px; background: rgba(15, 23, 42, 0.6); padding: 10px 14px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); cursor: pointer;">
+              <input type="radio" name="restore-scope" value="data_only" checked style="margin-top: 3px;">
+              <div>
+                <strong style="color: #fff; font-size: 13px;">Operational Data Only (Safest)</strong>
+                <div style="font-size: 11.5px; color: #94a3b8;">Restores Master Registry and operational databases without modifying application source code files.</div>
+              </div>
+            </label>
+            <label style="display: flex; align-items: flex-start; gap: 10px; background: rgba(15, 23, 42, 0.6); padding: 10px 14px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); cursor: pointer;">
+              <input type="radio" name="restore-scope" value="full" style="margin-top: 3px;">
+              <div>
+                <strong style="color: #fff; font-size: 13px;">Full System (Code + Operational Data)</strong>
+                <div style="font-size: 11.5px; color: #94a3b8;">Complete rollback of both application source code and operational records.</div>
+              </div>
+            </label>
+            <label style="display: flex; align-items: flex-start; gap: 10px; background: rgba(15, 23, 42, 0.6); padding: 10px 14px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); cursor: pointer;">
+              <input type="radio" name="restore-scope" value="code_only" style="margin-top: 3px;">
+              <div>
+                <strong style="color: #fff; font-size: 13px;">Application Code Only</strong>
+                <div style="font-size: 11.5px; color: #94a3b8;">Reverts code files without touching or resetting the live operational database.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Automatic Safety Backup Guarantee -->
+        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 6px; padding: 10px 14px; margin-bottom: 18px; font-size: 12px; color: #cbd5e1; display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 18px;">🛡️</span>
+          <span><strong>Automatic Pre-Restore Safety Point:</strong> A safety snapshot of current system state will be automatically created before any files are restored. If post-restore verification fails, the system automatically rolls back.</span>
+        </div>
+
+        <!-- Explicit Confirmation Checkbox -->
+        <div style="margin-bottom: 16px;">
+          <label style="display: flex; align-items: center; gap: 10px; font-size: 12.5px; font-weight: 700; color: #fff; cursor: pointer;">
+            <input type="checkbox" id="restore-confirm-check" onchange="window.backupRestoreModule.toggleRestoreConfirm(this.checked)" style="transform: scale(1.2); cursor: pointer;">
+            <span>I confirm this restoration request and authorize system recovery.</span>
+          </label>
+        </div>
+
+        <!-- Live Progress Feedback Box -->
+        <div id="restore-progress-container" style="display: none; background: rgba(15, 23, 42, 0.9); border: 1px solid var(--accent-gold); border-radius: 8px; padding: 14px; text-align: center;">
+          <div style="font-size: 13px; font-weight: 800; color: var(--accent-gold); margin-bottom: 4px;" id="restore-step-text">
+            Executing recovery...
+          </div>
+          <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-top: 8px;">
+            <div style="width: 100%; height: 100%; background: linear-gradient(90deg, #f59e0b, #10b981); animation: indeterminateProgress 1.5s infinite linear;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: flex-end; gap: 10px; background: rgba(0,0,0,0.2);">
+        <button type="button" class="btn btn-secondary" onclick="window.backupRestoreModule.closeRestoreModal()">Cancel</button>
+        <button type="button" id="restore-execute-btn" class="btn btn-primary" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; font-weight: 800; border: none; padding: 8px 22px;" disabled onclick="window.backupRestoreModule.executeGuidedRestore()">
+          Confirm &amp; Execute Restoration
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. RESTORATION SUCCESS REPORT MODAL -->
+  <div id="modal-restore-success-report" class="modal-overlay" style="z-index: 100050; display: none; background: rgba(5, 10, 20, 0.92); backdrop-filter: blur(14px);">
+    <div class="modal-card" style="max-width: 500px; width: 92%; border: 1px solid rgba(16, 185, 129, 0.5); text-align: center; padding: 28px 24px;">
+      <div style="width: 60px; height: 60px; border-radius: 50%; background: rgba(16, 185, 129, 0.2); border: 2px solid #10b981; display: flex; align-items: center; justify-content: center; font-size: 32px; margin: 0 auto 16px auto;">
+        🎉
+      </div>
+      <h3 style="margin: 0 0 6px 0; font-size: 19px; font-weight: 800; color: #fff;">System Restoration Completed &amp; Verified</h3>
+      <p style="margin: 0 0 18px 0; font-size: 13px; color: #cbd5e1;">
+        The system has been returned to the selected verified recovery point. All post-restoration verification checks have passed.
+      </p>
+
+      <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 14px 16px; margin-bottom: 22px; text-align: left; font-size: 12.5px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span style="color: var(--text-dim);">Restored Version ID:</span>
+          <span id="rep-restore-id" style="font-family: monospace; font-weight: 700; color: var(--accent-gold);">--</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span style="color: var(--text-dim);">Pre-Restore Safety Point:</span>
+          <span id="rep-restore-safety-id" style="font-family: monospace; font-weight: 700; color: #10b981;">--</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span style="color: var(--text-dim);">Components Recovered:</span>
+          <span id="rep-restore-files-count" style="font-weight: 700; color: #fff;">--</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--text-dim);">Master Registry Post-Check:</span>
+          <span id="rep-restore-reg-status" style="font-weight: 700; color: #10b981;">Verified Intact (158 Staff)</span>
+        </div>
+      </div>
+
+      <button type="button" class="btn btn-primary" style="width: 100%; height: 42px; font-weight: 800; font-size: 14px; background: linear-gradient(135deg, #10b981, #059669); border: none; cursor: pointer;" onclick="window.backupRestoreModule.closeSuccessReportAndReload()">
+        🔄 Refresh &amp; Open Control Center
+      </button>
+    </div>
+  </div>
+
+  <!-- 6. UPLOAD BACKUP PACKAGE MODAL -->
+  <div id="modal-upload-backup" class="modal-overlay" style="z-index: 100045; display: none; background: rgba(5, 10, 20, 0.85); backdrop-filter: blur(10px);">
+    <div class="modal-card" style="max-width: 540px; width: 94%; border: 1px solid rgba(59, 130, 246, 0.4);">
+      <div class="modal-header" style="padding: 18px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; background: rgba(59, 130, 246, 0.08);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(59, 130, 246, 0.15); display: flex; align-items: center; justify-content: center; font-size: 20px;">
+            📤
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">Upload Saved Backup File</h3>
+            <span style="font-size: 12px; color: #3b82f6; font-weight: 600;">Import and verify a saved .zip package from your computer</span>
+          </div>
+        </div>
+        <button type="button" class="icon-btn" onclick="window.backupRestoreModule.closeUploadModal()">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 24px;">
+        <input type="file" id="bkp-file-input" accept=".zip" style="display: none;" onchange="window.backupRestoreModule.handleFileUpload(this.files[0])">
+        
+        <div id="bkp-upload-dropzone" style="border: 2px dashed rgba(59, 130, 246, 0.45); border-radius: 12px; background: rgba(15, 23, 42, 0.6); padding: 32px 20px; text-align: center; cursor: pointer; transition: all 0.25s ease;" onclick="document.getElementById('bkp-file-input').click()">
+          <div style="font-size: 46px; margin-bottom: 12px;">📦</div>
+          <div style="font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 4px;">Choose a Backup Archive (.zip)</div>
+          <div style="font-size: 12.5px; color: #94a3b8; margin-bottom: 18px;">Click here to browse your computer or drag and drop your file</div>
+          <button type="button" class="btn btn-primary btn-sm" style="font-weight: 700; padding: 7px 18px;" onclick="event.stopPropagation(); document.getElementById('bkp-file-input').click();">
+            📂 Select Backup File (.zip)
+          </button>
+        </div>
+
+        <div id="bkp-upload-status" style="display: none; margin-top: 16px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 12px 16px; text-align: center;">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: flex-end; background: rgba(0,0,0,0.2);">
+        <button type="button" class="btn btn-secondary" onclick="window.backupRestoreModule.closeUploadModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Supabase Cloud SDK & Realtime Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabase-client.js"></script>
 
   <!-- App Logic Scripts -->
-  <script src="js/store.js?v=20261009_04"></script>
-  <script src="js/auth.js?v=20261009_04"></script>
-  <script src="js/user-management.js?v=20261009_04"></script>
-  <script src="js/workforce-attendance.js?v=20261009_04"></script>
-  <script src="js/employee-documents.js?v=20261009_04"></script>
-  <script src="js/map-ets.js?v=20261009_04"></script>
-  <script src="js/ocr-engine.js?v=20261009_04"></script>
-  <script src="js/eod-automation.js?v=20261009_04"></script>
-  <script src="js/excel-import.js?v=20261009_04"></script>
-  <script src="js/expenses-payment.js?v=20261009_04"></script>
-  <script src="js/outlet-rentals.js?v=20261009_04"></script>
-  <script src="js/thermal-paper.js?v=20261009_04"></script>
-  <script src="js/org-chart.js?v=20261009_04"></script>
-  <script src="js/app.js?v=20261009_04"></script>
-  <script src="js/production-suite.js?v=20261009_04"></script>
+  <script src="js/store.js?v=20261009_05"></script>
+  <script src="js/auth.js?v=20261009_05"></script>
+  <script src="js/user-management.js?v=20261009_05"></script>
+  <script src="js/workforce-attendance.js?v=20261009_05"></script>
+  <script src="js/employee-documents.js?v=20261009_05"></script>
+  <script src="js/map-ets.js?v=20261009_05"></script>
+  <script src="js/ocr-engine.js?v=20261009_05"></script>
+  <script src="js/eod-automation.js?v=20261009_05"></script>
+  <script src="js/excel-import.js?v=20261009_05"></script>
+  <script src="js/expenses-payment.js?v=20261009_05"></script>
+  <script src="js/outlet-rentals.js?v=20261009_05"></script>
+  <script src="js/thermal-paper.js?v=20261009_05"></script>
+  <script src="js/org-chart.js?v=20261009_05"></script>
+  <script src="js/backup-restore.js?v=20261009_05"></script>
+  <script src="js/app.js?v=20261009_05"></script>
+  <script src="js/production-suite.js?v=20261009_05"></script>
 </body>
 
 </html>

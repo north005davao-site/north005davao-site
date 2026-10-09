@@ -3231,6 +3231,31 @@ button, input, select, textarea {
   }
 }
 
+/* ==========================================================================
+   ENTERPRISE BACKUP & RESTORE CONTROL CENTER STYLES
+   ========================================================================== */
+
+@keyframes indeterminateProgress {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(0%); }
+  100% { transform: translateX(100%); }
+}
+
+#view-backup-restore .table-wrapper {
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+}
+
+#view-backup-restore .data-table tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+#bkp-upload-dropzone:hover {
+  border-color: var(--accent-gold) !important;
+  background: rgba(30, 41, 59, 0.9) !important;
+}
+
+
 
 
 
