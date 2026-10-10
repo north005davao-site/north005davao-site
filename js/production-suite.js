@@ -327,7 +327,7 @@
       // 1. Module / Navigation shortcuts
       const modules = [
         { title: 'Executive Dashboard', sub: 'Central Operations KPIs', icon: '📊', action: () => window.switchView('view-dashboard') },
-        { title: 'Master Registry', sub: 'Staff, Tellers & Relievers (150 Staff)', icon: '👥', action: () => window.switchView('view-master-registry') },
+        { title: 'Master Registry', sub: 'Staff, Tellers & Relievers (150 Staff)', icon: '👥', action: () => window.switchView('view-employees') },
         { title: 'ETS Live Tracking', sub: 'STL Booth GPS Interactive Map', icon: '📍', action: () => window.switchView('view-ets-tracking') },
         { title: 'Sales & Collection', sub: 'Gross Collections & Remittance', icon: '💰', action: () => window.switchView('view-sales-collection') },
         { title: 'Expenses & Payment Management', sub: 'Operating Expenses & Financial OCR', icon: '🧾', action: () => window.switchView('view-expenses-payment') },
@@ -363,7 +363,7 @@
             icon: '👤',
             type: 'Personnel',
             action: () => {
-              window.switchView('view-master-registry');
+              window.switchView('view-employees');
               if (window.editEmployee) window.editEmployee(s.id, true);
             }
           });

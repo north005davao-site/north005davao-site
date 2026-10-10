@@ -1274,8 +1274,28 @@
     } catch (e) {}
 
     window.authManager.hideLoginModal();
-    if (typeof window.refreshDashboard === 'function') {
-      window.refreshDashboard();
+
+    // Determine post-login destination based on user role:
+    // Administrators, Supervisors, and Collectors land on Executive Dashboard
+    // Tellers and Relievers land strictly on Attendance / Workforce Monitoring
+    const targetView = (window.authManager.isTeller && (window.authManager.isTeller() || window.authManager.isReliever()))
+      ? 'view-workforce-attendance'
+      : 'view-dashboard';
+
+    const finalizePostLogin = () => {
+      if (typeof window.switchView === 'function') {
+        window.switchView(targetView, true);
+      }
+      if (typeof window.refreshDashboard === 'function') {
+        window.refreshDashboard();
+      }
+    };
+
+    // Play 5-Second NORTH-005 Cinematic Corporate Reveal upon successful login
+    if (window.cinematicIntro && typeof window.cinematicIntro.play === 'function') {
+      window.cinematicIntro.play(finalizePostLogin);
+    } else {
+      finalizePostLogin();
     }
   };
 

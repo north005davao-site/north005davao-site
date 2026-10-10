@@ -213,6 +213,8 @@ const ROUTE_MAP = {
   '/dashboard': 'view-dashboard',
   '/': 'view-dashboard',
   '/master-registry': 'view-employees',
+  '/master-registry/': 'view-employees',
+  'view-master-registry': 'view-employees',
   '/employees': 'view-employees',
   '/live-tracking': 'view-tracking',
   '/tracking': 'view-tracking',
@@ -248,6 +250,7 @@ const ROUTE_MAP = {
 const VIEW_TO_ROUTE = {
   'view-dashboard': '/dashboard',
   'view-employees': '/master-registry',
+  'view-master-registry': '/master-registry',
   'view-tracking': '/live-tracking',
   'view-pipelines': '/sales-collection',
   'view-finance': '/expenses',
@@ -350,7 +353,9 @@ window.openMobileSidebar = function() {
   const backdrop = document.getElementById('sidebar-backdrop');
   if (sidebar) sidebar.classList.add('mobile-open');
   if (backdrop) backdrop.classList.add('active');
-  document.body.classList.add('mobile-sidebar-active');
+  if (document.body && document.body.classList) {
+    document.body.classList.add('mobile-sidebar-active');
+  }
   if (window.etsMap && typeof window.etsMap.invalidateMapSize === 'function') {
     window.etsMap.invalidateMapSize();
   }
@@ -361,7 +366,9 @@ window.closeMobileSidebar = function() {
   const backdrop = document.getElementById('sidebar-backdrop');
   if (sidebar) sidebar.classList.remove('mobile-open');
   if (backdrop) backdrop.classList.remove('active');
-  document.body.classList.remove('mobile-sidebar-active');
+  if (document.body && document.body.classList) {
+    document.body.classList.remove('mobile-sidebar-active');
+  }
   if (window.etsMap && typeof window.etsMap.invalidateMapSize === 'function') {
     window.etsMap.invalidateMapSize();
   }
@@ -506,21 +513,29 @@ function triggerModuleLoadingAnimation(viewId) {
 }
 
 window.switchView = function(viewId, updateHistory = true, skipAnimation = false) {
+  // Normalize Master Registry view alias
+  if (viewId === 'view-master-registry') {
+    viewId = 'view-employees';
+  }
+
   // Automatically close mobile sidebar drawer on navigation
   if (typeof window.closeMobileSidebar === 'function') {
     window.closeMobileSidebar();
   }
 
   if (window.authManager && typeof window.authManager.canAccessView === 'function') {
-    if (!window.authManager.canAccessView(viewId)) {
-      alert('Permission Denied: Your account role does not have permission to access this module.');
-      const fallbackView = (window.authManager.isTeller && (window.authManager.isTeller() || window.authManager.isReliever()))
-        ? 'view-workforce-attendance'
-        : 'view-dashboard';
-      if (viewId !== fallbackView) {
-        window.switchView(fallbackView, true);
+    // Only enforce permission denials when user is actually logged in
+    if (window.authManager.isAuthenticated && window.authManager.isAuthenticated()) {
+      if (!window.authManager.canAccessView(viewId)) {
+        alert('Permission Denied: Your account role does not have permission to access this module.');
+        const fallbackView = (window.authManager.isTeller && (window.authManager.isTeller() || window.authManager.isReliever()))
+          ? 'view-workforce-attendance'
+          : 'view-dashboard';
+        if (viewId !== fallbackView) {
+          window.switchView(fallbackView, true);
+        }
+        return;
       }
-      return;
     }
   }
 
@@ -611,9 +626,9 @@ window.switchView = function(viewId, updateHistory = true, skipAnimation = false
     localStorage.setItem('NORTH005_CURRENT_ROUTE', routePath);
   } catch (e) {}
 
-  if (updateHistory && window.location.protocol.startsWith('http')) {
-    const currentPath = window.location.pathname.replace(/\/$/, '') || '/';
-    if (currentPath !== routePath) {
+  if (updateHistory && typeof window !== 'undefined' && window.location && window.location.protocol && window.location.protocol.startsWith('http')) {
+    const currentPath = (window.location.pathname || '').replace(/\/$/, '') || '/';
+    if (currentPath !== routePath && window.history && typeof window.history.pushState === 'function') {
       window.history.pushState({ viewId }, '', routePath);
     }
   }
@@ -1415,6 +1430,36 @@ function renderEmployeesTable(customList = null) {
   if (registryCurrentPage > totalPages) registryCurrentPage = totalPages;
   if (registryCurrentPage < 1) registryCurrentPage = 1;
 
+  // Handle empty data state separately from errors
+  if (totalCount === 0) {
+    const isFiltered = !!customList || (document.getElementById('employee-search-input') && document.getElementById('employee-search-input').value.trim() !== '');
+    tbody.innerHTML = `
+      <tr id="registry-empty-row">
+        <td colspan="12" style="text-align: center; padding: 48px 20px; color: var(--text-muted);">
+          <div style="font-size: 32px; margin-bottom: 8px;">📋</div>
+          <div style="font-size: 15px; font-weight: 700; color: var(--text-main); margin-bottom: 4px;">
+            ${isFiltered ? 'No matching records found' : 'No Master Registry records available'}
+          </div>
+          <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+            ${isFiltered ? 'Try clearing or modifying your search filter to see all staff and outlets.' : 'Records are being synchronized with the central database.'}
+          </div>
+          ${isFiltered ? `
+            <button type="button" class="btn btn-secondary btn-sm" onclick="if(document.getElementById('employee-search-input')){document.getElementById('employee-search-input').value='';} window.filterEmployees();" style="margin: 0 auto;">
+              Clear Search
+            </button>
+          ` : `
+            <button type="button" class="btn btn-primary btn-sm" onclick="window.retryMasterRegistryLoad()" style="margin: 0 auto;">
+              🔄 Synchronize Now
+            </button>
+          `}
+        </td>
+      </tr>
+    `;
+    renderRegistryPagination(0, 1);
+    if (typeof window.updateRegistrySelectionUI === 'function') window.updateRegistrySelectionUI();
+    return;
+  }
+
   const startIndex = (registryCurrentPage - 1) * registryRowsPerPage;
   const pageItems = list.slice(startIndex, startIndex + registryRowsPerPage);
 
@@ -1622,7 +1667,39 @@ function renderEmployeesTable(customList = null) {
   // Render Pagination Controls
   renderRegistryPagination(totalCount, totalPages);
   if (typeof window.updateRegistrySelectionUI === 'function') window.updateRegistrySelectionUI();
+  
+  // Hide error container on successful render
+  const errContainer = document.getElementById('registry-error-container');
+  if (errContainer) errContainer.style.display = 'none';
 }
+
+window.renderEmployeesTable = renderEmployeesTable;
+
+window.retryMasterRegistryLoad = async function() {
+  const errContainer = document.getElementById('registry-error-container');
+  if (errContainer) errContainer.style.display = 'none';
+  const tbody = document.getElementById('employee-table-tbody');
+  if (tbody) {
+    tbody.innerHTML = `
+      <tr id="registry-loading-row">
+        <td colspan="12" style="text-align: center; padding: 36px 20px;">
+          <div class="spinner" style="margin: 0 auto 10px auto; width: 28px; height: 28px; border: 3px solid rgba(212, 175, 55, 0.2); border-top-color: var(--accent-gold); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+          <div style="color: var(--text-muted); font-size: 13px; font-weight: 600;">Synchronizing Master Registry with server...</div>
+        </td>
+      </tr>
+    `;
+  }
+  if (window.appStore && typeof window.appStore.syncMasterRegistryWithServer === 'function') {
+    try {
+      await window.appStore.syncMasterRegistryWithServer();
+    } catch (e) {
+      console.warn('Sync failed:', e);
+    }
+  }
+  if (typeof renderEmployeesTable === 'function') {
+    renderEmployeesTable();
+  }
+};
 
 function renderRegistryPagination(totalCount, totalPages) {
   const pageInfo = document.getElementById('registry-page-info');

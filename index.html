@@ -27,6 +27,7 @@
   <!-- Core Design System CSS -->
   <link rel="stylesheet" href="css/styles.css?v=20261009_03">
   <link rel="stylesheet" href="css/landing-portal.css?v=20261009_03">
+  <link rel="stylesheet" href="css/cinematic-intro.css?v=20261010_01">
   <link rel="stylesheet" href="css/production-suite.css?v=20261009_03">
 
   <!-- Early Route Pre-Activation (Eliminates Dashboard Flash on Reload) -->
@@ -35,6 +36,8 @@
       const ROUTE_MAP = {
         '/dashboard': 'view-dashboard',
         '/master-registry': 'view-employees',
+        '/master-registry/': 'view-employees',
+        'view-master-registry': 'view-employees',
         '/employees': 'view-employees',
         '/live-tracking': 'view-tracking',
         '/tracking': 'view-tracking',
@@ -70,6 +73,7 @@
       const VALID_VIEWS = {
         'view-dashboard': true,
         'view-employees': true,
+        'view-master-registry': true,
         'view-tracking': true,
         'view-pipelines': true,
         'view-finance': true,
@@ -182,6 +186,40 @@
         <div class="splash-loader-progress"></div>
       </div>
       <div class="splash-status-text" id="splash-status-text">Synchronizing Master Registry &amp; Field Telemetry...</div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       NORTH-005 CINEMATIC CORPORATE REVEAL
+       Five-second Post-Login Welcome Experience (Navy-Blue & Gold)
+       =================================================================== -->
+  <div id="cinematic-welcome-overlay" class="cinematic-welcome-overlay" aria-hidden="true" style="display: none;">
+    <canvas id="cinematic-canvas" class="cinematic-canvas"></canvas>
+    <div class="cinematic-ambient-glow"></div>
+    <div class="cinematic-ambient-arc-left"></div>
+    <div class="cinematic-ambient-arc-right"></div>
+    
+    <button type="button" id="cinematic-skip-btn" class="cinematic-skip-btn" onclick="window.cinematicIntro && window.cinematicIntro.skip()" aria-label="Skip Introduction">
+      Skip Intro ➔
+    </button>
+    
+    <div class="cinematic-content">
+      <div class="cinematic-logo-container">
+        <div class="cinematic-logo-ring"></div>
+        <div class="cinematic-logo-shimmer"></div>
+        <img src="assets/north-005-logo.png" alt="NORTH-005 Davao del Norte HQ" class="cinematic-logo-img">
+      </div>
+      
+      <div class="cinematic-brand-group">
+        <div class="cinematic-brand-title">NORTH-005</div>
+        <div class="cinematic-brand-sub">DAVAO DEL NORTE HQ</div>
+        <div class="cinematic-tagline">OPERATIONS CONTROL CENTER &amp; ASSET SUITE</div>
+      </div>
+      
+      <div class="cinematic-welcome-badge">
+        <span class="cinematic-badge-dot"></span>
+        <span class="cinematic-badge-text">WELCOME BACK</span>
+      </div>
     </div>
   </div>
 
@@ -778,6 +816,17 @@
                 </button>
               </div>
             </div>
+
+            <!-- Master Registry Error Alert & Retry Action -->
+            <div id="registry-error-container" style="display: none; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 8px; padding: 12px 18px; margin: 0 16px 14px 16px; align-items: center; justify-content: space-between;">
+              <div style="font-size: 13px; font-weight: 700; color: #f87171; display: flex; align-items: center; gap: 8px;">
+                <span>⚠️</span>
+                <span id="registry-error-message">Unable to load Master Registry records from server.</span>
+              </div>
+              <button type="button" class="btn btn-xs btn-primary" onclick="window.retryMasterRegistryLoad()" style="padding: 5px 12px; font-weight: 700;">
+                🔄 Retry Loading
+              </button>
+            </div>
             <div class="table-wrapper">
               <table class="data-table">
                 <thead id="registry-table-thead">
@@ -805,7 +854,13 @@
                   </tr>
                 </thead>
                 <tbody id="employee-table-tbody">
-                  <!-- Populated by app.js -->
+                  <!-- Populated dynamically by app.js -->
+                  <tr id="registry-loading-row">
+                    <td colspan="12" style="text-align: center; padding: 36px 20px;">
+                      <div class="spinner" style="margin: 0 auto 10px auto; width: 28px; height: 28px; border: 3px solid rgba(212, 175, 55, 0.2); border-top-color: var(--accent-gold); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+                      <div style="color: var(--text-muted); font-size: 13px; font-weight: 600;">Loading Master Registry records...</div>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -6356,6 +6411,7 @@
   <script src="js/supabase-client.js"></script>
 
   <!-- App Logic Scripts -->
+  <script src="js/cinematic-intro.js?v=20261010_01"></script>
   <script src="js/store.js?v=20261009_05"></script>
   <script src="js/auth.js?v=20261009_05"></script>
   <script src="js/user-management.js?v=20261009_05"></script>
