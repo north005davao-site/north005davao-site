@@ -29,8 +29,21 @@ eval(empDocsCode);
 const mod = new global.window.EmployeeDocumentsModule();
 
 // Simulate Desktop's messy state: 46 remote seed docs + 45 local uploads (Total 91 docs)
-const rawJson = JSON.parse(fs.readFileSync('./data/employee_documents.json', 'utf8'));
-const remoteDocs = rawJson.documents;
+const sampleSeedDocs = Array.from({ length: 46 }, (_, i) => ({
+  id: `DOC-SEED-${i}`,
+  employeeId: i === 0 ? 'DDN005-SR000' : `DDN005-SR${1000 + i}`,
+  employeeName: i === 0 ? 'Rhea Desnacido' : `PersonAlpha${i} LastnameBeta${i}`,
+  position: 'Sales Representative',
+  documentType: 'CBTA',
+  status: 'Complete',
+  dateUploaded: '2026-10-07',
+  expiryDate: '—',
+  fileName: i === 0 ? 'Desnacido, Rhea B..pdf' : `Doc_${i}.pdf`,
+  fileSize: '100 KB',
+  fileType: 'application/pdf',
+  notes: 'Official Record'
+}));
+const remoteDocs = sampleSeedDocs;
 
 // Create local duplicates with different IDs and matching/mismatched fields
 const simulatedLocalDocs = remoteDocs.slice(0, 45).map((d, i) => ({

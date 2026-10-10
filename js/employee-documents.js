@@ -158,9 +158,23 @@
       // 1. Asynchronously load & merge from local IndexedDB
       await this.loadFromIndexedDB();
 
-      // 2. Load baseline documents from /data/employee_documents.json if local repository is empty
+      // 2. Fetch server persistent records only if available (never auto-seed cleared records)
       if (!this.documents || this.documents.length === 0) {
-        await this.loadBaselineDocuments();
+        if (typeof fetch === 'function') {
+          try {
+            const res = await fetch('/api/employee-documents');
+            if (res.ok) {
+              const sData = await res.json();
+              const sDocs = Array.isArray(sData) ? sData : ((sData && Array.isArray(sData.documents)) ? sData.documents : []);
+              const validDocs = sDocs.filter(d => d && d.id && !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
+              if (validDocs.length > 0) {
+                this.documents = this.deduplicateDocuments(validDocs);
+                await this.saveDocuments();
+                this.render();
+              }
+            }
+          } catch (e) {}
+        }
       }
       this.updateSyncStatus('synced');
 
@@ -513,26 +527,11 @@
 
     /* --- LOCAL BASELINE LOADER & CLOUD SYNC DEACTIVATION --- */
     async loadBaselineDocuments() {
-      if (typeof fetch !== 'function') return;
-      try {
-        const res = await fetch('/data/employee_documents.json');
-        if (res.ok) {
-          const data = await res.json();
-          const docs = Array.isArray(data) ? data : ((data && Array.isArray(data.documents)) ? data.documents : []);
-          const cleanDocs = docs.filter(d => d && d.id && !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
-          this.documents = this.deduplicateDocuments(cleanDocs);
-          await this.saveDocuments();
-          this.render();
-        }
-      } catch (e) {
-        console.warn('[ComplianceDocs] loadBaselineDocuments notice:', e);
-      }
+      // Disabled: Never auto-resurrect deleted documents
+      return;
     }
 
     async syncWithCloud(showToast = false) {
-      if (this.documents.length === 0) {
-        await this.loadBaselineDocuments();
-      }
 
       if (window.supabaseSync && typeof window.supabaseSync.fetchEmployeeDocuments === 'function') {
         try {
@@ -1403,12 +1402,10 @@
             </button>
           `;
           if (isAdmin) {
-            const isRowChecked = this.selectedDocIds && this.selectedDocIds.has(doc.id);
             actionBtns += `
               <button class="btn btn-xs btn-secondary" onclick="window.employeeDocumentsModule.deleteDocument('${doc.id}')" style="color:#ef4444;padding:3px 8px;font-size:11px;" title="Delete Document Record">
                 🗑️ Delete
               </button>
-              <input type="checkbox" class="doc-row-checkbox" value="${doc.id}" ${isRowChecked ? 'checked' : ''} onchange="window.employeeDocumentsModule.toggleRowSelection('${doc.id}', this.checked)" style="cursor:pointer; transform:scale(1.15); margin-left:5px;" title="Select document for bulk delete">
             `;
           }
         }
