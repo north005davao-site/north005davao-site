@@ -883,6 +883,8 @@ function requestHandler(req, res) {
           safeSummary[u] = {
             username: u,
             active_device_name: sessions[u].active_device_name || null,
+            active_device_id: sessions[u].active_device_id || null,
+            session_created_at: sessions[u].session_created_at || null,
             last_active_at: sessions[u].last_active_at || null,
             has_active_session: !!sessions[u].active_session_token
           };
@@ -911,6 +913,8 @@ function requestHandler(req, res) {
           username,
           active_session_token: payload.active_session_token || null,
           active_device_name: payload.active_device_name || null,
+          active_device_id: payload.active_device_id || null,
+          session_created_at: payload.session_created_at || Date.now(),
           last_active_at: payload.last_active_at || new Date().toISOString()
         };
         writePersistentSessions(sessions);

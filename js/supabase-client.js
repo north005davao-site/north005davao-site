@@ -104,7 +104,11 @@
           .channel('public:system_users_sessions')
           .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'system_users' }, (payload) => {
             if (payload && payload.new && window.authManager && typeof window.authManager.handleConcurrentSessionKick === 'function') {
-              window.authManager.handleConcurrentSessionKick(payload.new);
+              const newRec = payload.new;
+              // Only trigger concurrent kick evaluation if an active_session_token is explicitly present
+              if (newRec.active_session_token) {
+                window.authManager.handleConcurrentSessionKick(newRec);
+              }
             }
           })
           .subscribe();
@@ -454,9 +458,10 @@
     /* SINGLE ACTIVE DEVICE SESSION MANAGEMENT (1 LOGIN PER ACCOUNT)      */
     /* ------------------------------------------------------------------ */
 
-    async updateActiveUserSession(username, sessionToken, deviceName) {
+    async updateActiveUserSession(username, sessionToken, deviceName, deviceId, sessionCreatedAt) {
       if (!username) return false;
       let success = false;
+      const createdAt = sessionCreatedAt || Date.now();
 
       // 1. Authoritative Server ERP Session API
       try {
@@ -468,6 +473,8 @@
               username,
               active_session_token: sessionToken,
               active_device_name: deviceName,
+              active_device_id: deviceId,
+              session_created_at: createdAt,
               last_active_at: new Date().toISOString()
             })
           });
@@ -478,13 +485,15 @@
       // 2. Best-effort Supabase cloud database sync
       try {
         if (this.client && this.isOnline) {
+          const updatePayload = {
+            active_session_token: sessionToken,
+            active_device_name: deviceName,
+            last_active_at: new Date().toISOString()
+          };
+          if (deviceId) updatePayload.active_device_id = deviceId;
           await this.client
             .from('system_users')
-            .update({
-              active_session_token: sessionToken,
-              active_device_name: deviceName,
-              last_active_at: new Date().toISOString()
-            })
+            .update(updatePayload)
             .eq('username', username);
         }
       } catch (_) {}
@@ -513,7 +522,7 @@
         if (this.client && this.isOnline) {
           const { data, error } = await this.client
             .from('system_users')
-            .select('active_session_token, active_device_name, last_active_at')
+            .select('active_session_token, active_device_name, active_device_id, last_active_at')
             .eq('username', username)
             .maybeSingle();
 

@@ -100,6 +100,9 @@ function formatPHPShort(num) {
   });
 }
 
+// Forward bind switchView so it is available during synchronous initRouter
+window.switchView = switchView;
+
 // Initialization on DOM Ready or Immediate if already loaded
 let appInitialized = false;
 function initApp() {
@@ -161,14 +164,6 @@ if (typeof setTimeout === 'function') {
   setTimeout(() => dismissSplashLoader(false), 1800);
 }
 
-if (typeof document !== 'undefined') {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
-  } else if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-    initApp();
-  }
-}
-
 function renderAll() {
   try { if (typeof renderDashboard === 'function') renderDashboard(); } catch (e) { console.error('Dashboard render error:', e); }
   try { if (typeof renderEmployeesTable === 'function') renderEmployeesTable(); } catch (e) { console.error('Employees render error:', e); }
@@ -200,17 +195,24 @@ function initLiveClock() {
 function initTheme() {
   const picker = document.getElementById('theme-picker');
   const store = window.appStore;
-  const currentTheme = store.getSettings().theme || 'corporate';
+  const currentTheme = (store && typeof store.getSettings === 'function' && store.getSettings().theme) || 'corporate';
   
-  document.documentElement.setAttribute('data-theme', currentTheme);
-  picker.value = currentTheme;
-
-  picker.addEventListener('change', (e) => {
-    const newTheme = e.target.value;
-    document.documentElement.setAttribute('data-theme', newTheme);
-    store.setTheme(newTheme);
-    if (window.sfx) sfx.playClick();
-  });
+  if (document.documentElement && typeof document.documentElement.setAttribute === 'function') {
+    document.documentElement.setAttribute('data-theme', currentTheme);
+  }
+  if (picker) {
+    picker.value = currentTheme;
+    picker.addEventListener('change', (e) => {
+      const newTheme = e.target.value;
+      if (document.documentElement && typeof document.documentElement.setAttribute === 'function') {
+        document.documentElement.setAttribute('data-theme', newTheme);
+      }
+      if (store && typeof store.setTheme === 'function') {
+        store.setTheme(newTheme);
+      }
+      if (window.sfx && typeof window.sfx.playClick === 'function') sfx.playClick();
+    });
+  }
 
   const soundBtn = document.getElementById('sound-toggle-btn');
   soundBtn.addEventListener('click', () => {
@@ -220,6 +222,25 @@ function initTheme() {
     if (sfx.enabled) sfx.playClick();
   });
 }
+
+// Module Friendly Display Names for In-Page Transition Loader
+const MODULE_NAMES = {
+  'view-dashboard': 'Control Center Dashboard',
+  'view-employees': 'Master Registry',
+  'view-tracking': 'ETS Live GPS Tracking',
+  'view-pipelines': 'Sales & Collection Pipeline',
+  'view-finance': 'Expenses & Payment',
+  'view-outlet-rentals': 'Outlet Rentals & Load Allowance',
+  'view-user-management': 'User & Access Management',
+  'view-workforce-attendance': 'Attendance / Workforce Monitoring',
+  'view-org-chart': 'Organizational Charts',
+  'view-employee-documents': 'Employee Documents & 201 Files',
+  'view-thermal-paper': 'Thermal Paper Daily Summary',
+  'view-audit-discrepancy': 'Audit & Discrepancy Engine',
+  'view-inventory': 'Thermal & Equipment Inventory',
+  'view-backup-restore': 'Backup & Restore Control Center',
+  'view-settings': 'System Settings'
+};
 
 // 3. Navigation View Switching & Universal Router
 const ROUTE_MAP = {
@@ -279,6 +300,8 @@ const VIEW_TO_ROUTE = {
 };
 
 function resolveCurrentRoute() {
+  const hasAuth = !!(window.authManager && window.authManager.isAuthenticated && window.authManager.isAuthenticated());
+
   // 1. Check URL hash (e.g. #/employee-documents or #view-employee-documents)
   if (window.location.hash) {
     const hashClean = window.location.hash.replace(/^#\/?/, '/');
@@ -299,30 +322,49 @@ function resolveCurrentRoute() {
   } catch (e) {}
 
   // 3. Check URL pathname
-  let path = window.location.pathname.replace(/\/$/, '') || '/';
+  let path = (window.location.pathname || '').replace(/\/$/, '') || '/';
   if (path !== '/' && path !== '' && ROUTE_MAP[path]) {
+    if (!hasAuth) {
+      try {
+        sessionStorage.setItem('north005_redirect_destination', ROUTE_MAP[path]);
+      } catch (e) {}
+      return 'view-dashboard';
+    }
     return ROUTE_MAP[path];
   }
 
-  // 4. Check persistent storage (retains active module when browser is refreshed!)
-  try {
-    const storedView = localStorage.getItem('NORTH005_ACTIVE_VIEW');
-    if (storedView && VIEW_TO_ROUTE[storedView]) {
-      return storedView;
-    }
-    const storedRoute = localStorage.getItem('NORTH005_CURRENT_ROUTE');
-    if (storedRoute && ROUTE_MAP[storedRoute]) {
-      return ROUTE_MAP[storedRoute];
-    }
-  } catch (e) {}
+  // 4. Check persistent storage ONLY IF authenticated (retains active module when authenticated browser is refreshed!)
+  if (hasAuth) {
+    try {
+      const storedView = localStorage.getItem('NORTH005_ACTIVE_VIEW');
+      if (storedView && VIEW_TO_ROUTE[storedView]) {
+        return storedView;
+      }
+      const storedRoute = localStorage.getItem('NORTH005_CURRENT_ROUTE');
+      if (storedRoute && ROUTE_MAP[storedRoute]) {
+        return ROUTE_MAP[storedRoute];
+      }
+    } catch (e) {}
+  }
 
   return 'view-dashboard';
 }
 
 function initRouter() {
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-    // Handle browser Back / Forward buttons
+    // Handle browser Back / Forward buttons with strict authentication guard
     window.addEventListener('popstate', (event) => {
+      const isAuth = !!(window.authManager && window.authManager.isAuthenticated && window.authManager.isAuthenticated());
+      if (!isAuth) {
+        if (window.history && typeof window.history.replaceState === 'function') {
+          window.history.replaceState({ viewId: 'view-dashboard' }, '', '/');
+        }
+        if (window.authManager && typeof window.authManager.showLoginModal === 'function') {
+          window.authManager.showLoginModal();
+        }
+        return;
+      }
+
       let targetView = null;
       if (event.state && event.state.viewId) {
         targetView = event.state.viewId;
@@ -343,19 +385,32 @@ function initRouter() {
     });
   }
 
-  // Resolve and activate initial route from current URL or pre-activated view
-  const initialView = window.__INITIAL_ROUTE_VIEW__ || resolveCurrentRoute();
+  const isAuth = !!(window.authManager && window.authManager.isAuthenticated && window.authManager.isAuthenticated());
+  const resolvedRoute = resolveCurrentRoute();
+  const initialView = isAuth ? (window.__INITIAL_ROUTE_VIEW__ || resolvedRoute) : 'view-dashboard';
   window.switchView(initialView, false);
 
   // Clean up early route style now that class="active" is applied to initialView
   const earlyStyle = document.getElementById('early-route-style');
   if (earlyStyle) earlyStyle.remove();
 
-  const initialPath = VIEW_TO_ROUTE[initialView] || '/dashboard';
-  if (window.location.protocol.startsWith('http') && window.location.pathname !== initialPath) {
-    window.history.replaceState({ viewId: initialView }, '', initialPath);
+  if (isAuth) {
+    const initialPath = VIEW_TO_ROUTE[initialView] || '/dashboard';
+    if (window.location.protocol.startsWith('http') && window.location.pathname !== initialPath) {
+      window.history.replaceState({ viewId: initialView }, '', initialPath);
+    }
+  } else {
+    // Unauthenticated user: enforce clean '/' in browser address bar
+    if (window.location.protocol.startsWith('http') && window.location.pathname !== '/') {
+      window.history.replaceState({ viewId: 'view-dashboard' }, '', '/');
+    }
+    if (window.authManager && typeof window.authManager.showLoginModal === 'function') {
+      window.authManager.showLoginModal();
+    }
   }
 }
+window.initRouter = initRouter;
+window.resolveCurrentRoute = resolveCurrentRoute;
 
 /* ==========================================================================
    NORTH-005 DAVAO DEL NORTE — MOBILE RESPONSIVE SIDEBAR DRAWER CONTROLLER
@@ -477,25 +532,6 @@ function initNavigation() {
   initMobileSidebarGestures();
 }
 
-// Module Friendly Display Names for In-Page Transition Loader
-const MODULE_NAMES = {
-  'view-dashboard': 'Control Center Dashboard',
-  'view-employees': 'Master Registry',
-  'view-tracking': 'ETS Live GPS Tracking',
-  'view-pipelines': 'Sales & Collection Pipeline',
-  'view-finance': 'Expenses & Payment',
-  'view-outlet-rentals': 'Outlet Rentals & Load Allowance',
-  'view-user-management': 'User & Access Management',
-  'view-workforce-attendance': 'Attendance / Workforce Monitoring',
-  'view-org-chart': 'Organizational Charts',
-  'view-employee-documents': 'Employee Documents & 201 Files',
-  'view-thermal-paper': 'Thermal Paper Daily Summary',
-  'view-audit-discrepancy': 'Audit & Discrepancy Engine',
-  'view-inventory': 'Thermal & Equipment Inventory',
-  'view-backup-restore': 'Backup & Restore Control Center',
-  'view-settings': 'System Settings'
-};
-
 let moduleTransitionTimer = null;
 let moduleHideTimer = null;
 function triggerModuleLoadingAnimation(viewId) {
@@ -526,7 +562,7 @@ function triggerModuleLoadingAnimation(viewId) {
 }
 window.triggerModuleLoadingAnimation = triggerModuleLoadingAnimation;
 
-window.switchView = function(viewId, updateHistory = true, skipAnimation = false) {
+function switchView(viewId, updateHistory = true, skipAnimation = false) {
   // Normalize Master Registry view alias
   if (viewId === 'view-master-registry') {
     viewId = 'view-employees';
@@ -655,11 +691,14 @@ window.switchView = function(viewId, updateHistory = true, skipAnimation = false
   }
 
   // Update URL route, browser history, and persistent active view storage
+  const isAuth = !!(window.authManager && window.authManager.isAuthenticated && window.authManager.isAuthenticated());
   const routePath = VIEW_TO_ROUTE[viewId] || '/dashboard';
-  try {
-    localStorage.setItem('NORTH005_ACTIVE_VIEW', viewId);
-    localStorage.setItem('NORTH005_CURRENT_ROUTE', routePath);
-  } catch (e) {}
+  if (isAuth) {
+    try {
+      localStorage.setItem('NORTH005_ACTIVE_VIEW', viewId);
+      localStorage.setItem('NORTH005_CURRENT_ROUTE', routePath);
+    } catch (e) {}
+  }
 
   if (updateHistory && typeof window !== 'undefined' && window.location && window.location.protocol && window.location.protocol.startsWith('http')) {
     const currentPath = (window.location.pathname || '').replace(/\/$/, '') || '/';
@@ -667,7 +706,8 @@ window.switchView = function(viewId, updateHistory = true, skipAnimation = false
       window.history.pushState({ viewId }, '', routePath);
     }
   }
-};
+}
+window.switchView = switchView;
 
 function updateSidebarBadges() {
   const store = window.appStore;
@@ -3388,3 +3428,11 @@ window.closeModals = function() {
   document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
 };
 
+// Bootstrap application on DOM ready or immediate if DOM is already parsed
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+  } else if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    initApp();
+  }
+}

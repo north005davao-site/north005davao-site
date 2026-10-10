@@ -402,19 +402,25 @@
 
     loadSessionUser() {
       try {
-        const stored = sessionStorage.getItem(SESSION_KEY);
+        const stored = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(SESSION_KEY)) ||
+                       (typeof localStorage !== 'undefined' && localStorage.getItem(SESSION_KEY));
         if (stored) {
           const user = JSON.parse(stored);
           // Purge session if user is unauthorized JUNDY
           if (user && (user.id === 'USR-002' || user.username === 'supervisor' || (user.name && user.name.toUpperCase().includes('JUNDY')))) {
-            sessionStorage.removeItem(SESSION_KEY);
+            if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(SESSION_KEY);
+            if (typeof localStorage !== 'undefined') localStorage.removeItem(SESSION_KEY);
             return null;
           }
           const users = this.getUsers();
           const found = users.find(u => u.username === user.username);
           if (found && found.status === 'Active') {
-            const token = sessionStorage.getItem('north005_active_session_token');
+            const token = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('north005_active_session_token')) ||
+                          (typeof localStorage !== 'undefined' && localStorage.getItem('north005_active_session_token'));
             if (token) found.activeSessionToken = token;
+            const devId = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('north005_active_device_id')) ||
+                          (typeof localStorage !== 'undefined' && localStorage.getItem('north005_active_device_id'));
+            if (devId) found.activeDeviceId = devId;
             return found;
           }
         }
@@ -424,11 +430,15 @@
 
     setSessionUser(user) {
       this.currentUser = user;
-      if (user) {
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
-      } else {
-        sessionStorage.removeItem(SESSION_KEY);
-      }
+      try {
+        if (user) {
+          if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
+          if (typeof localStorage !== 'undefined') localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+        } else {
+          if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(SESSION_KEY);
+          if (typeof localStorage !== 'undefined') localStorage.removeItem(SESSION_KEY);
+        }
+      } catch (e) {}
       this.updateProfileUi();
       this.applyRoleRestrictions();
     }
@@ -562,23 +572,37 @@
       const now = new Date();
       user.lastLogin = `${now.toISOString().split('T')[0]} ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
       
-      // Single-Device Security: Generate Unique Session Token & Detect Device
+      // Single-Device Security: Generate Unique Session Token & Attach Persistent Device Identity
       const sessionToken = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+      const deviceId = this.getDeviceId();
       const deviceName = this.getDeviceName();
+      const sessionCreatedAt = Date.now();
+
       user.activeSessionToken = sessionToken;
+      user.activeDeviceId = deviceId;
       user.activeDeviceName = deviceName;
+      user.sessionCreatedAt = sessionCreatedAt;
+      this.currentSessionCreatedAt = sessionCreatedAt;
 
       try {
         if (typeof sessionStorage !== 'undefined') {
           sessionStorage.setItem('north005_active_session_token', sessionToken);
           sessionStorage.setItem('north005_active_device_name', deviceName);
+          sessionStorage.setItem('north005_active_device_id', deviceId);
+          sessionStorage.setItem('north005_active_session_created_at', String(sessionCreatedAt));
         }
         if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('north005_active_session_token', sessionToken);
+          localStorage.setItem('north005_active_device_name', deviceName);
+          localStorage.setItem('north005_active_device_id', deviceId);
+          localStorage.setItem('north005_active_session_created_at', String(sessionCreatedAt));
           localStorage.setItem('north005_active_session_broadcast', JSON.stringify({
             userId: user.id,
             username: user.username,
             active_session_token: sessionToken,
+            active_device_id: deviceId,
             active_device_name: deviceName,
+            session_created_at: sessionCreatedAt,
             timestamp: Date.now()
           }));
         }
@@ -587,9 +611,9 @@
       const idx = users.findIndex(u => u.username === user.username);
       if (idx !== -1) { users[idx] = user; this.saveUsers(users); }
 
-      // Cloud session sync: Register active session to Supabase
+      // Cloud session sync: Register active session to Supabase & Server ERP API
       if (window.supabaseSync && typeof window.supabaseSync.updateActiveUserSession === 'function') {
-        window.supabaseSync.updateActiveUserSession(user.username, sessionToken, deviceName).catch(() => {});
+        window.supabaseSync.updateActiveUserSession(user.username, sessionToken, deviceName, deviceId, sessionCreatedAt).catch(() => {});
       }
 
       this.setSessionUser(user);
@@ -605,16 +629,39 @@
       if (this.currentUser) {
         this.logHistory(this.currentUser.username, 'Logout', 'User signed out');
         if (window.supabaseSync && typeof window.supabaseSync.updateActiveUserSession === 'function') {
-          window.supabaseSync.updateActiveUserSession(this.currentUser.username, null, null).catch(() => {});
+          window.supabaseSync.updateActiveUserSession(this.currentUser.username, null, null, null, null).catch(() => {});
         }
       }
       try {
         if (typeof sessionStorage !== 'undefined') {
           sessionStorage.removeItem('north005_active_session_token');
           sessionStorage.removeItem('north005_active_device_name');
+          sessionStorage.removeItem('north005_active_device_id');
+          sessionStorage.removeItem('north005_active_session_created_at');
+          sessionStorage.removeItem('north005_redirect_destination');
+          sessionStorage.removeItem(SESSION_KEY);
+        }
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('north005_active_session_token');
+          localStorage.removeItem('north005_active_device_name');
+          localStorage.removeItem('north005_active_device_id');
+          localStorage.removeItem('north005_active_session_created_at');
+          localStorage.removeItem('north005_active_session_broadcast');
+          localStorage.removeItem('NORTH005_ACTIVE_VIEW');
+          localStorage.removeItem('NORTH005_CURRENT_ROUTE');
+          localStorage.removeItem(SESSION_KEY);
         }
       } catch (e) {}
+
       this.setSessionUser(null);
+
+      // Cleanly reset browser address bar to root '/' on logout
+      if (typeof window !== 'undefined' && window.location && window.location.protocol && window.location.protocol.startsWith('http')) {
+        if (window.history && typeof window.history.replaceState === 'function') {
+          window.history.replaceState({ viewId: 'view-dashboard' }, '', '/');
+        }
+      }
+
       this.showLoginModal();
     }
 
@@ -991,6 +1038,23 @@
     /* SINGLE-DEVICE SESSION SECURITY & CONCURRENT LOGIN ENFORCEMENT       */
     /* ------------------------------------------------------------------ */
 
+    getDeviceId() {
+      let devId = null;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          devId = localStorage.getItem('north005_device_id');
+          if (!devId) {
+            devId = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 10);
+            localStorage.setItem('north005_device_id', devId);
+          }
+        }
+      } catch (_) {}
+      if (!devId) {
+        devId = 'dev_transient_' + Math.random().toString(36).substring(2, 10);
+      }
+      return devId;
+    }
+
     getDeviceName() {
       const nav = (typeof window !== 'undefined' && window.navigator) ? window.navigator : (typeof navigator !== 'undefined' ? navigator : null);
       if (!nav) return 'Desktop / Browser';
@@ -1046,7 +1110,9 @@
 
     async verifyActiveSession() {
       if (!this.currentUser) return;
-      const localToken = (typeof sessionStorage !== 'undefined') ? sessionStorage.getItem('north005_active_session_token') : null;
+      const localToken = (typeof localStorage !== 'undefined' && localStorage.getItem('north005_active_session_token')) ||
+                         (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('north005_active_session_token')) ||
+                         (this.currentUser && this.currentUser.activeSessionToken);
       if (!localToken) return;
 
       try {
@@ -1069,30 +1135,74 @@
                       (sessionData.username && sessionData.username.toLowerCase() === this.currentUser.username.toLowerCase());
       if (!isMatch) return;
 
-      const localToken = (typeof sessionStorage !== 'undefined') ? sessionStorage.getItem('north005_active_session_token') : null;
+      const currentDeviceId = this.getDeviceId();
+      const incomingDeviceId = sessionData.active_device_id || sessionData.activeDeviceId || sessionData.deviceId;
+
+      // 1. Same-device immunity: If session belongs to the same physical browser profile / device, NEVER kick
+      if (incomingDeviceId && incomingDeviceId === currentDeviceId) {
+        const incomingToken = sessionData.active_session_token || sessionData.activeSessionToken;
+        if (incomingToken) {
+          try {
+            if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('north005_active_session_token', incomingToken);
+            if (typeof localStorage !== 'undefined') localStorage.setItem('north005_active_session_token', incomingToken);
+          } catch (_) {}
+        }
+        return;
+      }
+
+      // 2. Token match immunity: If incoming token matches our local token, it is the same session
+      const localToken = (typeof localStorage !== 'undefined' && localStorage.getItem('north005_active_session_token')) ||
+                         (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('north005_active_session_token')) ||
+                         (this.currentUser && this.currentUser.activeSessionToken);
       const incomingToken = sessionData.active_session_token || sessionData.activeSessionToken;
+      if (!incomingToken || !localToken || incomingToken === localToken) {
+        return;
+      }
 
-      // If incoming token exists, is valid, and does not match this device's token -> supersede
-      if (incomingToken && localToken && incomingToken !== localToken) {
-        const newDevice = sessionData.active_device_name || sessionData.activeDeviceName || 'New Device';
-        console.warn(`[Security] Concurrent login detected on ${newDevice}. Safely terminating older session.`);
+      // 3. Stale event protection: Check creation timestamps
+      const localCreatedAt = Number(
+        (typeof localStorage !== 'undefined' && localStorage.getItem('north005_active_session_created_at')) ||
+        (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('north005_active_session_created_at')) ||
+        this.currentSessionCreatedAt || 0
+      );
+      const incomingCreatedAt = Number(sessionData.session_created_at || sessionData.sessionCreatedAt || sessionData.timestamp || 0);
 
-        const userKicked = this.currentUser.username;
-        this.logHistory(userKicked, 'Security', `Session terminated: Logged in on ${newDevice}`);
+      // If incoming session was created prior to our local session, it is an older stale record -> DO NOT kick
+      if (incomingCreatedAt > 0 && localCreatedAt > 0 && incomingCreatedAt < localCreatedAt) {
+        console.warn(`[Security] Stale session notification ignored (incoming: ${incomingCreatedAt} < local: ${localCreatedAt})`);
+        return;
+      }
 
-        // Safely sign out local session
-        this.setSessionUser(null);
+      // 4. Confirmed Genuine Competing Login from a DIFFERENT device!
+      const newDevice = sessionData.active_device_name || sessionData.activeDeviceName || 'New Device';
+      console.warn(`[Security] Confirmed concurrent login detected from separate device: ${newDevice} (${incomingDeviceId || 'remote'}). Terminating older session.`);
+
+      const userKicked = this.currentUser.username;
+      this.logHistory(userKicked, 'Security', `Session terminated: Active on another device (${newDevice})`);
+
+      // Safely sign out local session
+      this.setSessionUser(null);
+      try {
         if (typeof sessionStorage !== 'undefined') {
           sessionStorage.removeItem('north005_active_session_token');
           sessionStorage.removeItem('north005_active_device_name');
+          sessionStorage.removeItem('north005_active_device_id');
+          sessionStorage.removeItem('north005_active_session_created_at');
         }
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('north005_active_session_token');
+          localStorage.removeItem('north005_active_device_name');
+          localStorage.removeItem('north005_active_device_id');
+          localStorage.removeItem('north005_active_session_created_at');
+        }
+      } catch (e) {}
 
-        // Show termination modal
-        this.showConcurrentLogoutModal(newDevice);
-      }
+      // Show termination modal with verified device name and timestamp
+      const incomingTime = sessionData.last_active_at || sessionData.timestamp || new Date().toISOString();
+      this.showConcurrentLogoutModal(newDevice, incomingTime);
     }
 
-    showConcurrentLogoutModal(newDevice) {
+    showConcurrentLogoutModal(newDevice, timestamp) {
       if (typeof document === 'undefined') return;
 
       const modal = document.getElementById('modal-concurrent-logout');
@@ -1101,8 +1211,20 @@
 
       if (devEl) devEl.textContent = newDevice || 'Another Device';
       if (timeEl) {
-        const now = new Date();
-        timeEl.textContent = now.toLocaleDateString('en-US') + ', ' + now.toLocaleTimeString('en-US');
+        let formattedTime = '';
+        if (timestamp) {
+          try {
+            const d = new Date(timestamp);
+            if (!isNaN(d.getTime())) {
+              formattedTime = d.toLocaleDateString('en-US') + ', ' + d.toLocaleTimeString('en-US');
+            }
+          } catch (_) {}
+        }
+        if (!formattedTime) {
+          const now = new Date();
+          formattedTime = now.toLocaleDateString('en-US') + ', ' + now.toLocaleTimeString('en-US');
+        }
+        timeEl.textContent = formattedTime;
       }
 
       // Close conflicting overlays if open
@@ -1124,6 +1246,11 @@
       if (modal) {
         modal.style.display = 'none';
         modal.classList.remove('active');
+      }
+      if (typeof window !== 'undefined' && window.location && window.location.protocol && window.location.protocol.startsWith('http')) {
+        if (window.history && typeof window.history.replaceState === 'function') {
+          window.history.replaceState({ viewId: 'view-dashboard' }, '', '/');
+        }
       }
       this.showLoginModal();
     }
@@ -1524,12 +1651,27 @@
 
     window.authManager.hideLoginModal();
 
-    // Determine post-login destination based on user role:
-    // Administrators, Supervisors, and Collectors land on Executive Dashboard
-    // Tellers and Relievers land strictly on Attendance / Workforce Monitoring
-    const targetView = (window.authManager.isTeller && (window.authManager.isTeller() || window.authManager.isReliever()))
-      ? 'view-workforce-attendance'
-      : 'view-dashboard';
+    // Determine post-login destination:
+    // 1. Check if user requested an authorized deep-link before authentication (e.g. /master-registry)
+    let targetView = null;
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        const redirectDest = sessionStorage.getItem('north005_redirect_destination');
+        if (redirectDest) {
+          sessionStorage.removeItem('north005_redirect_destination');
+          if (window.authManager.canAccessView && window.authManager.canAccessView(redirectDest)) {
+            targetView = redirectDest;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 2. Default destination: Tellers/Relievers -> Attendance; Admins/Supervisors/Collectors -> Dashboard
+    if (!targetView) {
+      targetView = (window.authManager.isTeller && (window.authManager.isTeller() || window.authManager.isReliever()))
+        ? 'view-workforce-attendance'
+        : 'view-dashboard';
+    }
 
     const finalizePostLogin = () => {
       if (typeof window.switchView === 'function') {

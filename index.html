@@ -88,8 +88,30 @@
         'view-settings': true
       };
 
-      let targetView = null;
+      // Check if user has an active authenticated session
+      let hasAuthSession = false;
+      try {
+        hasAuthSession = !!sessionStorage.getItem('north005_session_user_v2') || !!localStorage.getItem('north005_session_user_v2');
+      } catch (e) {}
 
+      let targetView = null;
+      const path = (window.location.pathname || '').replace(/\/$/, '') || '/';
+
+      if (!hasAuthSession) {
+        // Unauthenticated User: If requesting a protected deep-link (e.g. /master-registry),
+        // safely preserve the intended destination in sessionStorage for post-login navigation,
+        // then cleanly present the login portal at root '/'
+        if (path !== '/' && path !== '' && ROUTE_MAP[path]) {
+          try {
+            sessionStorage.setItem('north005_redirect_destination', ROUTE_MAP[path]);
+          } catch (_) {}
+        }
+        targetView = 'view-dashboard';
+        window.__INITIAL_ROUTE_VIEW__ = targetView;
+        return;
+      }
+
+      // Authenticated User: Route resolution
       // 1. Check URL Hash (e.g. #/employee-documents or #view-employee-documents)
       if (window.location.hash) {
         const hashClean = window.location.hash.replace(/^#\/?/, '/');
@@ -99,7 +121,6 @@
       }
 
       // 2. Check URL Pathname (non-root)
-      const path = window.location.pathname.replace(/\/$/, '') || '/';
       if (!targetView && path !== '/' && path !== '' && ROUTE_MAP[path]) {
         targetView = ROUTE_MAP[path];
       }
@@ -135,11 +156,6 @@
       window.__INITIAL_ROUTE_VIEW__ = targetView;
 
       // Issue F6: Only inject early CSS rule if user is authenticated to prevent flashing protected content before login
-      let hasAuthSession = false;
-      try {
-        hasAuthSession = !!sessionStorage.getItem('north005_session_user_v2') || !!localStorage.getItem('north005_session_user_v2');
-      } catch (e) {}
-
       if (hasAuthSession) {
         const style = document.createElement('style');
         style.id = 'early-route-style';
