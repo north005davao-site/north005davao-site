@@ -593,11 +593,20 @@ window.switchView = function(viewId, updateHistory = true, skipAnimation = false
     }, 100);
   } else if (viewId === 'view-employees') {
     renderEmployeesTable();
+    if (window.appStore && typeof window.appStore.syncMasterRegistryWithServer === 'function') {
+      window.appStore.syncMasterRegistryWithServer();
+    }
   } else if (viewId === 'view-dashboard') {
     renderDashboard();
+    if (window.appStore && typeof window.appStore.syncWithServer === 'function') {
+      window.appStore.syncWithServer();
+    }
   } else if (viewId === 'view-finance') {
     if (window.expensesPayment) {
       window.expensesPayment.init();
+    }
+    if (window.appStore && typeof window.appStore.syncWithServer === 'function') {
+      window.appStore.syncWithServer();
     }
   } else if (viewId === 'view-inventory') {
     if (window.outletRentals) {
@@ -607,17 +616,29 @@ window.switchView = function(viewId, updateHistory = true, skipAnimation = false
         window.outletRentals.render();
       }
     }
+    if (window.appStore && typeof window.appStore.syncWithServer === 'function') {
+      window.appStore.syncWithServer();
+    }
   } else if (viewId === 'view-thermal-paper') {
     if (window.thermalPaperModule) {
       window.thermalPaperModule.render();
+      if (typeof window.thermalPaperModule.syncFromServer === 'function') {
+        window.thermalPaperModule.syncFromServer();
+      }
     }
   } else if (viewId === 'view-user-management') {
     if (window.userManagementModule) {
       window.userManagementModule.render();
     }
+    if (window.authManager && typeof window.authManager.syncUsersWithServer === 'function') {
+      window.authManager.syncUsersWithServer();
+    }
   } else if (viewId === 'view-workforce-attendance') {
     if (window.workforceAttendanceModule) {
       window.workforceAttendanceModule.render();
+      if (typeof window.workforceAttendanceModule.syncWithServer === 'function') {
+        window.workforceAttendanceModule.syncWithServer();
+      }
     }
   } else if (viewId === 'view-org-chart') {
     if (window.orgChartModule) {

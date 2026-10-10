@@ -50,6 +50,14 @@
           this.initialStock = typeof data.initialStock === 'number' ? data.initialStock : 0;
           this.dailyStocksOnHand = data.dailyStocksOnHand || {};
           this.stockAdjustments = Array.isArray(data.stockAdjustments) ? data.stockAdjustments : [];
+          try {
+            localStorage.setItem('omni_thermal_paper_data', JSON.stringify({
+              initialStock: this.initialStock,
+              dailyStocksOnHand: this.dailyStocksOnHand,
+              stockAdjustments: this.stockAdjustments,
+              allocations: this.allocations
+            }));
+          } catch (_) {}
           return;
         }
       } catch (e) {
@@ -72,6 +80,11 @@
         this.dailyStocksOnHand = {};
         this.stockAdjustments = [];
       }
+    }
+
+    async syncFromServer() {
+      await this.loadPersistentData();
+      this.render();
     }
 
     async savePersistentData() {
@@ -873,6 +886,18 @@ DDN 1591 - 5
     // 9. EVENT LISTENERS SETUP
     // =========================================================================
     setupEventListeners() {
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function' && !this._syncListenersBound) {
+        this._syncListenersBound = true;
+        window.addEventListener('focus', () => this.syncFromServer());
+        if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+              this.syncFromServer();
+            }
+          });
+        }
+      }
+
       // Date Picker Filter
       const dateInput = document.getElementById('thermal-filter-date');
       if (dateInput) {

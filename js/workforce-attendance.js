@@ -45,6 +45,70 @@
       this.syncWithEmployees();
       this.populateDatalist();
       this.render();
+      this.syncWithServer();
+      this.setupSyncListeners();
+    }
+
+    setupSyncListeners() {
+      if (this._syncListenersSetup) return;
+      this._syncListenersSetup = true;
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        window.addEventListener('focus', () => this.syncWithServer());
+        if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+              this.syncWithServer();
+            }
+          });
+        }
+      }
+    }
+
+    async syncWithServer() {
+      try {
+        if (typeof fetch === 'function') {
+          const res = await fetch('/api/attendance');
+          if (res.ok) {
+            const srv = await res.json();
+            let changed = false;
+            if (srv && srv.records && typeof srv.records === 'object') {
+              Object.keys(srv.records).forEach(dateKey => {
+                if (!this.records[dateKey]) {
+                  this.records[dateKey] = srv.records[dateKey];
+                  changed = true;
+                } else {
+                  Object.keys(srv.records[dateKey]).forEach(empId => {
+                    const localRec = this.records[dateKey][empId];
+                    const serverRec = srv.records[dateKey][empId];
+                    if (!localRec || JSON.stringify(localRec) !== JSON.stringify(serverRec)) {
+                      this.records[dateKey][empId] = serverRec;
+                      changed = true;
+                    }
+                  });
+                }
+              });
+            }
+            if (srv && srv.remarks && typeof srv.remarks === 'object') {
+              Object.keys(srv.remarks).forEach(k => {
+                if (this.remarks[k] !== srv.remarks[k]) {
+                  this.remarks[k] = srv.remarks[k];
+                  changed = true;
+                }
+              });
+            }
+            if (changed) {
+              localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(this.records));
+              localStorage.setItem(SUPERVISOR_REMARKS_KEY, JSON.stringify(this.remarks));
+              try {
+                localStorage.setItem('north005_workforce_attendance_v4', JSON.stringify(this.records));
+              } catch (_) {}
+              this.render();
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Could not sync attendance from server:', e);
+      }
     }
 
     loadRecords() {
@@ -62,6 +126,7 @@
       try {
         localStorage.setItem('north005_workforce_attendance_v4', JSON.stringify(this.records));
       } catch (e) {}
+      this.persistToServer();
     }
 
     loadRemarks() {
@@ -75,6 +140,22 @@
 
     saveRemarks() {
       localStorage.setItem(SUPERVISOR_REMARKS_KEY, JSON.stringify(this.remarks));
+      this.persistToServer();
+    }
+
+    persistToServer() {
+      try {
+        if (typeof fetch === 'function') {
+          fetch('/api/attendance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              records: this.records,
+              remarks: this.remarks
+            })
+          }).catch(() => {});
+        }
+      } catch (_) {}
     }
 
     /**

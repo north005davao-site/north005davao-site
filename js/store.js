@@ -1590,9 +1590,26 @@ class Store {
         this.data.transactions = (this.data.transactions || []).filter(t => t && !this.data.deletedTransactionIds.includes(t.id));
         if (this.data.transactions.length !== prevLen) changed = true;
       }
-      if (srv.transactions && Array.isArray(srv.transactions) && srv.transactions.length > 0 && (!this.data.transactions || this.data.transactions.length === 0) && !this.data.epSeedInitialized) {
-        this.data.transactions = srv.transactions.filter(t => !this.data.deletedTransactionIds.includes(t.id));
-        changed = true;
+      if (srv.transactions && Array.isArray(srv.transactions) && srv.transactions.length > 0) {
+        if (!this.data.transactions) this.data.transactions = [];
+        const localMap = new Map();
+        this.data.transactions.forEach((t, idx) => {
+          if (t && t.id) localMap.set(t.id, idx);
+        });
+        srv.transactions.forEach(srvTxn => {
+          if (!srvTxn || !srvTxn.id) return;
+          if (this.data.deletedTransactionIds && this.data.deletedTransactionIds.includes(srvTxn.id)) return;
+          if (!localMap.has(srvTxn.id)) {
+            this.data.transactions.unshift(srvTxn);
+            changed = true;
+          } else {
+            const idx = localMap.get(srvTxn.id);
+            if (JSON.stringify(this.data.transactions[idx]) !== JSON.stringify(srvTxn)) {
+              this.data.transactions[idx] = { ...this.data.transactions[idx], ...srvTxn };
+              changed = true;
+            }
+          }
+        });
       }
 
       // Sync Outlet Rentals & Load Allowance with Server
@@ -1615,9 +1632,26 @@ class Store {
               this.data.outletRentals = (this.data.outletRentals || []).filter(r => r && !this.data.deletedOutletRentalIds.includes(r.id));
               if (this.data.outletRentals.length !== prevOrLen) changed = true;
             }
-            if (orSrv.outletRentals && Array.isArray(orSrv.outletRentals) && orSrv.outletRentals.length > 0 && (!this.data.outletRentals || this.data.outletRentals.length === 0)) {
-              this.data.outletRentals = orSrv.outletRentals.filter(r => !this.data.deletedOutletRentalIds.includes(r.id));
-              changed = true;
+            if (orSrv.outletRentals && Array.isArray(orSrv.outletRentals) && orSrv.outletRentals.length > 0) {
+              if (!this.data.outletRentals) this.data.outletRentals = [];
+              const orMap = new Map();
+              this.data.outletRentals.forEach((r, idx) => {
+                if (r && r.id) orMap.set(r.id, idx);
+              });
+              orSrv.outletRentals.forEach(srvRental => {
+                if (!srvRental || !srvRental.id) return;
+                if (this.data.deletedOutletRentalIds && this.data.deletedOutletRentalIds.includes(srvRental.id)) return;
+                if (!orMap.has(srvRental.id)) {
+                  this.data.outletRentals.unshift(srvRental);
+                  changed = true;
+                } else {
+                  const idx = orMap.get(srvRental.id);
+                  if (JSON.stringify(this.data.outletRentals[idx]) !== JSON.stringify(srvRental)) {
+                    this.data.outletRentals[idx] = { ...this.data.outletRentals[idx], ...srvRental };
+                    changed = true;
+                  }
+                }
+              });
             }
           }
         }

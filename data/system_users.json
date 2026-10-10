@@ -1,0 +1,26 @@
+{
+  "users": [
+    {
+      "id": "USR-001",
+      "username": "admin",
+      "name": "Peter John Carrillo",
+      "email": "admin@north005.com",
+      "phone": "0917-123-4567",
+      "position": "Operations Administrator",
+      "role": "Administrator",
+      "department": "Administrator",
+      "status": "Active",
+      "password": "Admin123!",
+      "photo": "",
+      "dateCreated": "2026-09-01",
+      "lastLogin": "2026-10-01 22:00"
+    }
+  ],
+  "deletedUserIds": [
+    "USR-002",
+    "USR-003",
+    "supervisor",
+    "collector"
+  ],
+  "lastUpdated": null
+}

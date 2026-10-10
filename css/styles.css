@@ -3594,6 +3594,174 @@ button, input, select, textarea {
     gap: 12px !important;
     width: 100% !important;
   }
+
+  /* Workforce Attendance Responsive Design */
+  #view-workforce-attendance .view-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  #view-workforce-attendance .view-title-group {
+    width: 100% !important;
+  }
+  #view-workforce-attendance .view-actions {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  #view-workforce-attendance .view-actions > * {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  #view-workforce-attendance .view-actions input,
+  #view-workforce-attendance .view-actions select,
+  #view-workforce-attendance .view-actions button {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  #view-workforce-attendance .kpi-cards-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+  #view-workforce-attendance .table-wrapper table {
+    min-width: 860px !important;
+  }
+
+  /* Expenses & Payment Responsive Design */
+  #view-finance .view-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  #view-finance .view-actions {
+    width: 100% !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  #view-finance .view-actions > div[style*="width:260px"],
+  #view-finance .view-actions > div {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  #view-finance .view-actions input,
+  #view-finance .view-actions button {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  #view-finance .stat-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  .ep-tab-nav {
+    display: flex !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    padding-bottom: 6px !important;
+    gap: 6px !important;
+  }
+  .ep-tab-nav::-webkit-scrollbar {
+    display: none !important;
+  }
+  .ep-tab-btn {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    font-size: 12px !important;
+    padding: 8px 12px !important;
+  }
+  #view-finance .table-wrapper table {
+    min-width: 840px !important;
+  }
+
+  /* Thermal Paper Responsive Design */
+  #view-thermal-paper .view-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  #view-thermal-paper .view-actions {
+    width: 100% !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  #view-thermal-paper .view-actions button {
+    width: 100% !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+  #view-thermal-paper .stats-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  #view-thermal-paper .table-wrapper table {
+    min-width: 800px !important;
+  }
+
+  /* User & Access Management Responsive Design */
+  #view-user-management .view-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  #view-user-management .view-actions {
+    width: 100% !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  #view-user-management .view-actions > * {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  #view-user-management .view-actions input,
+  #view-user-management .view-actions select,
+  #view-user-management .view-actions button {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  #view-user-management .kpi-cards-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+  #view-user-management .table-wrapper table {
+    min-width: 820px !important;
+  }
+
+  /* Universal Responsive Modals */
+  .modal-overlay,
+  .modal-backdrop {
+    padding: 10px 8px !important;
+  }
+  .modal-card {
+    width: 100% !important;
+    max-width: min(94vw, 620px) !important;
+    max-height: 92vh !important;
+    max-height: 92dvh !important;
+    box-sizing: border-box !important;
+  }
+  .modal-header {
+    padding: 14px 16px !important;
+  }
+  .modal-body {
+    padding: 16px 14px !important;
+    gap: 12px !important;
+  }
+  .modal-footer {
+    padding: 14px 16px !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .modal-card form .form-grid,
+  .modal-card .grid-2 {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* ==========================================================================
@@ -3601,7 +3769,11 @@ button, input, select, textarea {
    ========================================================================== */
 @media (max-width: 480px) {
   .registry-title-group h2,
-  .or-title-group h2 {
+  .or-title-group h2,
+  #view-workforce-attendance .view-title-group h2,
+  #view-finance .view-title-group h2,
+  #view-thermal-paper .view-title-group h2,
+  #view-user-management .view-title-group h2 {
     font-size: 17px !important;
   }
 
@@ -3615,6 +3787,40 @@ button, input, select, textarea {
     padding: 6px 10px !important;
     font-size: 11px !important;
   }
+
+  #view-workforce-attendance .kpi-cards-grid,
+  #view-user-management .kpi-cards-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .modal-card {
+    border-radius: 10px !important;
+  }
+
+  .modal-header h3 {
+    font-size: 16px !important;
+  }
+
+  .modal-footer button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+/* Universal Table Wrapper Touch Momentum */
+.table-wrapper {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  position: relative !important;
+  scrollbar-width: thin !important;
+}
+
+.table-wrapper > table,
+.table-wrapper > .data-table {
+  min-width: 780px;
 }
 
 

@@ -20,6 +20,8 @@ const TXN_FILE = path.join(DATA_DIR, 'transactions.json');
 const OUTLET_FILE = path.join(DATA_DIR, 'outlet_rentals.json');
 const THERMAL_FILE = path.join(DATA_DIR, 'thermal_paper.json');
 const DOCS_FILE = path.join(DATA_DIR, 'employee_documents.json');
+const ATTENDANCE_FILE = path.join(DATA_DIR, 'attendance.json');
+const SYSTEM_USERS_FILE = path.join(DATA_DIR, 'system_users.json');
 
 // Ephemeral serverless fallback directories and memory cache
 const TMP_DATA_DIR = path.join(os.tmpdir(), 'north005-data');
@@ -359,6 +361,121 @@ function writePersistentMasterRegistry(payload) {
     atomicWriteFileSync(REGISTRY_FILE, JSON.stringify(payload, null, 2));
   } catch (e) {
     console.error('Error writing persistent master registry:', e);
+  }
+}
+
+function readPersistentAttendance() {
+  try {
+    if (inMemoryDataCache.has(ATTENDANCE_FILE)) {
+      const data = inMemoryDataCache.get(ATTENDANCE_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'attendance.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
+    if (fs.existsSync(ATTENDANCE_FILE)) {
+      return JSON.parse(fs.readFileSync(ATTENDANCE_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading persistent attendance:', e);
+  }
+  return { records: {}, remarks: {}, lastUpdated: null };
+}
+
+function writePersistentAttendance(payload) {
+  try {
+    atomicWriteFileSync(ATTENDANCE_FILE, JSON.stringify(payload, null, 2));
+  } catch (e) {
+    console.error('Error writing persistent attendance:', e);
+  }
+}
+
+const DEFAULT_SERVER_ADMIN_USER = {
+  id: 'USR-001',
+  username: 'admin',
+  name: 'Peter John Carrillo',
+  email: 'admin@north005.com',
+  phone: '0917-123-4567',
+  position: 'Operations Administrator',
+  role: 'Administrator',
+  department: 'Administrator',
+  status: 'Active',
+  password: 'Admin123!',
+  photo: '',
+  dateCreated: '2026-09-01',
+  lastLogin: '2026-10-01 22:00'
+};
+
+function readPersistentSystemUsers() {
+  try {
+    let result = null;
+    if (inMemoryDataCache.has(SYSTEM_USERS_FILE)) {
+      const data = inMemoryDataCache.get(SYSTEM_USERS_FILE);
+      result = typeof data === 'string' ? JSON.parse(data) : data;
+    } else {
+      const tmpFile = path.join(TMP_DATA_DIR, 'system_users.json');
+      if (fs.existsSync(tmpFile)) {
+        result = JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+      } else if (fs.existsSync(SYSTEM_USERS_FILE)) {
+        result = JSON.parse(fs.readFileSync(SYSTEM_USERS_FILE, 'utf8'));
+      }
+    }
+    if (result && Array.isArray(result.users)) {
+      if (!result.users.some(u => u.username === 'admin' || u.role === 'Administrator')) {
+        result.users.unshift(DEFAULT_SERVER_ADMIN_USER);
+      }
+      return result;
+    }
+  } catch (e) {
+    console.error('Error reading persistent system users:', e);
+  }
+  return {
+    users: [DEFAULT_SERVER_ADMIN_USER],
+    deletedUserIds: ['USR-002', 'USR-003', 'supervisor', 'collector'],
+    lastUpdated: new Date().toISOString()
+  };
+}
+
+function writePersistentSystemUsers(payload) {
+  try {
+    let users = [];
+    let deletedUserIds = ['USR-002', 'USR-003', 'supervisor', 'collector'];
+    if (Array.isArray(payload)) {
+      users = payload;
+    } else if (payload && typeof payload === 'object') {
+      users = Array.isArray(payload.users) ? payload.users : [];
+      if (Array.isArray(payload.deletedUserIds)) {
+        deletedUserIds = Array.from(new Set([...deletedUserIds, ...payload.deletedUserIds]));
+      }
+    }
+
+    const delSet = new Set(deletedUserIds.map(x => String(x).toLowerCase()));
+    users = users.filter(u => {
+      if (!u) return false;
+      const uid = (u.id || '').toLowerCase();
+      const uname = (u.username || '').toLowerCase();
+      const name = (u.name || '').toLowerCase();
+      if (delSet.has(uid) || delSet.has(uname) || delSet.has(name)) return false;
+      if (uname === 'supervisor' || uid === 'usr-002' || name.includes('jundy')) return false;
+      if (uname === 'collector' || uid === 'usr-003') return false;
+      return true;
+    });
+
+    if (!users.some(u => u.username === 'admin' || u.role === 'Administrator')) {
+      users.unshift(DEFAULT_SERVER_ADMIN_USER);
+    }
+
+    const toSave = {
+      users,
+      deletedUserIds,
+      lastUpdated: new Date().toISOString()
+    };
+    atomicWriteFileSync(SYSTEM_USERS_FILE, JSON.stringify(toSave, null, 2));
+    return toSave;
+  } catch (e) {
+    console.error('Error writing persistent system users:', e);
+    return null;
   }
 }
 
@@ -878,6 +995,92 @@ function requestHandler(req, res) {
       return;
     }
 
+    // 0g. API ROUTING: /api/attendance (Cross-Device Workforce Attendance Persistence)
+    if (pathname === '/api/attendance' && req.method === 'GET') {
+      const data = readPersistentAttendance();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data || { records: {}, remarks: {}, lastUpdated: null }));
+      return;
+    }
+
+    if (pathname === '/api/attendance' && req.method === 'POST') {
+      readJsonBody(req, res, (err, payload) => {
+        if (err) return;
+        if (!payload || typeof payload !== 'object') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid attendance payload' }));
+          return;
+        }
+        let current = readPersistentAttendance();
+        const incomingRecords = payload.records || {};
+        const incomingRemarks = payload.remarks || {};
+        
+        const mergedRecords = { ...(current.records || {}), ...incomingRecords };
+        const mergedRemarks = { ...(current.remarks || {}), ...incomingRemarks };
+        const toSave = {
+          records: mergedRecords,
+          remarks: mergedRemarks,
+          lastUpdated: new Date().toISOString()
+        };
+        writePersistentAttendance(toSave);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, count: Object.keys(mergedRecords).length, lastUpdated: toSave.lastUpdated }));
+      });
+      return;
+    }
+
+    // 0h. API ROUTING: /api/system-users (Cross-Device User & Access Management Persistence)
+    if (pathname === '/api/system-users' && req.method === 'GET') {
+      const data = readPersistentSystemUsers();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data || { users: [], deletedUserIds: [] }));
+      return;
+    }
+
+    if (pathname === '/api/system-users' && req.method === 'POST') {
+      readJsonBody(req, res, (err, payload) => {
+        if (err) return;
+        if (!payload) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid users payload' }));
+          return;
+        }
+        const saved = writePersistentSystemUsers(payload);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, count: saved ? saved.users.length : 0 }));
+      });
+      return;
+    }
+
+    if (pathname === '/api/system-users' && req.method === 'DELETE') {
+      const userId = parsedUrl.searchParams.get('id') || parsedUrl.searchParams.get('username');
+      if (!userId) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing user id or username' }));
+        return;
+      }
+      try {
+        const current = readPersistentSystemUsers();
+        const targetId = userId.toLowerCase();
+        current.users = (current.users || []).filter(u => {
+          const uid = (u.id || '').toLowerCase();
+          const uname = (u.username || '').toLowerCase();
+          return uid !== targetId && uname !== targetId;
+        });
+        if (!current.deletedUserIds) current.deletedUserIds = [];
+        if (!current.deletedUserIds.includes(userId)) {
+          current.deletedUserIds.push(userId);
+        }
+        writePersistentSystemUsers(current);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, deletedId: userId }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
     // 0d. API ROUTING: /api/reset-operational-data (True Operational Reset - Protected by Admin Token)
     if (pathname === '/api/reset-operational-data' && req.method === 'POST') {
       const authHeader = req.headers['authorization'] || '';
@@ -913,6 +1116,7 @@ function requestHandler(req, res) {
         writePersistentTransactions({ transactions: [], deletedTransactionIds: [] });
         writePersistentOutletRentals({ outletRentals: [], deletedOutletRentalIds: [] });
         writePersistentThermalPaper({ initialStock: 0, dailyStocksOnHand: {}, stockAdjustments: [], allocations: [] });
+        writePersistentAttendance({ records: {}, remarks: {}, lastUpdated: new Date().toISOString() });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, message: 'Operational and transactional data truly reset to zero.' }));
       } catch (err) {

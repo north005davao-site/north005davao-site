@@ -142,6 +142,23 @@
       }
     }
 
+    async fetchAttendanceRecords(date) {
+      if (!this.client) return null;
+      try {
+        let query = this.client.from('attendance_records').select('*');
+        if (date) query = query.eq('date', date);
+        const { data, error } = await query;
+        if (error) {
+          console.warn('Supabase fetch attendance notice:', error.message);
+          return null;
+        }
+        return data || [];
+      } catch (err) {
+        console.error('Failed to fetch attendance from Supabase:', err);
+        return null;
+      }
+    }
+
     /* ------------------------------------------------------------------ */
     /* USER ACCOUNT SYNC HELPERS                                          */
     /* ------------------------------------------------------------------ */

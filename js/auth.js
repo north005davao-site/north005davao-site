@@ -119,10 +119,98 @@
         localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
       }
 
+      // Background sync with ERP server system users
+      this.syncUsersWithServer();
       // Background sync with Supabase cloud database
       this.syncUsersWithSupabase();
       // Background sync with ERP server user profiles
       this.syncUserProfilesFromServer();
+      // Listen for window focus & visibility changes to auto-sync across devices
+      this.setupUserSyncListeners();
+    }
+
+    setupUserSyncListeners() {
+      if (this._syncListenersSetup) return;
+      this._syncListenersSetup = true;
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        window.addEventListener('focus', () => {
+          this.syncUsersWithServer();
+          this.syncUserProfilesFromServer();
+        });
+        if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+              this.syncUsersWithServer();
+              this.syncUserProfilesFromServer();
+            }
+          });
+        }
+      }
+    }
+
+    async syncUsersWithServer() {
+      try {
+        if (typeof fetch !== 'function') return;
+        const res = await fetch('/api/system-users');
+        if (!res.ok) return;
+        const srv = await res.json();
+        if (!srv || !Array.isArray(srv.users)) return;
+
+        let deletedList = [];
+        try {
+          const dRaw = localStorage.getItem(DELETED_USERS_KEY);
+          if (dRaw) deletedList = JSON.parse(dRaw);
+        } catch (_) {}
+
+        if (Array.isArray(srv.deletedUserIds)) {
+          srv.deletedUserIds.forEach(did => {
+            if (!deletedList.includes(did)) deletedList.push(did);
+          });
+          localStorage.setItem(DELETED_USERS_KEY, JSON.stringify(deletedList));
+        }
+
+        const currentUsers = this.getUsers();
+        let changed = false;
+
+        const delSet = new Set(deletedList.map(x => String(x).toLowerCase()));
+        const validServerUsers = srv.users.filter(su => {
+          if (!su) return false;
+          const suid = (su.id || '').toLowerCase();
+          const suname = (su.username || '').toLowerCase();
+          const sname = (su.name || '').toLowerCase();
+          if (delSet.has(suid) || delSet.has(suname) || delSet.has(sname)) return false;
+          if (suname === 'supervisor' || suid === 'usr-002' || sname.includes('jundy')) return false;
+          if (suname === 'collector' || suid === 'usr-003') return false;
+          return true;
+        });
+
+        validServerUsers.forEach(su => {
+          const idx = currentUsers.findIndex(u => (u.username && u.username.toLowerCase() === su.username.toLowerCase()) || (u.id && u.id === su.id));
+          if (idx === -1) {
+            currentUsers.push(su);
+            changed = true;
+          } else {
+            let uChanged = false;
+            ['name', 'role', 'position', 'status', 'email', 'phone', 'photo', 'department', 'lastLogin'].forEach(f => {
+              if (su[f] !== undefined && su[f] !== currentUsers[idx][f]) {
+                currentUsers[idx][f] = su[f];
+                uChanged = true;
+              }
+            });
+            if (uChanged) changed = true;
+          }
+        });
+
+        if (changed) {
+          localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(currentUsers));
+          if (window.userManagementModule && typeof window.userManagementModule.render === 'function') {
+            window.userManagementModule.render();
+          }
+          this.updateProfileUi();
+        }
+      } catch (err) {
+        console.warn('Could not sync system users from server:', err);
+      }
     }
 
     async syncUsersWithSupabase() {
@@ -259,6 +347,25 @@
       if (window.userManagementModule && typeof window.userManagementModule.render === 'function') {
         window.userManagementModule.render();
       }
+
+      // Cross-device server persistence
+      try {
+        let deletedList = [];
+        try {
+          const dRaw = localStorage.getItem(DELETED_USERS_KEY);
+          if (dRaw) deletedList = JSON.parse(dRaw);
+        } catch (_) {}
+        if (typeof fetch === 'function') {
+          fetch('/api/system-users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              users: users,
+              deletedUserIds: deletedList
+            })
+          }).catch(() => {});
+        }
+      } catch (_) {}
     }
 
     deleteUser(id) {
@@ -275,6 +382,13 @@
         if (user.name && !deletedList.includes(user.name.toLowerCase())) deletedList.push(user.name.toLowerCase());
         localStorage.setItem(DELETED_USERS_KEY, JSON.stringify(deletedList));
       } catch (e) {}
+
+      // Cross-device delete request to server
+      try {
+        if (typeof fetch === 'function') {
+          fetch(`/api/system-users?id=${encodeURIComponent(user.id)}`, { method: 'DELETE' }).catch(() => {});
+        }
+      } catch (_) {}
 
       const remaining = users.filter(u => u.id !== user.id && u.username !== user.username);
       this.saveUsers(remaining);
