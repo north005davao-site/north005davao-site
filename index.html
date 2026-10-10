@@ -168,24 +168,40 @@
 
 <body>
   <!-- ===================================================================
-       FAST BOOT & BRANDED SPLASH LOADER
-       Features official NORTH-005 DAVAO DEL NORTE HQ Logo & Telemetry Fade
+       NORTH-005 CINEMATIC CORPORATE LOADER & REFRESH REVEAL
+       Deep Navy-Blue & Gold Corporate Experience (Initial Boot & Refresh)
        =================================================================== -->
-  <div id="app-splash-loader" class="app-splash-overlay" aria-hidden="false">
-    <div class="splash-card">
-      <div class="splash-logo-wrap">
+  <div id="app-splash-loader" class="app-splash-overlay cinematic-welcome-overlay" aria-hidden="false">
+    <div class="cinematic-ambient-glow"></div>
+    <div class="cinematic-ambient-arc-left"></div>
+    <div class="cinematic-ambient-arc-right"></div>
+    
+    <button type="button" id="splash-skip-btn" class="cinematic-skip-btn" onclick="window.dismissSplashLoader && window.dismissSplashLoader(true)" aria-label="Skip Loading">
+      Skip Intro ➔
+    </button>
+    
+    <div class="cinematic-content splash-card">
+      <div class="cinematic-logo-container splash-logo-wrap">
+        <div class="cinematic-logo-ring"></div>
+        <div class="cinematic-logo-shimmer"></div>
         <div class="splash-logo-pulse"></div>
-        <img src="assets/north-005-logo.png" alt="NORTH-005 Davao del Norte HQ" class="splash-logo-img">
+        <img src="assets/north-005-logo.png" alt="NORTH-005 Davao del Norte HQ" class="cinematic-logo-img splash-logo-img">
       </div>
-      <div class="splash-brand-block">
-        <div class="splash-brand-title">NORTH-005</div>
-        <div class="splash-brand-sub">DAVAO DEL NORTE HQ</div>
-        <div class="splash-tagline">OPERATIONS CONTROL CENTER &amp; ASSET SUITE</div>
+      
+      <div class="cinematic-brand-group splash-brand-block">
+        <div class="cinematic-brand-title splash-brand-title">NORTH-005</div>
+        <div class="cinematic-brand-sub splash-brand-sub">DAVAO DEL NORTE HQ</div>
+        <div class="cinematic-tagline splash-tagline">OPERATIONS CONTROL CENTER &amp; ASSET SUITE</div>
       </div>
-      <div class="splash-loader-bar">
-        <div class="splash-loader-progress"></div>
+      
+      <div class="cinematic-welcome-badge">
+        <span class="cinematic-badge-dot"></span>
+        <span class="cinematic-badge-text splash-status-text" id="splash-status-text">SYNCHRONIZING SYSTEM TELEMETRY</span>
       </div>
-      <div class="splash-status-text" id="splash-status-text">Synchronizing Master Registry &amp; Field Telemetry...</div>
+
+      <div class="cinematic-progress-bar splash-loader-bar">
+        <div class="cinematic-progress-fill splash-loader-progress"></div>
+      </div>
     </div>
   </div>
 
@@ -219,6 +235,10 @@
       <div class="cinematic-welcome-badge">
         <span class="cinematic-badge-dot"></span>
         <span class="cinematic-badge-text">WELCOME BACK</span>
+      </div>
+
+      <div class="cinematic-progress-bar">
+        <div class="cinematic-progress-fill"></div>
       </div>
     </div>
   </div>
@@ -366,7 +386,7 @@
           </button>
 
           <div class="topbar-branding">
-            <img src="assets/north-005-logo.png" alt="NORTH-005 Davao del Norte HQ Official Logo" class="topbar-logo" onclick="window.location.reload()" title="Click to Refresh System Telemetry">
+            <img src="assets/north-005-logo.png" alt="NORTH-005 Davao del Norte HQ Official Logo" class="topbar-logo" onclick="window.triggerSystemRefresh ? window.triggerSystemRefresh() : window.location.reload()" title="Click to Refresh System Telemetry">
             <div class="topbar-title-block">
               <div class="topbar-title">
                 <span class="brand-code">NORTH-005</span>

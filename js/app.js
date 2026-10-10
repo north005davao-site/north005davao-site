@@ -132,20 +132,33 @@ function initApp() {
   dismissSplashLoader();
 }
 
-function dismissSplashLoader() {
+function dismissSplashLoader(immediate) {
   const loader = document.getElementById('app-splash-loader');
   if (!loader) return;
+  const hideDelay = immediate ? 0 : 320;
   setTimeout(() => {
     loader.classList.add('splash-fade-out');
     setTimeout(() => {
       try { loader.remove(); } catch (e) { loader.style.display = 'none'; }
-    }, 380);
-  }, 220);
+    }, 450);
+  }, hideDelay);
 }
+window.dismissSplashLoader = dismissSplashLoader;
+
+window.triggerSystemRefresh = function(callback) {
+  if (window.cinematicIntro && typeof window.cinematicIntro.triggerRefresh === 'function') {
+    window.cinematicIntro.triggerRefresh(() => {
+      if (typeof renderAll === 'function') renderAll();
+      if (typeof callback === 'function') callback();
+    });
+  } else {
+    window.location.reload();
+  }
+};
 
 // Fallback safeguard to prevent any loader hang
 if (typeof setTimeout === 'function') {
-  setTimeout(dismissSplashLoader, 1600);
+  setTimeout(() => dismissSplashLoader(false), 1800);
 }
 
 if (typeof document !== 'undefined') {
@@ -511,6 +524,7 @@ function triggerModuleLoadingAnimation(viewId) {
     }, 180);
   }, 210);
 }
+window.triggerModuleLoadingAnimation = triggerModuleLoadingAnimation;
 
 window.switchView = function(viewId, updateHistory = true, skipAnimation = false) {
   // Normalize Master Registry view alias

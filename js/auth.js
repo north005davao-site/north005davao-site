@@ -1293,7 +1293,16 @@
 
     // Play 5-Second NORTH-005 Cinematic Corporate Reveal upon successful login
     if (window.cinematicIntro && typeof window.cinematicIntro.play === 'function') {
-      window.cinematicIntro.play(finalizePostLogin);
+      window.cinematicIntro.play(finalizePostLogin, {
+        duration: 5000,
+        badgeText: 'WELCOME BACK',
+        mode: 'login',
+        onPrepare: () => {
+          if (typeof window.switchView === 'function') {
+            window.switchView(targetView, true, true);
+          }
+        }
+      });
     } else {
       finalizePostLogin();
     }

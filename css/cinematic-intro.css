@@ -39,6 +39,26 @@
   pointer-events: none;
 }
 
+.cinematic-welcome-overlay.cinematic-closing .cinematic-content {
+  transform: scale(1.03);
+  opacity: 0;
+  transition: opacity 0.55s cubic-bezier(0.4, 0, 0.2, 1), transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Continuous Loading Hold State (for >5s async sync) */
+.cinematic-welcome-overlay.cinematic-loading-hold .cinematic-ambient-glow {
+  animation: cinematicAuraPulse 2.5s ease-in-out infinite alternate;
+}
+
+.cinematic-welcome-overlay.cinematic-loading-hold .cinematic-logo-ring {
+  animation: cinematicRingGlow 2s ease-in-out infinite alternate;
+}
+
+.cinematic-welcome-overlay.cinematic-loading-hold .cinematic-welcome-badge {
+  border-color: rgba(245, 158, 11, 0.6);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 16px rgba(245, 158, 11, 0.25);
+}
+
 /* Canvas Particle Field (Gold & Blue Ambient Particles) */
 .cinematic-canvas {
   position: absolute;
@@ -224,6 +244,37 @@
   letter-spacing: 1.8px;
   color: #f1f5f9;
   text-transform: uppercase;
+}
+
+/* Cinematic Progress Line */
+.cinematic-progress-bar {
+  width: 220px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+  margin-top: 18px;
+  opacity: 0;
+  animation: cinematicFadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 1.2s forwards;
+}
+
+.cinematic-progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 45%;
+  background: linear-gradient(90deg, #d4af37, #f59e0b, #10b981);
+  border-radius: 9999px;
+  box-shadow: 0 0 10px #fbbf24;
+  animation: cinematicProgressSweep 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes cinematicProgressSweep {
+  0% { left: -45%; width: 35%; }
+  50% { width: 65%; }
+  100% { left: 100%; width: 35%; }
 }
 
 /* Skip Intro Button */
