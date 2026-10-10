@@ -1,0 +1,10 @@
+{
+  "admin": {
+    "username": "admin",
+    "name": "Peter John Carrillo",
+    "email": "carrillopeterjohn7@gmail.com",
+    "role": "Administrator",
+    "photo": "data:image/jpeg;base64,TEST_PHOTO_DATA_URL",
+    "updatedAt": "2026-10-10T13:16:32.256Z"
+  }
+}

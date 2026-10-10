@@ -304,6 +304,35 @@ function writePersistentSessions(payload) {
   }
 }
 
+const USER_PROFILES_FILE = path.join(DATA_DIR, 'user_profiles.json');
+
+function readPersistentUserProfiles() {
+  try {
+    if (inMemoryDataCache.has(USER_PROFILES_FILE)) {
+      const data = inMemoryDataCache.get(USER_PROFILES_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'user_profiles.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
+    if (fs.existsSync(USER_PROFILES_FILE)) {
+      return JSON.parse(fs.readFileSync(USER_PROFILES_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading persistent user profiles:', e);
+  }
+  return {};
+}
+
+function writePersistentUserProfiles(payload) {
+  try {
+    atomicWriteFileSync(USER_PROFILES_FILE, JSON.stringify(payload, null, 2));
+  } catch (e) {
+    console.error('Error writing persistent user profiles:', e);
+  }
+}
+
 const REGISTRY_FILE = path.join(DATA_DIR, 'master_registry.json');
 
 function readPersistentMasterRegistry() {
@@ -770,6 +799,50 @@ function requestHandler(req, res) {
         writePersistentSessions(sessions);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, session: sessions[username] }));
+      });
+      return;
+    }
+
+    // 0c5. API ROUTING: /api/user-profiles (Cross-Device Profile & Avatar Photo Persistence)
+    if (pathname === '/api/user-profiles' && req.method === 'GET') {
+      const username = (parsedUrl.searchParams.get('username') || '').toLowerCase().trim();
+      const profiles = readPersistentUserProfiles();
+      if (username) {
+        const userProfile = profiles[username] || null;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, profile: userProfile }));
+      } else {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, profiles }));
+      }
+      return;
+    }
+
+    if (pathname === '/api/user-profiles' && req.method === 'POST') {
+      readJsonBody(req, res, (err, payload) => {
+        if (err) return;
+        const username = (payload.username || '').toLowerCase().trim();
+        if (!username) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Username required' }));
+          return;
+        }
+        const profiles = readPersistentUserProfiles();
+        const existing = profiles[username] || {};
+        profiles[username] = {
+          ...existing,
+          username,
+          name: payload.name !== undefined ? payload.name : existing.name,
+          email: payload.email !== undefined ? payload.email : existing.email,
+          phone: payload.phone !== undefined ? payload.phone : existing.phone,
+          position: payload.position !== undefined ? payload.position : existing.position,
+          role: payload.role !== undefined ? payload.role : existing.role,
+          photo: payload.photo !== undefined ? payload.photo : (existing.photo || ''),
+          updatedAt: new Date().toISOString()
+        };
+        writePersistentUserProfiles(profiles);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, profile: profiles[username] }));
       });
       return;
     }

@@ -121,6 +121,8 @@
 
       // Background sync with Supabase cloud database
       this.syncUsersWithSupabase();
+      // Background sync with ERP server user profiles
+      this.syncUserProfilesFromServer();
     }
 
     async syncUsersWithSupabase() {
@@ -150,6 +152,14 @@
                   lastLogin: ru.last_login || 'Never'
                 });
                 changed = true;
+              } else if (ru.photo && currentList[idx].photo !== ru.photo) {
+                currentList[idx].photo = ru.photo;
+                changed = true;
+                if (this.currentUser && (this.currentUser.username === ru.username || this.currentUser.id === ru.id)) {
+                  this.currentUser.photo = ru.photo;
+                  this.setSessionUser(this.currentUser);
+                  this.updateProfileUi();
+                }
               }
             });
             if (changed) {
@@ -159,6 +169,62 @@
         }
       } catch (err) {
         console.warn('Could not sync users with Supabase:', err);
+      }
+    }
+
+    async syncUserProfilesFromServer() {
+      try {
+        const res = await fetch('/api/user-profiles');
+        if (!res.ok) return;
+        const data = await res.json();
+        const profiles = data && data.profiles ? data.profiles : {};
+        if (Object.keys(profiles).length === 0) return;
+
+        const currentList = this.getUsers();
+        let changed = false;
+
+        Object.keys(profiles).forEach(uname => {
+          const prof = profiles[uname];
+          if (!prof) return;
+          const idx = currentList.findIndex(u => u.username && u.username.toLowerCase() === uname.toLowerCase());
+          if (idx !== -1) {
+            let uChanged = false;
+            if (prof.photo && prof.photo !== currentList[idx].photo) {
+              currentList[idx].photo = prof.photo;
+              uChanged = true;
+            }
+            if (prof.name && prof.name !== currentList[idx].name) {
+              currentList[idx].name = prof.name;
+              uChanged = true;
+            }
+            if (prof.email && prof.email !== currentList[idx].email) {
+              currentList[idx].email = prof.email;
+              uChanged = true;
+            }
+            if (prof.phone && prof.phone !== currentList[idx].phone) {
+              currentList[idx].phone = prof.phone;
+              uChanged = true;
+            }
+            if (prof.position && prof.position !== currentList[idx].position) {
+              currentList[idx].position = prof.position;
+              uChanged = true;
+            }
+            if (uChanged) {
+              changed = true;
+              if (this.currentUser && this.currentUser.username.toLowerCase() === uname.toLowerCase()) {
+                this.currentUser = { ...this.currentUser, ...currentList[idx] };
+                this.setSessionUser(this.currentUser);
+                this.updateProfileUi();
+              }
+            }
+          }
+        });
+
+        if (changed) {
+          this.saveUsers(currentList);
+        }
+      } catch (err) {
+        console.warn('Could not sync user profiles from server:', err);
       }
     }
 
@@ -415,6 +481,9 @@
       this.setSessionUser(user);
       this.logHistory(username, 'Success', `Logged in as ${user.role} on ${deviceName}`);
 
+      // Sync latest profile data from server on successful login
+      this.syncUserProfilesFromServer();
+
       return { success: true, user };
     }
 
@@ -636,7 +705,17 @@
       // Avatar
       if (avatarEl) {
         if (user.photo) {
-          avatarEl.innerHTML = `<img src="${user.photo}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" alt="${user.name}">`;
+          avatarEl.innerHTML = `<img src="${user.photo}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;" alt="${user.name}">`;
+          avatarEl.style.background = 'transparent';
+          const img = avatarEl.querySelector('img');
+          if (img) {
+            img.onerror = () => {
+              avatarEl.textContent = this.getInitials(user.name);
+              avatarEl.style.background = this.isAdmin()
+                ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+                : (this.isCollector() ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #3b82f6, #1d4ed8)');
+            };
+          }
         } else {
           avatarEl.textContent = this.getInitials(user.name);
           avatarEl.style.background = this.isAdmin()
@@ -1034,7 +1113,7 @@
     const avatarEl = document.getElementById('profile-view-avatar');
     if (avatarEl) {
       if (user.photo) {
-        avatarEl.innerHTML = `<img src="${user.photo}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" alt="${user.name}">`;
+        avatarEl.innerHTML = `<img src="${user.photo}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" alt="${user.name}" onerror="this.onerror=null; this.parentElement.innerHTML=window.authManager.getInitials('${user.name.replace(/'/g, "\\'")}');">`;
       } else {
         avatarEl.innerHTML = window.authManager.getInitials(user.name);
       }
@@ -1080,14 +1159,51 @@
     const file = event.target.files && event.target.files[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Selected image exceeds 5MB limit. Please choose a smaller image.');
+    if (file.size > 15 * 1024 * 1024) {
+      alert('Selected image exceeds 15MB limit. Please choose a smaller image.');
       return;
     }
 
     const reader = new FileReader();
     reader.onload = function (e) {
-      const dataUrl = e.target.result;
+      const rawDataUrl = e.target.result;
+      // High-performance canvas downsampling: resize to max 320x320 px to guarantee fast cross-device sync & fit storage quotas
+      const img = new Image();
+      img.onload = function () {
+        const maxDimension = 320;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDimension || h > maxDimension) {
+          if (w > h) {
+            h = Math.round((h * maxDimension) / w);
+            w = maxDimension;
+          } else {
+            w = Math.round((w * maxDimension) / h);
+            h = maxDimension;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+          applyUploadedPhoto(compressedDataUrl);
+        } else {
+          applyUploadedPhoto(rawDataUrl);
+        }
+      };
+      img.onerror = function () {
+        applyUploadedPhoto(rawDataUrl);
+      };
+      img.src = rawDataUrl;
+    };
+    reader.readAsDataURL(file);
+
+    function applyUploadedPhoto(dataUrl) {
       const photoDataEl = document.getElementById('edit-profile-photo-data');
       if (photoDataEl) photoDataEl.value = dataUrl;
 
@@ -1100,8 +1216,7 @@
       if (previewInitials) {
         previewInitials.style.display = 'none';
       }
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   window.removeProfilePhoto = function () {
@@ -1144,6 +1259,26 @@
     if (idx !== -1) { users[idx] = { ...users[idx], ...user }; window.authManager.saveUsers(users); }
     window.authManager.setSessionUser(user);
     window.authManager.updateProfileUi();
+
+    // Cross-Device Server Persistence: Persist profile & photo to ERP server
+    fetch('/api/user-profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        position: user.position,
+        role: user.role,
+        photo: user.photo
+      })
+    }).catch(err => console.warn('Could not persist user profile to server:', err));
+
+    // Also sync to Supabase if available
+    if (window.supabaseSync && typeof window.supabaseSync.syncUser === 'function') {
+      window.supabaseSync.syncUser(user).catch(err => console.warn('Could not sync user to Supabase:', err));
+    }
 
     const menuName = document.getElementById('menu-user-fullname');
     if (menuName) menuName.textContent = user.name;

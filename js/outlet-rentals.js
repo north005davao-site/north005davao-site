@@ -800,12 +800,12 @@
       if (!container) return;
 
       container.innerHTML = `
-        <div class="ep-searchable-select" id="or-searchable-select" style="min-width: 320px;">
-          <button type="button" class="ep-searchable-trigger" id="or-searchable-trigger" aria-haspopup="listbox" aria-expanded="false" style="padding: 8px 14px; font-size: 13px;">
+        <div class="ep-searchable-select" id="or-searchable-select" style="width: 100%; min-width: 0; box-sizing: border-box;">
+          <button type="button" class="ep-searchable-trigger" id="or-searchable-trigger" aria-haspopup="listbox" aria-expanded="false" style="padding: 8px 14px; font-size: 13px; width: 100%; box-sizing: border-box;">
             <span class="ep-searchable-label" id="or-searchable-label">🔍 Search Booth Code, Teller, Location...</span>
             <span class="ep-searchable-arrow">▼</span>
           </button>
-          <div class="ep-searchable-dropdown" id="or-searchable-dropdown" role="listbox" style="display:none; width: 100%; min-width: 360px;">
+          <div class="ep-searchable-dropdown" id="or-searchable-dropdown" role="listbox" style="display:none; width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box;">
             <div class="ep-searchable-search-box">
               <input type="text" class="ep-searchable-input" id="or-searchable-input" placeholder="Type Booth (DDN-1477), Teller, Purok, Tagum..." autocomplete="off">
             </div>

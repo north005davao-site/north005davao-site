@@ -760,36 +760,36 @@
              VIEW 2: MASTER DATA - EMPLOYEE & BOOTH REGISTRY (DAVAO DEL NORTE)
              =================================================================== -->
         <section id="view-employees" class="view-panel">
-          <div class="view-header registry-header"
-            style="display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: nowrap; margin-bottom: 22px;">
-            <div class="view-title-group" style="flex: 0 1 auto; min-width: 280px;">
+          <div class="view-header registry-header">
+            <div class="view-title-group registry-title-group">
               <h2>System Master Data Registry: Davao Del Norte Sector (DDN005)</h2>
-              <p style="margin: 0; font-size: 13px; color: var(--text-muted);">
+              <p>
                 Complete official registry of Collectors (5), OUTLETS / Sales Representatives (78), Relievers, Home
                 Addresses, and Assigned Booth Codes
               </p>
             </div>
-            <div class="view-actions"
-              style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 0 0 auto; flex-wrap: wrap;">
-              <input type="text" id="employee-search-input" class="form-input"
-                placeholder="Search by name, ID, address, booth..." style="width: 220px;"
+            <div class="view-actions registry-actions">
+              <input type="text" id="employee-search-input" class="form-input registry-search-input"
+                placeholder="Search by name, ID, address, booth..."
                 oninput="window.filterEmployees()">
-              <button class="btn btn-primary btn-sm admin-only-action" onclick="window.openAddEmployeeModal()">
-                + Add Employee
-              </button>
-              <button class="btn btn-secondary btn-sm admin-only-action" id="btn-upload-excel"
-                onclick="window.triggerExcelUpload()"
-                style="display: flex; align-items: center; gap: 6px; font-weight: 700; border-color: #3b82f6; color: #93c5fd; background: rgba(59,130,246,0.12);">
-                <span>📤</span> Upload Excel File
-              </button>
-              <button class="btn btn-secondary btn-sm admin-only-action" onclick="window.openImportHistoryModal()"
-                style="display: flex; align-items: center; gap: 6px;" title="View past Excel imports & audit log">
-                <span>📜</span> Import History
-              </button>
-              <button class="btn btn-secondary btn-sm" onclick="window.downloadMasterRegistryTemplate()"
-                style="display: flex; align-items: center; gap: 6px;" title="Download Excel template format">
-                <span>📥</span> Template
-              </button>
+              <div class="registry-buttons-grid">
+                <button class="btn btn-primary btn-sm admin-only-action" onclick="window.openAddEmployeeModal()">
+                  + Add Employee
+                </button>
+                <button class="btn btn-secondary btn-sm admin-only-action" id="btn-upload-excel"
+                  onclick="window.triggerExcelUpload()"
+                  style="border-color: #3b82f6; color: #93c5fd; background: rgba(59,130,246,0.12);">
+                  <span>📤</span> Upload Excel File
+                </button>
+                <button class="btn btn-secondary btn-sm admin-only-action" onclick="window.openImportHistoryModal()"
+                  title="View past Excel imports & audit log">
+                  <span>📜</span> Import History
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="window.downloadMasterRegistryTemplate()"
+                  title="Download Excel template format">
+                  <span>📥</span> Template
+                </button>
+              </div>
               <!-- Hidden file input for Excel upload (.xlsx, .xls) -->
               <input type="file" id="excel-file-input" accept=".xlsx, .xls" style="display: none;"
                 onchange="window.handleExcelFileSelected(event)">
@@ -797,8 +797,7 @@
           </div>
 
           <!-- Registry Categorical Tabs -->
-          <div
-            style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; flex-wrap: wrap;">
+          <div class="registry-tabs-container">
             <button class="btn btn-primary btn-sm" id="tab-btn-all" onclick="window.filterRegistryCategory('all')">
               👥 All Staff (<span id="count-all">150</span>)
             </button>
@@ -847,8 +846,8 @@
                 🔄 Retry Loading
               </button>
             </div>
-            <div class="table-wrapper">
-              <table class="data-table">
+            <div class="table-wrapper registry-table-wrapper">
+              <table class="data-table registry-data-table">
                 <thead id="registry-table-thead">
                   <tr>
                     <th>ID No.</th>
@@ -1777,56 +1776,48 @@
              Official Tracking: Monthly Outlet Rentals & Monthly Load Allowance
              =================================================================== -->
         <section id="view-inventory" class="view-panel">
-          <div class="view-header">
-            <div class="view-title-group">
+          <div class="view-header or-header">
+            <div class="view-title-group or-title-group">
               <h2>Outlet Rentals & Load Allowance</h2>
               <p>Official Tracking: Monthly Outlet Rentals and Monthly Load Allowance for registered Station Tellers &
                 Booth Codes</p>
             </div>
-            <div class="view-actions" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div class="view-actions or-view-actions">
               <!-- Coverage Period Filter Dropdown -->
-              <select id="or-filter-period" class="form-select"
-                style="padding: 7px 14px; font-size: 13px; min-width: 220px; font-weight: 700; color: var(--accent-gold); border-color: rgba(251,191,36,0.4);">
+              <select id="or-filter-period" class="form-select or-period-select">
                 <option value="ALL">📅 All Coverage Periods</option>
               </select>
             </div>
           </div>
 
           <!-- Section: Searchable Outlet / Booth Selector & Filter Bar -->
-          <div class="card" style="padding: 16px 20px; margin-bottom: 20px;">
-            <div
-              style="display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between;">
+          <div class="card or-controls-card">
+            <div class="or-controls-row">
               <!-- Searchable Outlet / Booth Dropdown (Section 8) -->
-              <div id="or-searchable-select-container" style="flex: 1; min-width: 320px;">
+              <div id="or-searchable-select-container" class="or-searchable-container">
                 <!-- Populated dynamically with live search -->
               </div>
 
               <!-- Quick Tab Filters -->
-              <div
-                style="display: flex; background: var(--bg-surface-elevated); padding: 3px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); gap: 2px;">
-                <button class="or-tab-btn active" data-tab="all"
-                  style="padding: 6px 12px; font-size: 12px; border-radius: 4px; border: none; background: transparent; color: var(--text-main); cursor: pointer; font-weight: 700;">
+              <div class="or-tab-filter-container">
+                <button class="or-tab-btn active" data-tab="all">
                   All Records
                 </button>
-                <button class="or-tab-btn" data-tab="rentals"
-                  style="padding: 6px 12px; font-size: 12px; border-radius: 4px; border: none; background: transparent; color: var(--text-muted); cursor: pointer;">
+                <button class="or-tab-btn" data-tab="rentals">
                   🏬 Rentals Only
                 </button>
-                <button class="or-tab-btn" data-tab="loads"
-                  style="padding: 6px 12px; font-size: 12px; border-radius: 4px; border: none; background: transparent; color: var(--text-muted); cursor: pointer;">
+                <button class="or-tab-btn" data-tab="loads">
                   📶 Loads Only
                 </button>
-                <button class="or-tab-btn" data-tab="to-follow"
-                  style="padding: 6px 12px; font-size: 12px; border-radius: 4px; border: none; background: transparent; color: var(--text-muted); cursor: pointer;">
+                <button class="or-tab-btn" data-tab="to-follow">
                   ⚠️ To Follow (<span id="or-tab-count-to-follow">0</span>)
                 </button>
-                <button class="or-tab-btn" data-tab="received"
-                  style="padding: 6px 12px; font-size: 12px; border-radius: 4px; border: none; background: transparent; color: var(--text-muted); cursor: pointer;">
+                <button class="or-tab-btn" data-tab="received">
                   ✓ Received (<span id="or-tab-count-received">0</span>)
                 </button>
               </div>
             </div>
-            <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px; padding-left: 2px;">
+            <div class="or-instructional-text">
               💡 <strong>Dual-Purpose OCR:</strong> Upload handwritten ledger via <em>Expenses & Payment → Upload
                 File</em> to automatically detect Rent Fees and POS Loads linked to Booth Codes. The A.R.
               (Acknowledgement Receipt) is uploaded directly within this module below.
@@ -1837,8 +1828,7 @@
           <div id="or-focused-outlet-card" style="display:none;"></div>
 
           <!-- Section 21: Summary KPI Cards -->
-          <div class="stats-grid"
-            style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 24px;">
+          <div class="stats-grid or-stats-grid">
             <!-- 1. Outlet Rentals Card -->
             <div class="stat-card" style="--stat-accent: #f59e0b; padding: 14px 18px;">
               <div class="stat-header">
