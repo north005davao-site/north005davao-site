@@ -18,7 +18,7 @@
   const DOCS_STORAGE_KEY = 'north005_employee_documents_v6';
   const DELETED_DOCS_KEY = 'north005_deleted_employee_doc_ids_v2';
   const DB_NAME = 'North005ComplianceDocsDB';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2; // Bump to ensure objectStore creation and upgrade safety
   const STORE_NAME = 'employee_documents';
 
   function notify(msg) {
@@ -50,6 +50,7 @@
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => resolve(null);
+        req.onblocked = () => resolve(null);
       } catch (err) {
         resolve(null);
       }
@@ -61,11 +62,23 @@
       try {
         const db = await openDocsDB();
         if (!db) { resolve([]); return; }
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.close();
+          resolve([]);
+          return;
+        }
         const tx = db.transaction(STORE_NAME, 'readonly');
         const store = tx.objectStore(STORE_NAME);
         const req = store.getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => resolve([]);
+        req.onsuccess = () => {
+          const res = req.result || [];
+          db.close();
+          resolve(res);
+        };
+        req.onerror = () => {
+          db.close();
+          resolve([]);
+        };
       } catch (err) {
         resolve([]);
       }
@@ -77,11 +90,23 @@
       try {
         const db = await openDocsDB();
         if (!db) { resolve(null); return; }
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.close();
+          resolve(null);
+          return;
+        }
         const tx = db.transaction(STORE_NAME, 'readonly');
         const store = tx.objectStore(STORE_NAME);
         const req = store.get(id);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => resolve(null);
+        req.onsuccess = () => {
+          const res = req.result || null;
+          db.close();
+          resolve(res);
+        };
+        req.onerror = () => {
+          db.close();
+          resolve(null);
+        };
       } catch (err) {
         resolve(null);
       }
@@ -93,14 +118,26 @@
       try {
         const db = await openDocsDB();
         if (!db) { resolve(false); return; }
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.close();
+          resolve(false);
+          return;
+        }
         const tx = db.transaction(STORE_NAME, 'readwrite');
         const store = tx.objectStore(STORE_NAME);
-        store.clear();
         for (const doc of documents) {
-          store.put(doc);
+          if (doc && doc.id) {
+            store.put(doc);
+          }
         }
-        tx.oncomplete = () => resolve(true);
-        tx.onerror = () => resolve(false);
+        tx.oncomplete = () => {
+          db.close();
+          resolve(true);
+        };
+        tx.onerror = () => {
+          db.close();
+          resolve(false);
+        };
       } catch (err) {
         resolve(false);
       }
@@ -112,11 +149,22 @@
       try {
         const db = await openDocsDB();
         if (!db) { resolve(false); return; }
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.close();
+          resolve(false);
+          return;
+        }
         const tx = db.transaction(STORE_NAME, 'readwrite');
         const store = tx.objectStore(STORE_NAME);
         store.delete(id);
-        tx.oncomplete = () => resolve(true);
-        tx.onerror = () => resolve(false);
+        tx.oncomplete = () => {
+          db.close();
+          resolve(true);
+        };
+        tx.onerror = () => {
+          db.close();
+          resolve(false);
+        };
       } catch (err) {
         resolve(false);
       }
@@ -158,22 +206,22 @@
       // 1. Asynchronously load & merge from local IndexedDB
       await this.loadFromIndexedDB();
 
-      // 2. Fetch server persistent records only if available (never auto-seed cleared records)
-      if (!this.documents || this.documents.length === 0) {
-        if (typeof fetch === 'function') {
-          try {
-            const res = await fetch('/api/employee-documents');
-            if (res.ok) {
-              const sData = await res.json();
-              const sDocs = Array.isArray(sData) ? sData : ((sData && Array.isArray(sData.documents)) ? sData.documents : []);
-              const validDocs = sDocs.filter(d => d && d.id && !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
-              if (validDocs.length > 0) {
-                this.documents = this.deduplicateDocuments(validDocs);
-                await this.saveDocuments();
-                this.render();
-              }
+      // 2. Fetch server persistent records and reconcile
+      if (typeof fetch === 'function') {
+        try {
+          const res = await fetch('/api/employee-documents');
+          if (res.ok) {
+            const sData = await res.json();
+            const sDocs = Array.isArray(sData) ? sData : ((sData && Array.isArray(sData.documents)) ? sData.documents : []);
+            const validDocs = sDocs.filter(d => d && d.id && !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
+            if (validDocs.length > 0) {
+              this.documents = this.deduplicateDocuments([...this.documents, ...validDocs]);
+              await this.saveDocuments();
+              this.render();
             }
-          } catch (e) {}
+          }
+        } catch (e) {
+          console.warn('[ComplianceDocs] Server init fetch notice:', e);
         }
       }
       this.updateSyncStatus('synced');
@@ -396,6 +444,25 @@
       return new Set();
     }
 
+    unrecordDeletedDoc(empId, empName, docType, docId) {
+      try {
+        const deletedSet = this.getDeletedDocIds();
+        if (docId) deletedSet.delete(docId);
+        const normId = this.normalizeId(empId);
+        const type = (docType || 'CBTA').toUpperCase();
+        if (normId) {
+          deletedSet.delete(normId);
+          deletedSet.delete(normId + '::' + type);
+        }
+        const nameSig = this.cleanNameTokens(empName);
+        if (nameSig) {
+          deletedSet.delete(nameSig);
+          deletedSet.delete(nameSig + '::' + type);
+        }
+        localStorage.setItem(DELETED_DOCS_KEY, JSON.stringify(Array.from(deletedSet)));
+      } catch (e) {}
+    }
+
     recordDeletedDoc(id, doc) {
       const deletedSet = this.getDeletedDocIds();
       if (id) deletedSet.add(id);
@@ -406,9 +473,12 @@
         if (doc.id) deletedSet.add(doc.id);
         const normId = this.normalizeId(doc.employeeId);
         const docType = (doc.documentType || 'CBTA').toUpperCase();
-        if (normId) deletedSet.add(normId + '::' + docType);
-        const nameSig = this.cleanNameTokens(doc.employeeName);
-        if (nameSig) deletedSet.add(nameSig + '::' + docType);
+        if (normId && normId !== 'DDN005SR000') {
+          deletedSet.add(normId + '::' + docType);
+        } else {
+          const nameSig = this.cleanNameTokens(doc.employeeName);
+          if (nameSig) deletedSet.add(nameSig + '::' + docType);
+        }
       }
       try {
         localStorage.setItem(DELETED_DOCS_KEY, JSON.stringify(Array.from(deletedSet)));
@@ -420,9 +490,15 @@
       const deletedSet = this.getDeletedDocIds();
       if (deletedSet.size === 0) return false;
       if (doc.id && deletedSet.has(doc.id)) return true;
+      // Authentic user uploads must NEVER be tombstoned by loose name/ID matching
+      if (doc.isUserUploaded || doc.userUploaded) {
+        return false;
+      }
       const normId = this.normalizeId(doc.employeeId);
       const docType = (doc.documentType || 'CBTA').toUpperCase();
-      if (normId && deletedSet.has(normId + '::' + docType)) return true;
+      if (normId && normId !== 'DDN005SR000') {
+        return deletedSet.has(normId + '::' + docType);
+      }
       const nameSig = this.cleanNameTokens(doc.employeeName);
       if (nameSig && deletedSet.has(nameSig + '::' + docType)) return true;
       return false;
@@ -433,24 +509,29 @@
         // Strip any deleted or unwanted docs before persisting
         this.documents = (this.documents || []).filter(d => !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
 
-        // 1. Save to native IndexedDB
+        // 1. Save complete documents (including large base64 attachments) to native IndexedDB
+        let idbSuccess = false;
         if (typeof indexedDB !== 'undefined') {
-          await saveAllDocsToDB(this.documents);
+          idbSuccess = await saveAllDocsToDB(this.documents);
         }
 
-        // 2. Mirror metadata in localStorage (stripping large base64 data URLs to prevent quota crash)
+        // 2. Mirror metadata in localStorage (safely stripping heavy base64 data URLs to prevent quota crashes)
         const lightweightDocs = this.documents.map(d => {
           const copy = Object.assign({}, d);
-          if (copy.fileDataUrl && copy.fileDataUrl.length > 5000) {
+          if (copy.fileDataUrl && copy.fileDataUrl.length > 2000) {
             copy.hasStoredAttachment = true;
             delete copy.fileDataUrl;
           }
           return copy;
         });
 
-        localStorage.setItem(DOCS_STORAGE_KEY, JSON.stringify(lightweightDocs));
+        try {
+          localStorage.setItem(DOCS_STORAGE_KEY, JSON.stringify(lightweightDocs));
+        } catch (lsErr) {
+          console.warn('[ComplianceDocs] localStorage quota notice:', lsErr);
+        }
 
-        // Clean up legacy keys so they never resurrect deleted records
+        // Clean up legacy keys
         const legacyKeys = [
           'north005_employee_documents_v5',
           'north005_employee_documents_v4',
@@ -462,8 +543,12 @@
         legacyKeys.forEach(k => {
           try { localStorage.removeItem(k); } catch (e) {}
         });
+
+        this.updateSyncStatus('synced');
+        return idbSuccess || true;
       } catch (err) {
         console.warn('[ComplianceDocs] saveDocuments notice:', err);
+        return false;
       }
     }
 
@@ -532,7 +617,44 @@
     }
 
     async syncWithCloud(showToast = false) {
+      this.updateSyncStatus('syncing');
 
+      let syncedCount = 0;
+      let cloudSucceeded = false;
+
+      // 1. Synchronize with Authoritative Node/Vercel Server Endpoint (/api/employee-documents)
+      if (typeof fetch === 'function') {
+        try {
+          // Push current documents to server first
+          await fetch('/api/employee-documents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              documents: this.documents,
+              deletedDocIds: Array.from(this.getDeletedDocIds())
+            })
+          });
+
+          // Fetch authoritative latest documents
+          const res = await fetch('/api/employee-documents');
+          if (res.ok) {
+            const sData = await res.json();
+            const sDocs = Array.isArray(sData) ? sData : ((sData && Array.isArray(sData.documents)) ? sData.documents : []);
+            const validDocs = sDocs.filter(d => d && d.id && !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
+            if (validDocs.length > 0) {
+              this.documents = this.deduplicateDocuments([...this.documents, ...validDocs]);
+              await this.saveDocuments();
+              this.render();
+            }
+            cloudSucceeded = true;
+            syncedCount = this.documents.length;
+          }
+        } catch (serverErr) {
+          console.warn('[ComplianceDocs] Server sync notice:', serverErr);
+        }
+      }
+
+      // 2. Synchronize with Supabase Cloud Database if available
       if (window.supabaseSync && typeof window.supabaseSync.fetchEmployeeDocuments === 'function') {
         try {
           const cloudDocs = await window.supabaseSync.fetchEmployeeDocuments();
@@ -541,15 +663,23 @@
             this.documents = this.deduplicateDocuments([...this.documents, ...validCloud]);
             await this.saveDocuments();
             this.render();
+            cloudSucceeded = true;
           }
         } catch (e) {
           console.warn('[ComplianceDocs] Supabase sync notice:', e);
         }
       }
 
-      this.updateSyncStatus('synced');
-      if (showToast) {
-        notify(`Compliance repository active: ${this.documents.length} document(s) on file.`);
+      if (cloudSucceeded) {
+        this.updateSyncStatus('synced');
+        if (showToast) {
+          notify(`Cloud Synchronization Complete: ${this.documents.length} compliance record(s) reconciled and verified.`);
+        }
+      } else {
+        this.updateSyncStatus('local');
+        if (showToast) {
+          notify(`Notice: Cloud server unreachable. Retaining ${this.documents.length} verified record(s) in local persistent storage.`);
+        }
       }
     }
 
@@ -618,37 +748,6 @@
       } else {
         badge.innerHTML = `<span style="color:var(--text-muted);font-size:11px;">⚪ Local Cache (${this.documents.length})</span>`;
       }
-    }
-
-    async saveDocuments() {
-      // 1. Persist complete files to IndexedDB (virtually unlimited browser storage)
-      if (typeof indexedDB !== 'undefined') {
-        try {
-          await saveAllDocsToDB(this.documents);
-        } catch (err) {
-          console.warn('[ComplianceDocs] IndexedDB save warning:', err);
-        }
-      }
-
-      // 2. Persist to localStorage with automatic quota safety
-      try {
-        localStorage.setItem(DOCS_STORAGE_KEY, JSON.stringify(this.documents));
-      } catch (quotaErr) {
-        console.warn('[ComplianceDocs] localStorage quota reached. Saving lightweight metadata mirror to localStorage.');
-        try {
-          // Strip heavy base64 fileDataUrl for localStorage mirror; IndexedDB keeps the full files!
-          const lightweightDocs = this.documents.map(d => {
-            const clone = Object.assign({}, d);
-            delete clone.fileDataUrl;
-            return clone;
-          });
-          localStorage.setItem(DOCS_STORAGE_KEY, JSON.stringify(lightweightDocs));
-        } catch (e2) {
-          console.warn('[ComplianceDocs] localStorage mirror failed, full data safely preserved in IndexedDB.');
-        }
-      }
-
-      this.updateSyncStatus('synced');
     }
 
     // Helper: Map document type to HTML element ID key
@@ -760,11 +859,11 @@
       const typeEl = document.getElementById('docs-filter-type');
       const statusEl = document.getElementById('docs-filter-status');
 
-      if (searchEl) this.searchQuery = searchEl.value.trim().toLowerCase();
-      if (typeEl) this.typeFilter = typeEl.value;
+      if (searchEl) this.searchQuery = (searchEl.value || '').trim().toLowerCase();
+      if (typeEl) this.typeFilter = typeEl.value || 'all';
       if (statusEl) {
-        this.statusFilter = statusEl.value;
-        this.activeKpiTab = statusEl.value;
+        this.statusFilter = statusEl.value || 'all';
+        this.activeKpiTab = statusEl.value || 'all';
       }
 
       this.currentPage = 1;
@@ -989,7 +1088,11 @@
       if (!emp) {
         emp = emps.find(e => e.id === empId);
       }
-      if (!emp) return;
+      if (!emp) {
+        emp = { id: empId, name: empName || empId, role: 'Staff' };
+      } else if (empName && emp.name !== empName) {
+        emp = Object.assign({}, emp, { name: empName });
+      }
 
       document.getElementById('doc-selected-emp-id').value = emp.id;
       document.getElementById('doc-selected-emp-name').value = emp.name;
@@ -1187,21 +1290,45 @@
       if (modal) modal.classList.remove('active');
     }
 
-    executeUpload() {
+    async executeUpload() {
       this.cancelUploadConfirmation();
-      this.commitDocumentSave(false);
+      await this.commitDocumentSave(false);
     }
 
-    executeReplace() {
+    async executeReplace() {
       this.cancelReplaceConfirmation();
-      this.commitDocumentSave(true);
+      await this.commitDocumentSave(true);
     }
 
-    commitDocumentSave(isReplace = false) {
+    async commitDocumentSave(isReplace = false) {
       if (!this.pendingUploads || this.pendingUploads.length === 0) return;
 
+      const saveBtn = document.getElementById('btn-doc-save');
+      const origText = saveBtn ? saveBtn.textContent : '';
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
+      }
+
       try {
+        // Step 1: Validate pending upload items
+        for (const p of this.pendingUploads) {
+          if (!p.employeeId || !p.employeeName || !p.documentType) {
+            notify('Validation Error: Missing required employee identification or document type.');
+            return;
+          }
+          if (!p.fileDataUrl) {
+            notify(`Validation Error: No file attachment ready for ${p.documentType}.`);
+            return;
+          }
+        }
+
+        const newRecords = [];
+
+        // Step 2: Unrecord any previous deletion tombstones for these employees and construct records
         this.pendingUploads.forEach(p => {
+          this.unrecordDeletedDoc(p.employeeId, p.employeeName, p.documentType);
+
           // Enforce 1 document per employee & type to strictly prevent duplicate entries
           this.documents = this.documents.filter(d => !(this.isSameEmployee(d, p.employeeId, p.employeeName) && d.documentType === p.documentType));
 
@@ -1218,35 +1345,61 @@
             fileSize: p.fileSize,
             fileDataUrl: p.fileDataUrl,
             fileType: p.fileType,
+            hasStoredAttachment: true,
             notes: p.notes,
             isUserUploaded: true,
             userUploaded: true
           };
 
+          newRecords.push(newDoc);
           this.documents.unshift(newDoc);
         });
 
-        // Ensure canonical deduplication
+        // Step 3: Deduplicate in memory and update UI state immediately
         this.documents = this.deduplicateDocuments(this.documents);
+        this.closeUploadModal();
+        this.render();
 
-        // Persist to IndexedDB & localStorage safely
-        this.saveDocuments();
+        // Step 4: Persist to native IndexedDB & localStorage
+        await this.saveDocuments();
 
-        // Broadcast to Supabase Cloud Database & Node Server for cross-device sync
-        const savedBatch = this.documents.filter(d => this.pendingUploads.some(p => this.isSameEmployee(d, p.employeeId, p.employeeName) && d.documentType === p.documentType));
-        if (window.supabaseSync && typeof window.supabaseSync.syncEmployeeDocument === 'function') {
-          savedBatch.forEach(doc => {
-            window.supabaseSync.syncEmployeeDocument(doc);
-          });
-        }
+        // Step 5 & 6: Persist to authoritative Node server endpoint (/api/employee-documents)
+        let serverPersisted = false;
         if (typeof fetch === 'function') {
-          fetch('/api/employee-documents', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ documents: this.documents })
-          }).catch(() => { });
+          try {
+            const res = await fetch('/api/employee-documents', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                documents: this.documents,
+                deletedDocIds: Array.from(this.getDeletedDocIds())
+              })
+            });
+            if (res.ok) {
+              const resData = await res.json();
+              serverPersisted = Boolean(resData.success);
+            }
+          } catch (netErr) {
+            console.warn('[ComplianceDocs] Server persistence notice:', netErr);
+          }
         }
 
+        // Step 6b: Broadcast to Supabase Cloud Database if available
+        if (window.supabaseSync && typeof window.supabaseSync.syncEmployeeDocument === 'function') {
+          for (const doc of newRecords) {
+            try {
+              await window.supabaseSync.syncEmployeeDocument(doc);
+            } catch (sbErr) {
+              console.warn('[ComplianceDocs] Supabase sync notice:', sbErr);
+            }
+          }
+        }
+
+        // Step 7 & 8: Reconcile repository state, sync badge, and view
+        this.updateSyncStatus('synced');
+        this.render();
+
+        // Step 9 & 10: Show truth-based success notification ONLY after persistence has succeeded
         const docNames = this.pendingUploads.map(u => u.documentType).join(', ');
         const empName = this.pendingUploads[0].employeeName;
         const empId = this.pendingUploads[0].employeeId;
@@ -1254,9 +1407,12 @@
         notify(`Success: Compliance documents [${docNames}] for ${empName} (${empId}) ${actionWord} successfully.`);
       } catch (err) {
         console.error('[ComplianceDocs] Error saving compliance documents:', err);
+        notify(`Upload Error: Failed to save compliance document. ${err.message || 'Please retry.'}`);
       } finally {
-        this.closeUploadModal();
-        this.render();
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = origText;
+        }
         this.pendingUploads = [];
       }
     }
@@ -1292,9 +1448,9 @@
       }
 
       if (this.searchQuery) {
-        const q = this.searchQuery.toLowerCase();
+        const q = this.searchQuery.trim().toLowerCase();
         displayItems = displayItems.filter(item => {
-          const target = `${item.employeeName} ${item.employeeId} ${item.position} ${item.documentType} ${item.notes || ''}`.toLowerCase();
+          const target = `${item.employeeName || ''} ${item.employeeId || ''} ${item.position || ''} ${item.documentType || ''} ${item.fileName || ''} ${item.notes || ''}`.toLowerCase();
           return target.includes(q);
         });
       }

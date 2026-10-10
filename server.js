@@ -784,8 +784,34 @@ function requestHandler(req, res) {
         const incomingDocs = Array.isArray(payload) ? payload : (payload.documents || []);
         const incomingDeleted = Array.isArray(payload.deletedDocIds) ? payload.deletedDocIds : [];
 
+        // Remove incoming doc IDs from deletedSet so new uploads are never tombstoned
         const deletedSet = new Set([...(current.deletedDocIds || []), ...incomingDeleted]);
-        const mergedDocs = incomingDocs.filter(d => d && d.id && !deletedSet.has(d.id));
+        incomingDocs.forEach(d => {
+          if (d && d.id) deletedSet.delete(d.id);
+          if (d && d.employeeId) {
+            const docType = (d.documentType || 'CBTA').toUpperCase();
+            const normId = (d.employeeId || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            deletedSet.delete(normId);
+            deletedSet.delete(normId + '::' + docType);
+          }
+        });
+
+        // Merge incomingDocs into current.documents by employeeId + documentType or id
+        const docMap = new Map();
+        (current.documents || []).forEach(d => {
+          if (d && d.id && !deletedSet.has(d.id)) {
+            const key = (d.employeeId || '').toUpperCase() + '::' + (d.documentType || 'CBTA').toUpperCase();
+            docMap.set(key, d);
+          }
+        });
+        incomingDocs.forEach(d => {
+          if (d && d.id && !deletedSet.has(d.id)) {
+            const key = (d.employeeId || '').toUpperCase() + '::' + (d.documentType || 'CBTA').toUpperCase();
+            docMap.set(key, d);
+          }
+        });
+
+        const mergedDocs = Array.from(docMap.values());
 
         const updatedData = {
           documents: mergedDocs,
@@ -793,7 +819,7 @@ function requestHandler(req, res) {
         };
         writePersistentEmployeeDocuments(updatedData);
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, count: mergedDocs.length }));
+        res.end(JSON.stringify({ success: true, count: mergedDocs.length, documents: mergedDocs }));
       });
       return;
     }
