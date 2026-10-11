@@ -742,7 +742,7 @@
       const badge = document.getElementById('docs-sync-status-badge');
       if (!badge) return;
       if (status === 'syncing') {
-        badge.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;color:#60a5fa;font-size:11px;font-weight:700;"><span class="spinner-border spinner-border-sm" style="width:10px;height:10px;border-width:1.5px;display:inline-block;"></span> Syncing...</span>`;
+        badge.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;color:#60a5fa;font-size:11px;font-weight:700;">Syncing...</span>`;
       } else if (status === 'synced') {
         badge.innerHTML = `<span style="color:#4ade80;font-size:11px;font-weight:700;">☁️ Cloud Synced (${this.documents.length})</span>`;
       } else {
@@ -1307,7 +1307,7 @@
       const origText = saveBtn ? saveBtn.textContent : '';
       if (saveBtn) {
         saveBtn.disabled = true;
-        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
+        saveBtn.innerHTML = 'Saving...';
       }
 
       try {

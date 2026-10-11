@@ -138,13 +138,9 @@ function initApp() {
 function dismissSplashLoader(immediate) {
   const loader = document.getElementById('app-splash-loader');
   if (!loader) return;
-  const hideDelay = immediate ? 0 : 320;
-  setTimeout(() => {
-    loader.classList.add('splash-fade-out');
-    setTimeout(() => {
-      try { loader.remove(); } catch (e) { loader.style.display = 'none'; }
-    }, 450);
-  }, hideDelay);
+  loader.classList.add('splash-fade-out');
+  loader.style.display = 'none';
+  try { loader.remove(); } catch (e) {}
 }
 window.dismissSplashLoader = dismissSplashLoader;
 
@@ -161,7 +157,7 @@ window.triggerSystemRefresh = function(callback) {
 
 // Fallback safeguard to prevent any loader hang
 if (typeof setTimeout === 'function') {
-  setTimeout(() => dismissSplashLoader(false), 1800);
+  setTimeout(() => dismissSplashLoader(true), 0);
 }
 
 function renderAll() {
@@ -548,17 +544,13 @@ function triggerModuleLoadingAnimation(viewId) {
   if (moduleHideTimer) clearTimeout(moduleHideTimer);
 
   overlay.style.display = 'flex';
-  void overlay.offsetWidth; // Force reflow
   overlay.classList.add('active');
 
+  // Immediately dismiss without playing visual loading animation delay
   moduleTransitionTimer = setTimeout(() => {
     overlay.classList.remove('active');
-    moduleHideTimer = setTimeout(() => {
-      if (!overlay.classList.contains('active')) {
-        overlay.style.display = 'none';
-      }
-    }, 180);
-  }, 210);
+    overlay.style.display = 'none';
+  }, 20);
 }
 window.triggerModuleLoadingAnimation = triggerModuleLoadingAnimation;
 
@@ -591,12 +583,7 @@ function switchView(viewId, updateHistory = true, skipAnimation = false) {
 
   if (window.sfx) sfx.playClick();
   
-  // Trigger Fast In-Page Module Transition (180ms-250ms) with official NORTH-005 logo
-  const currentActivePanel = document.querySelector('.view-panel.active');
-  const currentViewId = currentActivePanel ? currentActivePanel.id : null;
-  if (!skipAnimation && currentViewId && currentViewId !== viewId) {
-    triggerModuleLoadingAnimation(viewId);
-  }
+  // Open modules directly without visual loading animation overlays
 
   // Update sidebar active classes
   document.querySelectorAll('.sidebar-nav .nav-item').forEach(item => {
@@ -1757,8 +1744,7 @@ window.retryMasterRegistryLoad = async function() {
   if (tbody) {
     tbody.innerHTML = `
       <tr id="registry-loading-row">
-        <td colspan="12" style="text-align: center; padding: 36px 20px;">
-          <div class="spinner" style="margin: 0 auto 10px auto; width: 28px; height: 28px; border: 3px solid rgba(212, 175, 55, 0.2); border-top-color: var(--accent-gold); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+        <td colspan="12" style="text-align: center; padding: 24px 20px;">
           <div style="color: var(--text-muted); font-size: 13px; font-weight: 600;">Synchronizing Master Registry with server...</div>
         </td>
       </tr>

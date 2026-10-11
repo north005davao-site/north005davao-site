@@ -408,7 +408,7 @@
       if (bodyEl) {
         bodyEl.innerHTML = `
           <div style="text-align: center; padding: 30px;">
-            <div style="font-size: 32px; animation: spin 1s linear infinite;">⏳</div>
+            <div style="font-size: 32px;">⏳</div>
             <div style="font-size: 14px; font-weight: 700; color: #fff; margin-top: 10px;">Verifying Cryptographic Checksums & Manifest...</div>
             <div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">Checking SHA-256 hashes against manifest declaration.</div>
           </div>
