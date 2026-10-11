@@ -168,21 +168,60 @@ function writePersistentThermalPaper(payload) {
 
 function readPersistentEmployeeDocuments() {
   try {
-    if (inMemoryDataCache.has(DOCS_FILE)) {
-      const data = inMemoryDataCache.get(DOCS_FILE);
-      return typeof data === 'string' ? JSON.parse(data) : data;
-    }
-    const tmpFile = path.join(TMP_DATA_DIR, 'employee_documents.json');
-    if (fs.existsSync(tmpFile)) {
-      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
-    }
+    let baseDocs = [];
     if (fs.existsSync(DOCS_FILE)) {
-      return JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8'));
+      try {
+        const raw = JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8'));
+        baseDocs = Array.isArray(raw) ? raw : (raw.documents || []);
+      } catch (_) {}
     }
+
+    let dynamic = null;
+    if (inMemoryDataCache.has(DOCS_FILE)) {
+      const cached = inMemoryDataCache.get(DOCS_FILE);
+      dynamic = typeof cached === 'string' ? JSON.parse(cached) : cached;
+    } else {
+      const tmpFile = path.join(TMP_DATA_DIR, 'employee_documents.json');
+      if (fs.existsSync(tmpFile)) {
+        try {
+          dynamic = JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+        } catch (_) {}
+      }
+    }
+
+    if (!dynamic || !Array.isArray(dynamic.documents)) {
+      return { documents: baseDocs, deletedDocIds: [] };
+    }
+
+    // Merge dynamic documents over baseDocs
+    const delSet = new Set((dynamic.deletedDocIds || []).filter(k => typeof k === 'string' && k.startsWith('DOC-') && !k.includes('::') && !k.includes(' ')));
+    const docMap = new Map();
+    baseDocs.forEach(d => {
+      if (d && d.id && !delSet.has(d.id)) {
+        const key = (d.employeeId || '').toUpperCase() + '::' + (d.documentType || 'CBTA').toUpperCase();
+        docMap.set(key, d);
+      }
+    });
+    dynamic.documents.forEach(d => {
+      if (d && d.id && !delSet.has(d.id)) {
+        const key = (d.employeeId || '').toUpperCase() + '::' + (d.documentType || 'CBTA').toUpperCase();
+        docMap.set(key, d);
+      }
+    });
+
+    const activeList = Array.from(docMap.values());
+    if (activeList.length === 0 && baseDocs.length > 0) {
+      return { documents: baseDocs, deletedDocIds: [] };
+    }
+
+    return {
+      documents: activeList,
+      deletedDocIds: Array.from(delSet)
+    };
   } catch (e) {
     console.error('Error reading persistent employee documents:', e);
   }
-  return null;
+  return { documents: [], deletedDocIds: [] };
 }
 
 const UNWANTED_SEEDER_NAMES_SERVER = new Set([
@@ -763,14 +802,32 @@ function requestHandler(req, res) {
 
     // 0c2. API ROUTING: /api/employee-documents (Persistent Cross-Device CRUD for Employee Compliance Documents)
     if (pathname === '/api/employee-documents' && req.method === 'GET') {
+      const restore = parsedUrl.searchParams.get('restore') === 'true';
       let data = readPersistentEmployeeDocuments() || { documents: [], deletedDocIds: [] };
       if (Array.isArray(data)) {
         data = { documents: data, deletedDocIds: [] };
       }
-      const deletedSet = new Set(data.deletedDocIds || []);
-      const activeDocs = (data.documents || []).filter(d => d && d.id && !deletedSet.has(d.id));
+      let deletedSet = new Set((data.deletedDocIds || []).filter(k => typeof k === 'string' && k.startsWith('DOC-') && !k.includes('::') && !k.includes(' ')));
+      let activeDocs = (data.documents || []).filter(d => d && d.id && !deletedSet.has(d.id));
+
+      if (restore || (activeDocs.length === 0 && fs.existsSync(DOCS_FILE))) {
+        try {
+          const raw = JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8'));
+          const baseDocs = Array.isArray(raw) ? raw : (raw.documents || []);
+          if (baseDocs.length > 0) {
+            activeDocs = baseDocs;
+            deletedSet.clear();
+            const healedData = {
+              documents: baseDocs,
+              deletedDocIds: []
+            };
+            writePersistentEmployeeDocuments(healedData);
+          }
+        } catch (_) {}
+      }
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ documents: activeDocs, deletedDocIds: data.deletedDocIds || [] }));
+      res.end(JSON.stringify({ documents: activeDocs, deletedDocIds: Array.from(deletedSet) }));
       return;
     }
 
@@ -782,18 +839,16 @@ function requestHandler(req, res) {
           current = { documents: current, deletedDocIds: [] };
         }
         const incomingDocs = Array.isArray(payload) ? payload : (payload.documents || []);
-        const incomingDeleted = Array.isArray(payload.deletedDocIds) ? payload.deletedDocIds : [];
+        const incomingDeleted = (Array.isArray(payload.deletedDocIds) ? payload.deletedDocIds : [])
+          .filter(k => typeof k === 'string' && k.startsWith('DOC-') && !k.includes('::') && !k.includes(' '));
 
-        // Remove incoming doc IDs from deletedSet so new uploads are never tombstoned
-        const deletedSet = new Set([...(current.deletedDocIds || []), ...incomingDeleted]);
+        // Remove incoming doc IDs from deletedSet so new uploads or re-synced docs are never tombstoned
+        const deletedSet = new Set([
+          ...(current.deletedDocIds || []).filter(k => typeof k === 'string' && k.startsWith('DOC-') && !k.includes('::') && !k.includes(' ')),
+          ...incomingDeleted
+        ]);
         incomingDocs.forEach(d => {
           if (d && d.id) deletedSet.delete(d.id);
-          if (d && d.employeeId) {
-            const docType = (d.documentType || 'CBTA').toUpperCase();
-            const normId = (d.employeeId || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-            deletedSet.delete(normId);
-            deletedSet.delete(normId + '::' + docType);
-          }
         });
 
         // Merge incomingDocs into current.documents by employeeId + documentType or id
@@ -811,7 +866,19 @@ function requestHandler(req, res) {
           }
         });
 
-        const mergedDocs = Array.from(docMap.values());
+        let mergedDocs = Array.from(docMap.values());
+
+        // Self-healing guard: if merge resulted in 0 docs but baseline has records, retain baseline
+        if (mergedDocs.length === 0 && fs.existsSync(DOCS_FILE)) {
+          try {
+            const raw = JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8'));
+            const baseDocs = Array.isArray(raw) ? raw : (raw.documents || []);
+            if (baseDocs.length > 0) {
+              mergedDocs = baseDocs;
+              deletedSet.clear();
+            }
+          } catch (_) {}
+        }
 
         const updatedData = {
           documents: mergedDocs,
@@ -838,6 +905,7 @@ function requestHandler(req, res) {
         }
         data.documents = (data.documents || []).filter(d => d.id !== docId);
         if (!data.deletedDocIds) data.deletedDocIds = [];
+        data.deletedDocIds = data.deletedDocIds.filter(k => typeof k === 'string' && k.startsWith('DOC-') && !k.includes('::') && !k.includes(' '));
         if (!data.deletedDocIds.includes(docId)) {
           data.deletedDocIds.push(docId);
         }

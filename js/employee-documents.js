@@ -210,16 +210,29 @@
       let onlineSuccess = false;
       if (typeof fetch === 'function') {
         try {
-          const res = await fetch('/api/employee-documents');
+          let res = await fetch('/api/employee-documents');
           if (res.ok) {
-            const sData = await res.json();
-            const sDocs = Array.isArray(sData) ? sData : ((sData && Array.isArray(sData.documents)) ? sData.documents : []);
-            const sDeleted = Array.isArray(sData && sData.deletedDocIds) ? sData.deletedDocIds : [];
+            let sData = await res.json();
+            let sDocs = Array.isArray(sData) ? sData : ((sData && Array.isArray(sData.documents)) ? sData.documents : []);
+            let sDeleted = Array.isArray(sData && sData.deletedDocIds) ? sData.deletedDocIds : [];
 
-            // Synchronize server-side tombstones
-            if (sDeleted.length > 0) {
+            // If server returned 0 docs, trigger restore=true self-heal
+            if (sDocs.length === 0) {
+              try {
+                const healRes = await fetch('/api/employee-documents?restore=true');
+                if (healRes.ok) {
+                  sData = await healRes.json();
+                  sDocs = Array.isArray(sData) ? sData : ((sData && Array.isArray(sData.documents)) ? sData.documents : []);
+                  sDeleted = Array.isArray(sData && sData.deletedDocIds) ? sData.deletedDocIds : [];
+                }
+              } catch (_) {}
+            }
+
+            // Synchronize server-side tombstones (strictly DOC-* IDs only)
+            const cleanServerDeleted = sDeleted.filter(k => typeof k === 'string' && k.startsWith('DOC-') && !k.includes('::') && !k.includes(' '));
+            if (cleanServerDeleted.length > 0) {
               const currentDeleted = this.getDeletedDocIds();
-              sDeleted.forEach(id => currentDeleted.add(id));
+              cleanServerDeleted.forEach(id => currentDeleted.add(id));
               try {
                 localStorage.setItem(DELETED_DOCS_KEY, JSON.stringify(Array.from(currentDeleted)));
               } catch (e) {}
@@ -228,9 +241,9 @@
             const validDocs = sDocs.filter(d => d && d.id && !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
             if (validDocs.length > 0) {
               // Server is authoritative source of truth.
-              // Preserve any genuine user-uploaded pending documents not yet on the server.
+              // Preserve genuine user uploads with active files not yet on the server
               const localPending = (this.documents || []).filter(d => 
-                d && (d.isPendingUpload || d.isUserUploaded) && !validDocs.some(v => v.id === d.id || (v.employeeId === d.employeeId && v.documentType === d.documentType))
+                d && (d.isPendingUpload || (d.isUserUploaded && (d.fileDataUrl || d.hasStoredAttachment))) && !validDocs.some(v => v.id === d.id || (v.employeeId === d.employeeId && v.documentType === d.documentType))
               );
               this.documents = this.deduplicateDocuments([...validDocs, ...localPending]);
               await this.saveDocuments();
@@ -479,7 +492,15 @@
         const raw = localStorage.getItem(DELETED_DOCS_KEY);
         if (raw) {
           const arr = JSON.parse(raw);
-          if (Array.isArray(arr)) return new Set(arr);
+          if (Array.isArray(arr)) {
+            const clean = arr.filter(k => typeof k === 'string' && k.startsWith('DOC-') && !k.includes('::') && !k.includes(' '));
+            if (clean.length !== arr.length) {
+              try {
+                localStorage.setItem(DELETED_DOCS_KEY, JSON.stringify(clean));
+              } catch (_) {}
+            }
+            return new Set(clean);
+          }
         }
       } catch (e) {}
       return new Set();
@@ -489,37 +510,17 @@
       try {
         const deletedSet = this.getDeletedDocIds();
         if (docId) deletedSet.delete(docId);
-        const normId = this.normalizeId(empId);
-        const type = (docType || 'CBTA').toUpperCase();
-        if (normId) {
-          deletedSet.delete(normId);
-          deletedSet.delete(normId + '::' + type);
-        }
-        const nameSig = this.cleanNameTokens(empName);
-        if (nameSig) {
-          deletedSet.delete(nameSig);
-          deletedSet.delete(nameSig + '::' + type);
-        }
         localStorage.setItem(DELETED_DOCS_KEY, JSON.stringify(Array.from(deletedSet)));
       } catch (e) {}
     }
 
     recordDeletedDoc(id, doc) {
       const deletedSet = this.getDeletedDocIds();
-      if (id) deletedSet.add(id);
-      if (!doc && id && Array.isArray(this.documents)) {
-        doc = this.documents.find(d => d && d.id === id);
+      if (id && typeof id === 'string' && id.startsWith('DOC-') && !id.includes('::') && !id.includes(' ')) {
+        deletedSet.add(id);
       }
-      if (doc) {
-        if (doc.id) deletedSet.add(doc.id);
-        const normId = this.normalizeId(doc.employeeId);
-        const docType = (doc.documentType || 'CBTA').toUpperCase();
-        if (normId && normId !== 'DDN005SR000') {
-          deletedSet.add(normId + '::' + docType);
-        } else {
-          const nameSig = this.cleanNameTokens(doc.employeeName);
-          if (nameSig) deletedSet.add(nameSig + '::' + docType);
-        }
+      if (doc && doc.id && typeof doc.id === 'string' && doc.id.startsWith('DOC-') && !doc.id.includes('::') && !doc.id.includes(' ')) {
+        deletedSet.add(doc.id);
       }
       try {
         localStorage.setItem(DELETED_DOCS_KEY, JSON.stringify(Array.from(deletedSet)));
@@ -530,19 +531,7 @@
       if (!doc) return true;
       const deletedSet = this.getDeletedDocIds();
       if (deletedSet.size === 0) return false;
-      if (doc.id && deletedSet.has(doc.id)) return true;
-      // Authentic user uploads must NEVER be tombstoned by loose name/ID matching
-      if (doc.isUserUploaded || doc.userUploaded) {
-        return false;
-      }
-      const normId = this.normalizeId(doc.employeeId);
-      const docType = (doc.documentType || 'CBTA').toUpperCase();
-      if (normId && normId !== 'DDN005SR000') {
-        return deletedSet.has(normId + '::' + docType);
-      }
-      const nameSig = this.cleanNameTokens(doc.employeeName);
-      if (nameSig && deletedSet.has(nameSig + '::' + docType)) return true;
-      return false;
+      return !!(doc.id && deletedSet.has(doc.id));
     }
 
     async saveDocuments() {
@@ -666,15 +655,18 @@
       // 1. Synchronize with Authoritative Node/Vercel Server Endpoint (/api/employee-documents)
       if (typeof fetch === 'function') {
         try {
-          // Push current documents to server first
-          await fetch('/api/employee-documents', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              documents: this.documents,
-              deletedDocIds: Array.from(this.getDeletedDocIds())
-            })
-          });
+          // If we have genuine local user uploads, push them to server
+          const localPending = (this.documents || []).filter(d => d && (d.isPendingUpload || (d.isUserUploaded && (d.fileDataUrl || d.hasStoredAttachment))));
+          if (localPending.length > 0) {
+            await fetch('/api/employee-documents', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                documents: this.documents,
+                deletedDocIds: Array.from(this.getDeletedDocIds())
+              })
+            }).catch(() => {});
+          }
 
           // Fetch authoritative latest documents
           const res = await fetch('/api/employee-documents');
@@ -1936,18 +1928,10 @@
         await window.supabaseSync.deleteEmployeeDocument(id, targetDoc ? targetDoc.employeeId : null, targetDoc ? targetDoc.documentType : null);
       }
 
-      // Delete from Server REST API and update server deletedDocIds
+      // Delete from Server REST API
       if (typeof fetch === 'function') {
         try {
           await fetch(`/api/employee-documents?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-          await fetch('/api/employee-documents', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              documents: this.documents,
-              deletedDocIds: Array.from(this.getDeletedDocIds())
-            })
-          });
         } catch (e) { }
       }
 
@@ -2074,20 +2058,12 @@
         }
       }
 
-      // 6. Delete from Server REST API and update server deletedDocIds
+      // 6. Delete from Server REST API
       if (typeof fetch === 'function') {
         try {
           for (const id of idsToDelete) {
             await fetch(`/api/employee-documents?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
           }
-          await fetch('/api/employee-documents', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              documents: this.documents,
-              deletedDocIds: Array.from(this.getDeletedDocIds())
-            })
-          }).catch(() => {});
         } catch (e) {}
       }
 
