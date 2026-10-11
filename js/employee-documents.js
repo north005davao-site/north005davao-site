@@ -206,25 +206,66 @@
       // 1. Asynchronously load & merge from local IndexedDB
       await this.loadFromIndexedDB();
 
-      // 2. Fetch server persistent records and reconcile
+      // 2. Fetch authoritative canonical online records from the server database
+      let onlineSuccess = false;
       if (typeof fetch === 'function') {
         try {
           const res = await fetch('/api/employee-documents');
           if (res.ok) {
             const sData = await res.json();
             const sDocs = Array.isArray(sData) ? sData : ((sData && Array.isArray(sData.documents)) ? sData.documents : []);
+            const sDeleted = Array.isArray(sData && sData.deletedDocIds) ? sData.deletedDocIds : [];
+
+            // Synchronize server-side tombstones
+            if (sDeleted.length > 0) {
+              const currentDeleted = this.getDeletedDocIds();
+              sDeleted.forEach(id => currentDeleted.add(id));
+              try {
+                localStorage.setItem(DELETED_DOCS_KEY, JSON.stringify(Array.from(currentDeleted)));
+              } catch (e) {}
+            }
+
             const validDocs = sDocs.filter(d => d && d.id && !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
             if (validDocs.length > 0) {
-              this.documents = this.deduplicateDocuments([...this.documents, ...validDocs]);
+              // Server is authoritative source of truth.
+              // Preserve any genuine user-uploaded pending documents not yet on the server.
+              const localPending = (this.documents || []).filter(d => 
+                d && (d.isPendingUpload || d.isUserUploaded) && !validDocs.some(v => v.id === d.id || (v.employeeId === d.employeeId && v.documentType === d.documentType))
+              );
+              this.documents = this.deduplicateDocuments([...validDocs, ...localPending]);
+              await this.saveDocuments();
+              this.render();
+            } else if (Array.isArray(sDocs) && sDocs.length === 0 && (!this.documents || this.documents.length === 0)) {
+              this.documents = [];
               await this.saveDocuments();
               this.render();
             }
+            onlineSuccess = true;
           }
         } catch (e) {
           console.warn('[ComplianceDocs] Server init fetch notice:', e);
         }
       }
-      this.updateSyncStatus('synced');
+
+      // 3. Supabase Cloud Database check if available
+      if (window.supabaseSync && typeof window.supabaseSync.fetchEmployeeDocuments === 'function') {
+        try {
+          const cloudDocs = await window.supabaseSync.fetchEmployeeDocuments();
+          if (Array.isArray(cloudDocs) && cloudDocs.length > 0) {
+            const validCloud = cloudDocs.filter(d => !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
+            if (validCloud.length > 0) {
+              this.documents = this.deduplicateDocuments([...this.documents, ...validCloud]);
+              await this.saveDocuments();
+              this.render();
+              onlineSuccess = true;
+            }
+          }
+        } catch (sbErr) {
+          console.warn('[ComplianceDocs] Supabase init check notice:', sbErr);
+        }
+      }
+
+      this.updateSyncStatus(onlineSuccess ? 'synced' : 'local');
 
       if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
         window.addEventListener('master-registry-synced', () => {
@@ -642,7 +683,7 @@
             const sDocs = Array.isArray(sData) ? sData : ((sData && Array.isArray(sData.documents)) ? sData.documents : []);
             const validDocs = sDocs.filter(d => d && d.id && !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
             if (validDocs.length > 0) {
-              this.documents = this.deduplicateDocuments([...this.documents, ...validDocs]);
+              this.documents = this.deduplicateDocuments(validDocs);
               await this.saveDocuments();
               this.render();
             }

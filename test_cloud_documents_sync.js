@@ -149,16 +149,19 @@ phoneModule.syncWithCloud().then(() => {
 
   console.log(`Phone UI State: Total=${totalKPI}, Valid=${validKPI}, Missing=${missingKPI}`);
 
-  if (phoneModule.documents.length !== 1) {
-    console.error(`❌ Expected phone to have 1 synced CBTA document, got ${phoneModule.documents.length}!`);
+  const expectedCount = fileContent.documents && fileContent.documents.length > 0 ? fileContent.documents.length : 1;
+  const expectedMissing = 150 - expectedCount;
+
+  if (phoneModule.documents.length !== expectedCount) {
+    console.error(`❌ Expected phone to have ${expectedCount} synced CBTA documents, got ${phoneModule.documents.length}!`);
     process.exit(1);
   }
-  if (totalKPI !== 1 || validKPI !== 1) {
-    console.error(`❌ Expected Total KPI=1 and Valid KPI=1 on phone, got Total=${totalKPI}, Valid=${validKPI}`);
+  if (totalKPI !== expectedCount || validKPI !== expectedCount) {
+    console.error(`❌ Expected Total KPI=${expectedCount} and Valid KPI=${expectedCount} on phone, got Total=${totalKPI}, Valid=${validKPI}`);
     process.exit(1);
   }
-  if (missingKPI !== 149) {
-    console.error(`❌ Expected Missing KPI to decrement from 150 to 149 on phone, got ${missingKPI}`);
+  if (missingKPI !== expectedMissing) {
+    console.error(`❌ Expected Missing KPI to be ${expectedMissing} on phone, got ${missingKPI}`);
     process.exit(1);
   }
 
@@ -188,8 +191,9 @@ phoneModule.syncWithCloud().then(() => {
   const liveTotalKPI = parseInt(domElements['kpi-docs-total'].textContent, 10);
   console.log(`Phone Live Updated KPIs after PC Realtime upload: Total=${liveTotalKPI}, Missing=${domElements['kpi-docs-missing'].textContent}`);
 
-  if (liveTotalKPI !== 2) {
-    console.error(`❌ Expected live count to increment to 2, got ${liveTotalKPI}!`);
+  const expectedLiveCount = expectedCount + 1;
+  if (liveTotalKPI !== expectedLiveCount) {
+    console.error(`❌ Expected live count to increment to ${expectedLiveCount}, got ${liveTotalKPI}!`);
     process.exit(1);
   }
   console.log('✓ Realtime event processed successfully: Phone updated without page reload!');

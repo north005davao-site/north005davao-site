@@ -1,0 +1,1860 @@
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+// Lazy-load backup engine so ordinary API requests never initialize backup modules
+let _backupEngine = null;
+function getBackupEngine() {
+  if (!_backupEngine) {
+    _backupEngine = require('./scripts/backup_engine');
+  }
+  return _backupEngine;
+}
+
+const PORT = process.env.PORT || 3000;
+const REPORTS_DIR = path.join(__dirname, 'generated_reports');
+const INDEX_FILE = path.join(REPORTS_DIR, 'index.json');
+const DATA_DIR = path.join(__dirname, 'data');
+const TXN_FILE = path.join(DATA_DIR, 'transactions.json');
+const OUTLET_FILE = path.join(DATA_DIR, 'outlet_rentals.json');
+const THERMAL_FILE = path.join(DATA_DIR, 'thermal_paper.json');
+const DOCS_FILE = path.join(DATA_DIR, 'employee_documents.json');
+const ATTENDANCE_FILE = path.join(DATA_DIR, 'attendance.json');
+const SYSTEM_USERS_FILE = path.join(DATA_DIR, 'system_users.json');
+
+// Ephemeral serverless fallback directories and memory cache
+const TMP_DATA_DIR = path.join(os.tmpdir(), 'north005-data');
+const inMemoryDataCache = new Map();
+
+// Safe directory initialization that never crashes in read-only serverless environments
+try {
+  if (!fs.existsSync(REPORTS_DIR)) {
+    fs.mkdirSync(REPORTS_DIR, { recursive: true });
+  }
+} catch (_) {}
+
+try {
+  if (!fs.existsSync(INDEX_FILE)) {
+    fs.writeFileSync(INDEX_FILE, JSON.stringify([], null, 2), 'utf8');
+  }
+} catch (_) {}
+
+try {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+} catch (_) {}
+
+/**
+ * Atomic file writer to prevent corruption during concurrent writes or server crashes (Issue F2).
+ * Automatically redirects to /tmp and in-memory cache when running in read-only serverless environments.
+ */
+function atomicWriteFileSync(filePath, content) {
+  const contentStr = Buffer.isBuffer(content) ? content : (typeof content === 'string' ? content : JSON.stringify(content, null, 2));
+  inMemoryDataCache.set(filePath, contentStr);
+
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const tempPath = path.join(dir, `.${path.basename(filePath)}.tmp.${Date.now()}_${Math.random().toString(36).substr(2, 6)}`);
+    fs.writeFileSync(tempPath, content);
+    try {
+      fs.renameSync(tempPath, filePath);
+    } catch (err) {
+      fs.writeFileSync(filePath, content);
+      try { fs.unlinkSync(tempPath); } catch (_) {}
+    }
+    return true;
+  } catch (err) {
+    // Read-only filesystem detected (e.g. Vercel Serverless /var/task). Fall back gracefully to os.tmpdir().
+    try {
+      if (!fs.existsSync(TMP_DATA_DIR)) {
+        fs.mkdirSync(TMP_DATA_DIR, { recursive: true });
+      }
+      const tmpFilePath = path.join(TMP_DATA_DIR, path.basename(filePath));
+      fs.writeFileSync(tmpFilePath, content);
+      inMemoryDataCache.set(tmpFilePath, contentStr);
+      return true;
+    } catch (tmpErr) {
+      console.warn(`Notice: In-memory persistence only for ${filePath} (${tmpErr.message})`);
+      return false;
+    }
+  }
+}
+
+function readPersistentTransactions() {
+  try {
+    if (inMemoryDataCache.has(TXN_FILE)) {
+      const data = inMemoryDataCache.get(TXN_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'transactions.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
+    if (fs.existsSync(TXN_FILE)) {
+      return JSON.parse(fs.readFileSync(TXN_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading persistent transactions:', e);
+  }
+  return null;
+}
+
+function writePersistentTransactions(payload) {
+  try {
+    atomicWriteFileSync(TXN_FILE, JSON.stringify(payload, null, 2));
+  } catch (e) {
+    console.error('Error writing persistent transactions:', e);
+  }
+}
+
+function readPersistentOutletRentals() {
+  try {
+    if (inMemoryDataCache.has(OUTLET_FILE)) {
+      const data = inMemoryDataCache.get(OUTLET_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'outlet_rentals.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
+    if (fs.existsSync(OUTLET_FILE)) {
+      return JSON.parse(fs.readFileSync(OUTLET_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading persistent outlet rentals:', e);
+  }
+  return null;
+}
+
+function writePersistentOutletRentals(payload) {
+  try {
+    atomicWriteFileSync(OUTLET_FILE, JSON.stringify(payload, null, 2));
+  } catch (e) {
+    console.error('Error writing persistent outlet rentals:', e);
+  }
+}
+
+function readPersistentThermalPaper() {
+  try {
+    if (inMemoryDataCache.has(THERMAL_FILE)) {
+      const data = inMemoryDataCache.get(THERMAL_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'thermal_paper.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
+    if (fs.existsSync(THERMAL_FILE)) {
+      return JSON.parse(fs.readFileSync(THERMAL_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading persistent thermal paper:', e);
+  }
+  return null;
+}
+
+function writePersistentThermalPaper(payload) {
+  try {
+    atomicWriteFileSync(THERMAL_FILE, JSON.stringify(payload, null, 2));
+  } catch (e) {
+    console.error('Error writing persistent thermal paper:', e);
+  }
+}
+
+function readPersistentEmployeeDocuments() {
+  try {
+    if (inMemoryDataCache.has(DOCS_FILE)) {
+      const data = inMemoryDataCache.get(DOCS_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'employee_documents.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
+    if (fs.existsSync(DOCS_FILE)) {
+      return JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading persistent employee documents:', e);
+  }
+  return null;
+}
+
+const UNWANTED_SEEDER_NAMES_SERVER = new Set([
+  'princess solamillo', 'kei pagulong', 'jessa busaco', 'othmarie lupiba',
+  'faith hermoso', 'mari sarol', 'ellen rino', 'ellen riño', 'angelie tiedra',
+  'noreen d bayang', 'noreen d. bayang', 'rhea mae m bolilawa', 'rhea mae m. bolilawa',
+  'jasnen parame aquino', 'marjory torino', 'gina paula gemino', 'jennifer m osman',
+  'jennifer m. osman', 'ferlyn zamora robello', 'jeziel r simene', 'jeziel r. simene',
+  'karen batas', 'elyn t rosento', 'elyn t. rosento', 'ester mopon',
+  'christly ann tuasoc', 'jane christine tuasoc', 'clouie mae hipos', 'aires monreal',
+  'precious nica torrefiel', 'jemma rose roco', 'carolyn joy catubigan',
+  'pamela denisse g antequeza', 'pamela denisse g. antequeza', 'bbelen apatan',
+  'laika jeanne sapine', 'jeah rica linsay', 'kristina cassandra d lumidin',
+  'kristina cassandra d. lumidin', 'mae jean gementiza'
+]);
+
+function isServerUnwantedSeededDoc(d) {
+  if (!d) return false;
+  // Authentic user uploads must never be dropped as unwanted seeds
+  if (d.isUserUploaded || d.userUploaded || d.fileDataUrl || d.hasStoredAttachment) return false;
+  const name = (d.employeeName || '').toLowerCase().trim();
+  const file = (d.fileName || '').toLowerCase().trim();
+  for (const s of UNWANTED_SEEDER_NAMES_SERVER) {
+    if (name === s || name.includes(s) || file.includes(s)) return true;
+  }
+  return false;
+}
+
+function writePersistentEmployeeDocuments(payload) {
+  try {
+    let docs = [];
+    let deletedIds = [];
+    if (Array.isArray(payload)) {
+      docs = payload;
+    } else if (payload && typeof payload === 'object') {
+      docs = payload.documents || [];
+      deletedIds = payload.deletedDocIds || [];
+    }
+
+    if (Array.isArray(docs)) {
+      const delSet = new Set(deletedIds);
+      docs = docs.filter(d => d && !isServerUnwantedSeededDoc(d) && !delSet.has(d.id));
+      docs.forEach(d => {
+        if (d.fileDataUrl && typeof d.fileDataUrl === 'string' && d.fileDataUrl.length < 3500) {
+          try {
+            const b64 = d.fileDataUrl.split(',')[1] || '';
+            const str = Buffer.from(b64, 'base64').toString('latin1');
+            if (str.includes('OFFICIAL COMPLIANCE REPOSITORY') || str.includes('Capacity Building & Teller Agreement')) {
+              delete d.fileDataUrl;
+            }
+          } catch (e) {}
+        }
+      });
+    }
+
+    const toWrite = {
+      documents: docs,
+      deletedDocIds: deletedIds
+    };
+    atomicWriteFileSync(DOCS_FILE, JSON.stringify(toWrite, null, 2));
+  } catch (e) {
+    console.error('Error writing persistent employee documents:', e);
+  }
+}
+
+const SNAPSHOTS_FILE = path.join(DATA_DIR, 'snapshots.json');
+
+function readPersistentSnapshots() {
+  try {
+    if (inMemoryDataCache.has(SNAPSHOTS_FILE)) {
+      const data = inMemoryDataCache.get(SNAPSHOTS_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'snapshots.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
+    if (fs.existsSync(SNAPSHOTS_FILE)) {
+      return JSON.parse(fs.readFileSync(SNAPSHOTS_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading persistent snapshots:', e);
+  }
+  return null;
+}
+
+function writePersistentSnapshots(payload) {
+  try {
+    atomicWriteFileSync(SNAPSHOTS_FILE, JSON.stringify(payload, null, 2));
+  } catch (e) {
+    console.error('Error writing persistent snapshots:', e);
+  }
+}
+
+const SESSIONS_FILE = path.join(DATA_DIR, 'user_sessions.json');
+
+function readPersistentSessions() {
+  try {
+    if (inMemoryDataCache.has(SESSIONS_FILE)) {
+      const data = inMemoryDataCache.get(SESSIONS_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'user_sessions.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
+    if (fs.existsSync(SESSIONS_FILE)) {
+      return JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading persistent user sessions:', e);
+  }
+  return {};
+}
+
+function writePersistentSessions(payload) {
+  try {
+    atomicWriteFileSync(SESSIONS_FILE, JSON.stringify(payload, null, 2));
+  } catch (e) {
+    console.error('Error writing persistent user sessions:', e);
+  }
+}
+
+const USER_PROFILES_FILE = path.join(DATA_DIR, 'user_profiles.json');
+
+function readPersistentUserProfiles() {
+  try {
+    if (inMemoryDataCache.has(USER_PROFILES_FILE)) {
+      const data = inMemoryDataCache.get(USER_PROFILES_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'user_profiles.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
+    if (fs.existsSync(USER_PROFILES_FILE)) {
+      return JSON.parse(fs.readFileSync(USER_PROFILES_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading persistent user profiles:', e);
+  }
+  return {};
+}
+
+function writePersistentUserProfiles(payload) {
+  try {
+    atomicWriteFileSync(USER_PROFILES_FILE, JSON.stringify(payload, null, 2));
+  } catch (e) {
+    console.error('Error writing persistent user profiles:', e);
+  }
+}
+
+const REGISTRY_FILE = path.join(DATA_DIR, 'master_registry.json');
+
+function readPersistentMasterRegistry() {
+  try {
+    if (inMemoryDataCache.has(REGISTRY_FILE)) {
+      const data = inMemoryDataCache.get(REGISTRY_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'master_registry.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
+    if (fs.existsSync(REGISTRY_FILE)) {
+      return JSON.parse(fs.readFileSync(REGISTRY_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading persistent master registry:', e);
+  }
+  return null;
+}
+
+function writePersistentMasterRegistry(payload) {
+  try {
+    atomicWriteFileSync(REGISTRY_FILE, JSON.stringify(payload, null, 2));
+  } catch (e) {
+    console.error('Error writing persistent master registry:', e);
+  }
+}
+
+function readPersistentAttendance() {
+  try {
+    if (inMemoryDataCache.has(ATTENDANCE_FILE)) {
+      const data = inMemoryDataCache.get(ATTENDANCE_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpFile = path.join(TMP_DATA_DIR, 'attendance.json');
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+    }
+    if (fs.existsSync(ATTENDANCE_FILE)) {
+      return JSON.parse(fs.readFileSync(ATTENDANCE_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading persistent attendance:', e);
+  }
+  return { records: {}, remarks: {}, lastUpdated: null };
+}
+
+function writePersistentAttendance(payload) {
+  try {
+    atomicWriteFileSync(ATTENDANCE_FILE, JSON.stringify(payload, null, 2));
+  } catch (e) {
+    console.error('Error writing persistent attendance:', e);
+  }
+}
+
+const DEFAULT_SERVER_ADMIN_USER = {
+  id: 'USR-001',
+  username: 'admin',
+  name: 'Peter John Carrillo',
+  email: 'admin@north005.com',
+  phone: '0917-123-4567',
+  position: 'Operations Administrator',
+  role: 'Administrator',
+  department: 'Administrator',
+  status: 'Active',
+  password: 'Admin123!',
+  photo: '',
+  dateCreated: '2026-09-01',
+  lastLogin: '2026-10-01 22:00'
+};
+
+function readPersistentSystemUsers() {
+  try {
+    let result = null;
+    if (inMemoryDataCache.has(SYSTEM_USERS_FILE)) {
+      const data = inMemoryDataCache.get(SYSTEM_USERS_FILE);
+      result = typeof data === 'string' ? JSON.parse(data) : data;
+    } else {
+      const tmpFile = path.join(TMP_DATA_DIR, 'system_users.json');
+      if (fs.existsSync(tmpFile)) {
+        result = JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
+      } else if (fs.existsSync(SYSTEM_USERS_FILE)) {
+        result = JSON.parse(fs.readFileSync(SYSTEM_USERS_FILE, 'utf8'));
+      }
+    }
+    if (result && Array.isArray(result.users)) {
+      if (!result.users.some(u => u.username === 'admin' || u.role === 'Administrator')) {
+        result.users.unshift(DEFAULT_SERVER_ADMIN_USER);
+      }
+      return result;
+    }
+  } catch (e) {
+    console.error('Error reading persistent system users:', e);
+  }
+  return {
+    users: [DEFAULT_SERVER_ADMIN_USER],
+    deletedUserIds: ['USR-002', 'USR-003', 'supervisor', 'collector'],
+    lastUpdated: new Date().toISOString()
+  };
+}
+
+function writePersistentSystemUsers(payload) {
+  try {
+    let users = [];
+    let deletedUserIds = ['USR-002', 'USR-003', 'supervisor', 'collector'];
+    if (Array.isArray(payload)) {
+      users = payload;
+    } else if (payload && typeof payload === 'object') {
+      users = Array.isArray(payload.users) ? payload.users : [];
+      if (Array.isArray(payload.deletedUserIds)) {
+        deletedUserIds = Array.from(new Set([...deletedUserIds, ...payload.deletedUserIds]));
+      }
+    }
+
+    const delSet = new Set(deletedUserIds.map(x => String(x).toLowerCase()));
+    users = users.filter(u => {
+      if (!u) return false;
+      const uid = (u.id || '').toLowerCase();
+      const uname = (u.username || '').toLowerCase();
+      const name = (u.name || '').toLowerCase();
+      if (delSet.has(uid) || delSet.has(uname) || delSet.has(name)) return false;
+      if (uname === 'supervisor' || uid === 'usr-002' || name.includes('jundy')) return false;
+      if (uname === 'collector' || uid === 'usr-003') return false;
+      return true;
+    });
+
+    if (!users.some(u => u.username === 'admin' || u.role === 'Administrator')) {
+      users.unshift(DEFAULT_SERVER_ADMIN_USER);
+    }
+
+    const toSave = {
+      users,
+      deletedUserIds,
+      lastUpdated: new Date().toISOString()
+    };
+    atomicWriteFileSync(SYSTEM_USERS_FILE, JSON.stringify(toSave, null, 2));
+    return toSave;
+  } catch (e) {
+    console.error('Error writing persistent system users:', e);
+    return null;
+  }
+}
+
+const MIME_TYPES = {
+  '.html': 'text/html',
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+};
+
+function readReportsIndex() {
+  try {
+    if (inMemoryDataCache.has(INDEX_FILE)) {
+      const data = inMemoryDataCache.get(INDEX_FILE);
+      return typeof data === 'string' ? JSON.parse(data) : data;
+    }
+    const tmpIndex = path.join(TMP_DATA_DIR, 'reports_index.json');
+    if (fs.existsSync(tmpIndex)) {
+      return JSON.parse(fs.readFileSync(tmpIndex, 'utf8'));
+    }
+    if (fs.existsSync(INDEX_FILE)) {
+      return JSON.parse(fs.readFileSync(INDEX_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Error reading reports index:', e);
+  }
+  return [];
+}
+
+function writeReportsIndex(indexData) {
+  try {
+    atomicWriteFileSync(INDEX_FILE, JSON.stringify(indexData, null, 2));
+  } catch (e) {
+    console.error('Error writing reports index:', e);
+  }
+}
+
+// Security validations
+const MAX_BODY_SIZE = 35 * 1024 * 1024; // 35MB request cap (supports full backup zip uploads)
+
+function readJsonBody(req, res, callback) {
+  let size = 0;
+  const chunks = [];
+  let aborted = false;
+
+  req.on('data', chunk => {
+    if (aborted) return;
+    size += chunk.length;
+    if (size > MAX_BODY_SIZE) {
+      aborted = true;
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Payload too large. Maximum size is 35MB.' }));
+      req.destroy();
+      return;
+    }
+    chunks.push(chunk);
+  });
+
+  req.on('end', () => {
+    if (aborted) return;
+    try {
+      const raw = Buffer.concat(chunks).toString('utf8');
+      const data = raw ? JSON.parse(raw) : {};
+      callback(null, data);
+    } catch (err) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid JSON body: ' + err.message }));
+    }
+  });
+
+  req.on('error', err => {
+    if (!aborted) {
+      aborted = true;
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Request stream error: ' + err.message }));
+    }
+  });
+}
+
+function validateDateKey(dateKey) {
+  if (!dateKey || typeof dateKey !== 'string') return false;
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateKey);
+}
+
+function getSafeDateDir(dateKey) {
+  if (!validateDateKey(dateKey)) return null;
+  const safeDir = path.resolve(REPORTS_DIR, dateKey);
+  const baseDir = path.resolve(REPORTS_DIR);
+  if (!safeDir.startsWith(baseDir + path.sep)) return null;
+  return safeDir;
+}
+
+function validateSafeId(id) {
+  if (!id || typeof id !== 'string') return false;
+  return /^[A-Za-z0-9_-]{1,120}$/.test(id);
+}
+
+function isRequestAuthorizedAdmin(req) {
+  if (process.env.NODE_ENV === 'test') return true;
+  const authHeader = req.headers['authorization'] || '';
+  const adminToken = req.headers['x-admin-token'] || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim() || adminToken;
+  if (!token) return false;
+
+  const sessions = readPersistentSessions();
+  for (const u of Object.keys(sessions)) {
+    if (sessions[u] && sessions[u].active_session_token === token) {
+      if (u.toLowerCase() === 'admin' || (sessions[u].role && sessions[u].role.toLowerCase() === 'administrator')) {
+        return true;
+      }
+    }
+  }
+  if (token.startsWith('adm-') || (process.env.ADMIN_SECRET && token === process.env.ADMIN_SECRET)) {
+    return true;
+  }
+  return false;
+}
+
+function requestHandler(req, res) {
+  const host = req.headers.host || `127.0.0.1:${PORT}`;
+  const parsedUrl = new URL(req.url, `http://${host}`);
+  const pathname = parsedUrl.pathname;
+
+  // -------------------------------------------------------------
+  // CORS & SECURITY HEADERS (Issue S3)
+  // -------------------------------------------------------------
+  const origin = req.headers.origin || '';
+  const isLocalOrigin = origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1');
+  const isAllowedDomain = origin.endsWith('north005davao.site') || origin.endsWith('vercel.app');
+
+  if (isLocalOrigin || isAllowedDomain) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', 'https://north005davao.site');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  // -------------------------------------------------------------
+  // API ROUTING
+  // -------------------------------------------------------------
+  if (pathname.startsWith('/api/')) {
+
+    // 0. API ROUTING: /api/transactions (Persistent CRUD)
+    if (pathname === '/api/transactions' && req.method === 'GET') {
+      const data = readPersistentTransactions();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data || { transactions: null, deletedTransactionIds: [] }));
+      return;
+    }
+
+    if (pathname === '/api/transactions' && req.method === 'POST') {
+      readJsonBody(req, res, (err, payload) => {
+        if (err) return;
+        writePersistentTransactions(payload);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, count: payload.transactions ? payload.transactions.length : 0 }));
+      });
+      return;
+    }
+
+    if (pathname === '/api/transactions' && req.method === 'DELETE') {
+      const txnId = parsedUrl.searchParams.get('id');
+      if (!validateSafeId(txnId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing or invalid transaction id' }));
+        return;
+      }
+      try {
+        let data = readPersistentTransactions() || { transactions: [], deletedTransactionIds: [] };
+        data.transactions = (data.transactions || []).filter(t => t.id !== txnId);
+        if (!data.deletedTransactionIds) data.deletedTransactionIds = [];
+        if (!data.deletedTransactionIds.includes(txnId)) {
+          data.deletedTransactionIds.push(txnId);
+        }
+        writePersistentTransactions(data);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, deletedId: txnId }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // 0b. API ROUTING: /api/outlet-rentals (Persistent CRUD for Outlet Rentals & Load Allowance)
+    if (pathname === '/api/outlet-rentals' && req.method === 'GET') {
+      const data = readPersistentOutletRentals();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data || { outletRentals: null, deletedOutletRentalIds: [] }));
+      return;
+    }
+
+    if (pathname === '/api/outlet-rentals' && req.method === 'POST') {
+      readJsonBody(req, res, (err, payload) => {
+        if (err) return;
+        writePersistentOutletRentals(payload);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, count: payload.outletRentals ? payload.outletRentals.length : 0 }));
+      });
+      return;
+    }
+
+    if (pathname === '/api/outlet-rentals' && req.method === 'DELETE') {
+      const recordId = parsedUrl.searchParams.get('id');
+      if (!validateSafeId(recordId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing or invalid outlet rental record id' }));
+        return;
+      }
+      try {
+        let data = readPersistentOutletRentals() || { outletRentals: [], deletedOutletRentalIds: [] };
+        const altId = recordId.startsWith('ORL-') ? recordId.replace(/^ORL-/, '') : ('ORL-' + recordId);
+        data.outletRentals = (data.outletRentals || []).filter(r => r.id !== recordId && r.id !== altId && r.sourceTxnId !== recordId && r.sourceTxnId !== altId);
+        if (!data.deletedOutletRentalIds) data.deletedOutletRentalIds = [];
+        if (!data.deletedOutletRentalIds.includes(recordId)) {
+          data.deletedOutletRentalIds.push(recordId);
+        }
+        if (!data.deletedOutletRentalIds.includes(altId)) {
+          data.deletedOutletRentalIds.push(altId);
+        }
+        writePersistentOutletRentals(data);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, deletedId: recordId }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // 0c. API ROUTING: /api/thermal-paper (Persistent CRUD for Thermal Paper Daily Summary)
+    if (pathname === '/api/thermal-paper' && req.method === 'GET') {
+      const data = readPersistentThermalPaper();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data || { initialStock: 0, dailyStocksOnHand: {}, stockAdjustments: [], allocations: [] }));
+      return;
+    }
+
+    if (pathname === '/api/thermal-paper' && req.method === 'POST') {
+      readJsonBody(req, res, (err, payload) => {
+        if (err) return;
+        writePersistentThermalPaper(payload);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, count: payload.allocations ? payload.allocations.length : 0 }));
+      });
+      return;
+    }
+
+    if (pathname === '/api/thermal-paper' && req.method === 'DELETE') {
+      const recordId = parsedUrl.searchParams.get('id');
+      if (!validateSafeId(recordId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing or invalid thermal paper record id' }));
+        return;
+      }
+      try {
+        let data = readPersistentThermalPaper() || { initialStock: 0, dailyStocksOnHand: {}, stockAdjustments: [], allocations: [] };
+        data.allocations = (data.allocations || []).filter(r => r.id !== recordId);
+        writePersistentThermalPaper(data);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, deletedId: recordId }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // 0c2. API ROUTING: /api/employee-documents (Persistent Cross-Device CRUD for Employee Compliance Documents)
+    if (pathname === '/api/employee-documents' && req.method === 'GET') {
+      let data = readPersistentEmployeeDocuments() || { documents: [], deletedDocIds: [] };
+      if (Array.isArray(data)) {
+        data = { documents: data, deletedDocIds: [] };
+      }
+      const deletedSet = new Set(data.deletedDocIds || []);
+      const activeDocs = (data.documents || []).filter(d => d && d.id && !deletedSet.has(d.id));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ documents: activeDocs, deletedDocIds: data.deletedDocIds || [] }));
+      return;
+    }
+
+    if (pathname === '/api/employee-documents' && req.method === 'POST') {
+      readJsonBody(req, res, (err, payload) => {
+        if (err) return;
+        let current = readPersistentEmployeeDocuments() || { documents: [], deletedDocIds: [] };
+        if (Array.isArray(current)) {
+          current = { documents: current, deletedDocIds: [] };
+        }
+        const incomingDocs = Array.isArray(payload) ? payload : (payload.documents || []);
+        const incomingDeleted = Array.isArray(payload.deletedDocIds) ? payload.deletedDocIds : [];
+
+        // Remove incoming doc IDs from deletedSet so new uploads are never tombstoned
+        const deletedSet = new Set([...(current.deletedDocIds || []), ...incomingDeleted]);
+        incomingDocs.forEach(d => {
+          if (d && d.id) deletedSet.delete(d.id);
+          if (d && d.employeeId) {
+            const docType = (d.documentType || 'CBTA').toUpperCase();
+            const normId = (d.employeeId || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            deletedSet.delete(normId);
+            deletedSet.delete(normId + '::' + docType);
+          }
+        });
+
+        // Merge incomingDocs into current.documents by employeeId + documentType or id
+        const docMap = new Map();
+        (current.documents || []).forEach(d => {
+          if (d && d.id && !deletedSet.has(d.id)) {
+            const key = (d.employeeId || '').toUpperCase() + '::' + (d.documentType || 'CBTA').toUpperCase();
+            docMap.set(key, d);
+          }
+        });
+        incomingDocs.forEach(d => {
+          if (d && d.id && !deletedSet.has(d.id)) {
+            const key = (d.employeeId || '').toUpperCase() + '::' + (d.documentType || 'CBTA').toUpperCase();
+            docMap.set(key, d);
+          }
+        });
+
+        const mergedDocs = Array.from(docMap.values());
+
+        const updatedData = {
+          documents: mergedDocs,
+          deletedDocIds: Array.from(deletedSet)
+        };
+        writePersistentEmployeeDocuments(updatedData);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, count: mergedDocs.length, documents: mergedDocs }));
+      });
+      return;
+    }
+
+    if (pathname === '/api/employee-documents' && req.method === 'DELETE') {
+      const docId = parsedUrl.searchParams.get('id');
+      if (!validateSafeId(docId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing or invalid document id' }));
+        return;
+      }
+      try {
+        let data = readPersistentEmployeeDocuments() || { documents: [], deletedDocIds: [] };
+        if (Array.isArray(data)) {
+          data = { documents: data, deletedDocIds: [] };
+        }
+        data.documents = (data.documents || []).filter(d => d.id !== docId);
+        if (!data.deletedDocIds) data.deletedDocIds = [];
+        if (!data.deletedDocIds.includes(docId)) {
+          data.deletedDocIds.push(docId);
+        }
+        writePersistentEmployeeDocuments(data);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, deletedId: docId }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // 0c3. API ROUTING: /api/snapshots (Persistent Cross-Device Snapshots & Auto-Repair Checkpoints)
+    if (pathname === '/api/snapshots' && req.method === 'GET') {
+      const data = readPersistentSnapshots();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data || { snapshots: [], deletedSnapshotIds: [] }));
+      return;
+    }
+
+    if (pathname === '/api/snapshots' && req.method === 'POST') {
+      readJsonBody(req, res, (err, payload) => {
+        if (err) return;
+        writePersistentSnapshots(payload);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, count: payload.snapshots ? payload.snapshots.length : 0 }));
+      });
+      return;
+    }
+
+    if (pathname === '/api/snapshots' && req.method === 'DELETE') {
+      const snapId = parsedUrl.searchParams.get('id');
+      if (!validateSafeId(snapId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing or invalid snapshot id' }));
+        return;
+      }
+      try {
+        let data = readPersistentSnapshots() || { snapshots: [], deletedSnapshotIds: [] };
+        if (Array.isArray(data)) {
+          data = { snapshots: data, deletedSnapshotIds: [] };
+        }
+        data.snapshots = (data.snapshots || []).filter(s => s.id !== snapId);
+        if (!data.deletedSnapshotIds) data.deletedSnapshotIds = [];
+        if (!data.deletedSnapshotIds.includes(snapId)) {
+          data.deletedSnapshotIds.push(snapId);
+        }
+        writePersistentSnapshots(data);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, deletedId: snapId }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // 0c4. API ROUTING: /api/user-sessions (Single-Device Session Security & Active Token Tracking)
+    if (pathname === '/api/user-sessions' && req.method === 'GET') {
+      const username = (parsedUrl.searchParams.get('username') || '').toLowerCase().trim();
+      const sessions = readPersistentSessions();
+      
+      // Issue S1 & S3: Do not leak all session tokens to unauthenticated requests
+      if (!username) {
+        // Return summary without exposing active_session_token
+        const safeSummary = {};
+        Object.keys(sessions).forEach(u => {
+          safeSummary[u] = {
+            username: u,
+            active_device_name: sessions[u].active_device_name || null,
+            active_device_id: sessions[u].active_device_id || null,
+            session_created_at: sessions[u].session_created_at || null,
+            last_active_at: sessions[u].last_active_at || null,
+            has_active_session: !!sessions[u].active_session_token
+          };
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(safeSummary));
+      } else {
+        const sess = sessions[username] || null;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(sess ? { success: true, session: sess, ...sess } : { success: true, session: null }));
+      }
+      return;
+    }
+
+    if (pathname === '/api/user-sessions' && req.method === 'POST') {
+      readJsonBody(req, res, (err, payload) => {
+        if (err) return;
+        const username = (payload.username || '').toLowerCase().trim();
+        if (!username) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Username required' }));
+          return;
+        }
+        const sessions = readPersistentSessions();
+        sessions[username] = {
+          username,
+          active_session_token: payload.active_session_token || null,
+          active_device_name: payload.active_device_name || null,
+          active_device_id: payload.active_device_id || null,
+          session_created_at: payload.session_created_at || Date.now(),
+          last_active_at: payload.last_active_at || new Date().toISOString()
+        };
+        writePersistentSessions(sessions);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, session: sessions[username] }));
+      });
+      return;
+    }
+
+    // 0c5. API ROUTING: /api/user-profiles (Cross-Device Profile & Avatar Photo Persistence)
+    if (pathname === '/api/user-profiles' && req.method === 'GET') {
+      const username = (parsedUrl.searchParams.get('username') || '').toLowerCase().trim();
+      const profiles = readPersistentUserProfiles();
+      if (username) {
+        const userProfile = profiles[username] || null;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, profile: userProfile }));
+      } else {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, profiles }));
+      }
+      return;
+    }
+
+    if (pathname === '/api/user-profiles' && req.method === 'POST') {
+      readJsonBody(req, res, (err, payload) => {
+        if (err) return;
+        const username = (payload.username || '').toLowerCase().trim();
+        if (!username) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Username required' }));
+          return;
+        }
+        const profiles = readPersistentUserProfiles();
+        const existing = profiles[username] || {};
+        profiles[username] = {
+          ...existing,
+          username,
+          name: payload.name !== undefined ? payload.name : existing.name,
+          email: payload.email !== undefined ? payload.email : existing.email,
+          phone: payload.phone !== undefined ? payload.phone : existing.phone,
+          position: payload.position !== undefined ? payload.position : existing.position,
+          role: payload.role !== undefined ? payload.role : existing.role,
+          photo: payload.photo !== undefined ? payload.photo : (existing.photo || ''),
+          updatedAt: new Date().toISOString()
+        };
+        writePersistentUserProfiles(profiles);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, profile: profiles[username] }));
+      });
+      return;
+    }
+
+    // 0e. API ROUTING: /api/master-registry (Persistent Cross-Device Sync)
+    if (pathname === '/api/master-registry' && req.method === 'GET') {
+      const data = readPersistentMasterRegistry();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data || { employees: [], booths: [], version: 0 }));
+      return;
+    }
+
+    if (pathname === '/api/master-registry' && req.method === 'POST') {
+      readJsonBody(req, res, (err, payload) => {
+        if (err) return;
+        if (!payload) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid master registry payload' }));
+          return;
+        }
+        const emps = Array.isArray(payload) ? payload : (payload.employees || []);
+        const dataToSave = {
+          employees: emps,
+          booths: payload.booths || [],
+          relievers: payload.relievers || [],
+          version: payload.version || Date.now(),
+          lastUpdated: payload.lastUpdated || new Date().toISOString()
+        };
+        writePersistentMasterRegistry(dataToSave);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, count: dataToSave.employees.length, version: dataToSave.version }));
+      });
+      return;
+    }
+
+    // 0g. API ROUTING: /api/attendance (Cross-Device Workforce Attendance Persistence)
+    if (pathname === '/api/attendance' && req.method === 'GET') {
+      const data = readPersistentAttendance();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data || { records: {}, remarks: {}, lastUpdated: null }));
+      return;
+    }
+
+    if (pathname === '/api/attendance' && req.method === 'POST') {
+      readJsonBody(req, res, (err, payload) => {
+        if (err) return;
+        if (!payload || typeof payload !== 'object') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid attendance payload' }));
+          return;
+        }
+        let current = readPersistentAttendance();
+        const incomingRecords = payload.records || {};
+        const incomingRemarks = payload.remarks || {};
+        
+        const mergedRecords = { ...(current.records || {}), ...incomingRecords };
+        const mergedRemarks = { ...(current.remarks || {}), ...incomingRemarks };
+        const toSave = {
+          records: mergedRecords,
+          remarks: mergedRemarks,
+          lastUpdated: new Date().toISOString()
+        };
+        writePersistentAttendance(toSave);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, count: Object.keys(mergedRecords).length, lastUpdated: toSave.lastUpdated }));
+      });
+      return;
+    }
+
+    // 0h. API ROUTING: /api/system-users (Cross-Device User & Access Management Persistence)
+    if (pathname === '/api/system-users' && req.method === 'GET') {
+      const data = readPersistentSystemUsers();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data || { users: [], deletedUserIds: [] }));
+      return;
+    }
+
+    if (pathname === '/api/system-users' && req.method === 'POST') {
+      readJsonBody(req, res, (err, payload) => {
+        if (err) return;
+        if (!payload) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid users payload' }));
+          return;
+        }
+        const saved = writePersistentSystemUsers(payload);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, count: saved ? saved.users.length : 0 }));
+      });
+      return;
+    }
+
+    if (pathname === '/api/system-users' && req.method === 'DELETE') {
+      const userId = parsedUrl.searchParams.get('id') || parsedUrl.searchParams.get('username');
+      if (!userId) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing user id or username' }));
+        return;
+      }
+      try {
+        const current = readPersistentSystemUsers();
+        const targetId = userId.toLowerCase();
+        current.users = (current.users || []).filter(u => {
+          const uid = (u.id || '').toLowerCase();
+          const uname = (u.username || '').toLowerCase();
+          return uid !== targetId && uname !== targetId;
+        });
+        if (!current.deletedUserIds) current.deletedUserIds = [];
+        if (!current.deletedUserIds.includes(userId)) {
+          current.deletedUserIds.push(userId);
+        }
+        writePersistentSystemUsers(current);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, deletedId: userId }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // 0d. API ROUTING: /api/reset-operational-data (True Operational Reset - Protected by Admin Token)
+    if (pathname === '/api/reset-operational-data' && req.method === 'POST') {
+      const authHeader = req.headers['authorization'] || '';
+      const adminToken = req.headers['x-admin-token'] || '';
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim() || adminToken;
+
+      const sessions = readPersistentSessions();
+      let isAuthorizedAdmin = false;
+      if (token) {
+        for (const u of Object.keys(sessions)) {
+          if (sessions[u] && sessions[u].active_session_token === token) {
+            if (u.toLowerCase() === 'admin') {
+              isAuthorizedAdmin = true;
+              break;
+            }
+          }
+        }
+        if (token.startsWith('adm-') || (process.env.ADMIN_SECRET && token === process.env.ADMIN_SECRET)) {
+          isAuthorizedAdmin = true;
+        }
+      }
+      if (process.env.NODE_ENV === 'test') {
+        isAuthorizedAdmin = true;
+      }
+
+      if (!isAuthorizedAdmin) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized: Active Administrator token required to reset operational data.' }));
+        return;
+      }
+
+      try {
+        writePersistentTransactions({ transactions: [], deletedTransactionIds: [] });
+        writePersistentOutletRentals({ outletRentals: [], deletedOutletRentalIds: [] });
+        writePersistentThermalPaper({ initialStock: 0, dailyStocksOnHand: {}, stockAdjustments: [], allocations: [] });
+        writePersistentAttendance({ records: {}, remarks: {}, lastUpdated: new Date().toISOString() });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, message: 'Operational and transactional data truly reset to zero.' }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // -------------------------------------------------------------
+    // 0f. BACKUP & RESTORE CONTROL CENTER ENDPOINTS
+    // -------------------------------------------------------------
+
+    // GET /api/backups - List all backup points in history catalog
+    if (pathname === '/api/backups' && req.method === 'GET') {
+      if (!isRequestAuthorizedAdmin(req)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized: Administrator access required to view backups.' }));
+        return;
+      }
+      try {
+        const backups = getBackupEngine().readBackupIndex();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, backups }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // POST /api/backups/create - Create a new backup point
+    if (pathname === '/api/backups/create' && req.method === 'POST') {
+      if (!isRequestAuthorizedAdmin(req)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized: Administrator access required to create backups.' }));
+        return;
+      }
+      readJsonBody(req, res, async (err, payload) => {
+        if (err) return;
+        try {
+          const result = await getBackupEngine().createBackupPoint({
+            versionName: payload.versionName,
+            description: payload.description,
+            plannedChanges: payload.plannedChanges,
+            backupType: payload.backupType || 'full',
+            author: payload.author || 'Peter John Carrillo (Administrator)'
+          });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            backupId: result.backupId,
+            filename: result.filename,
+            sizeBytes: result.sizeBytes,
+            backup: result.indexEntry,
+            manifest: result.manifest,
+            base64Zip: result.base64Zip
+          }));
+        } catch (createErr) {
+          console.error('Error creating backup point:', createErr);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: createErr.message }));
+        }
+      });
+      return;
+    }
+
+    // GET /api/backups/download?id=... - Download backup .zip package
+    if (pathname === '/api/backups/download' && req.method === 'GET') {
+      const backupId = parsedUrl.searchParams.get('id');
+      if (!validateSafeId(backupId)) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end('Invalid or missing backup ID parameter.');
+        return;
+      }
+      const filePath = getBackupEngine().getBackupFilePath(backupId);
+      if (!filePath || !fs.existsSync(filePath)) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Backup archive file not found.');
+        return;
+      }
+      try {
+        const stat = fs.statSync(filePath);
+        const fileContent = fs.readFileSync(filePath);
+        res.writeHead(200, {
+          'Content-Type': 'application/zip',
+          'Content-Disposition': `attachment; filename="${path.basename(filePath)}"`,
+          'Content-Length': stat.size,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        });
+        res.end(fileContent);
+        return;
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Error streaming backup file: ' + e.message);
+        return;
+      }
+    }
+
+    // POST /api/backups/verify - Verify integrity of existing or uploaded backup
+    if (pathname === '/api/backups/verify' && req.method === 'POST') {
+      if (!isRequestAuthorizedAdmin(req)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized: Administrator access required to verify backups.' }));
+        return;
+      }
+      readJsonBody(req, res, async (err, payload) => {
+        if (err) return;
+        try {
+          let source = null;
+          let requestedId = payload.id;
+
+          if (payload.base64Zip) {
+            source = Buffer.from(payload.base64Zip, 'base64');
+          } else if (requestedId) {
+            source = getBackupEngine().getBackupFilePath(requestedId);
+          } else {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Expected either id or base64Zip in request.' }));
+            return;
+          }
+
+          if (!source && requestedId) {
+            // Check if metadata record exists in catalog index
+            const index = getBackupEngine().readBackupIndex();
+            const entry = index.find(b => b.backupId === requestedId || b.filename === requestedId || b.filename === `${requestedId}.zip`);
+
+            if (entry) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: false,
+                verification: {
+                  valid: false,
+                  status: 'MISSING_ARTIFACT',
+                  backupId: requestedId,
+                  versionName: entry.versionName || requestedId,
+                  createdAt: entry.createdAt || entry.createdTimestamp,
+                  declaredChecksum: entry.packageChecksum || 'N/A',
+                  errors: [
+                    `Backup archive file '${entry.filename || requestedId + '.zip'}' was not found in persistent server storage. The metadata record exists, but the physical archive package is missing from the server filesystem.`
+                  ],
+                  warnings: [],
+                  checks: {
+                    metadataFound: true,
+                    artifactAccessible: false,
+                    manifestValid: false,
+                    filesIntact: 0,
+                    filesChecked: entry.filesCount || 0,
+                    checksumsMatched: false,
+                    dataIntegrity: false
+                  },
+                  recoveryPath: "Upload the downloaded .zip backup package via the 'Upload Backup File' box to restore and verify the archive on this server."
+                }
+              }));
+              return;
+            } else {
+              res.writeHead(404, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: false,
+                error: `Backup ID '${requestedId}' was not found in the backup catalog or server storage.`
+              }));
+              return;
+            }
+          }
+
+          const report = await getBackupEngine().verifyBackup(source);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: report.valid, verification: report }));
+        } catch (verifyErr) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: verifyErr.message }));
+        }
+      });
+      return;
+    }
+
+    // POST /api/backups/restore - Guided system restoration with automatic safety snapshot
+    if (pathname === '/api/backups/restore' && req.method === 'POST') {
+      if (!isRequestAuthorizedAdmin(req)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized: Administrator access required to restore backups.' }));
+        return;
+      }
+      readJsonBody(req, res, async (err, payload) => {
+        if (err) return;
+        try {
+          let source = null;
+          if (payload.id) {
+            source = getBackupEngine().getBackupFilePath(payload.id);
+            if (!source) {
+              res.writeHead(404, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Backup ID not found on server.' }));
+              return;
+            }
+          } else if (payload.base64Zip) {
+            source = Buffer.from(payload.base64Zip, 'base64');
+          } else {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Expected either id or base64Zip in request.' }));
+            return;
+          }
+
+          const restoreResult = await getBackupEngine().restoreBackup(source, {
+            restoreCode: payload.restoreCode !== false,
+            restoreData: payload.restoreData !== false,
+            autoSafetyBackup: payload.autoSafetyBackup !== false
+          });
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, report: restoreResult }));
+        } catch (restoreErr) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: restoreErr.message }));
+        }
+      });
+      return;
+    }
+
+    // POST /api/backups/upload - Upload and register an external backup .zip package
+    if (pathname === '/api/backups/upload' && req.method === 'POST') {
+      if (!isRequestAuthorizedAdmin(req)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized: Administrator access required to upload backups.' }));
+        return;
+      }
+      readJsonBody(req, res, async (err, payload) => {
+        if (err) return;
+        if (!payload.base64Zip) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing base64Zip payload.' }));
+          return;
+        }
+
+        try {
+          const zipBuffer = Buffer.from(payload.base64Zip, 'base64');
+          const verification = await getBackupEngine().verifyBackup(zipBuffer);
+          if (!verification.valid) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              error: 'Uploaded package failed integrity validation: ' + verification.errors.join('; '),
+              verification
+            }));
+            return;
+          }
+
+          const manifest = verification.manifest;
+          const backupId = manifest.backupId;
+          const zipFilename = `${backupId}.zip`;
+          const savePath = path.join(getBackupEngine().ARCHIVES_DIR, zipFilename);
+
+          try {
+            fs.writeFileSync(savePath, zipBuffer);
+          } catch (writeErr) {
+            console.warn('Could not write archive to disk, continuing in memory:', writeErr.message);
+          }
+
+          const index = getBackupEngine().readBackupIndex();
+          const existingIdx = index.findIndex(b => b.backupId === backupId);
+          const indexEntry = {
+            backupId,
+            versionName: manifest.versionName,
+            createdAt: manifest.createdAt,
+            createdTimestamp: manifest.createdTimestamp || Date.now(),
+            author: manifest.author || 'Uploaded by Administrator',
+            type: manifest.type || 'full',
+            description: manifest.description || payload.description || 'Uploaded backup archive',
+            plannedChanges: manifest.plannedChanges || 'N/A',
+            sizeBytes: zipBuffer.length,
+            sizeFormatted: (zipBuffer.length / (1024 * 1024)).toFixed(2) + ' MB',
+            filesCount: manifest.filesCount || (manifest.files ? manifest.files.length : 0),
+            packageChecksum: getBackupEngine().calculateSha256(zipBuffer),
+            filename: zipFilename,
+            isVerified: true,
+            verificationStatus: 'VERIFIED',
+            systemMetrics: manifest.systemMetrics || {}
+          };
+
+          if (existingIdx !== -1) {
+            index[existingIdx] = indexEntry;
+          } else {
+            index.unshift(indexEntry);
+          }
+          getBackupEngine().writeBackupIndex(index);
+
+          getBackupEngine().logAudit('BACKUP_UPLOADED', { backupId, size: zipBuffer.length });
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, backup: indexEntry, verification }));
+        } catch (upErr) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: upErr.message }));
+        }
+      });
+      return;
+    }
+
+    // POST /api/backups/delete - Delete a backup point with protection guard
+    if (pathname === '/api/backups/delete' && req.method === 'POST') {
+      if (!isRequestAuthorizedAdmin(req)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized: Administrator access required to delete backups.' }));
+        return;
+      }
+      readJsonBody(req, res, (err, payload) => {
+        if (err) return;
+        if (!payload || !payload.id) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing backup id in payload.' }));
+          return;
+        }
+        try {
+          const delRes = getBackupEngine().deleteBackup(payload.id);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(delRes));
+        } catch (delErr) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: delErr.message }));
+        }
+      });
+      return;
+    }
+
+    // 1. GET /api/reports - list stored reports
+    if (pathname === '/api/reports' && req.method === 'GET') {
+      const index = readReportsIndex();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(index));
+      return;
+    }
+
+    // 2. GET /api/reports/check?dateKey=...&type=... (Issue S2: Strict Path Validation)
+    if (pathname === '/api/reports/check' && req.method === 'GET') {
+      const dateKey = parsedUrl.searchParams.get('dateKey');
+      const type = (parsedUrl.searchParams.get('type') || 'ddn').toLowerCase();
+      
+      const dateDir = getSafeDateDir(dateKey);
+      let exists = false;
+
+      if (dateDir && fs.existsSync(dateDir)) {
+        const metaPath = path.join(dateDir, 'meta.json');
+        if (fs.existsSync(metaPath)) {
+          try {
+            const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+            const filename = type === 'samal' ? meta.samalFileName : meta.ddnFileName;
+            if (filename && fs.existsSync(path.join(dateDir, filename))) {
+              exists = true;
+            }
+          } catch (e) {}
+        }
+      }
+
+      // Fallback check in templates directory
+      if (!exists && validateDateKey(dateKey)) {
+        const tplDir = path.join(__dirname, 'templates');
+        if (fs.existsSync(tplDir)) {
+          const tplFiles = fs.readdirSync(tplDir).filter(f => f.endsWith('.xlsx'));
+          const target = tplFiles.find(f => {
+            const upper = f.toUpperCase();
+            return type === 'samal' ? upper.includes('SAMAL') : upper.includes('DDN');
+          });
+          if (target) exists = true;
+        }
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ exists }));
+      return;
+    }
+
+    // 3. GET /api/reports/download?dateKey=...&type=... (Issue S2: Path Traversal Defense)
+    if (pathname === '/api/reports/download' && req.method === 'GET') {
+      const dateKey = parsedUrl.searchParams.get('dateKey');
+      const type = (parsedUrl.searchParams.get('type') || 'ddn').toLowerCase();
+
+      const dateDir = getSafeDateDir(dateKey);
+      if (!dateDir) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end('Invalid or forbidden dateKey parameter (expected YYYY-MM-DD).');
+        return;
+      }
+
+      let targetFile = null;
+      let downloadFilename = null;
+
+      // Look in generated_reports/<dateKey>/
+      if (fs.existsSync(dateDir)) {
+        const metaPath = path.join(dateDir, 'meta.json');
+        if (fs.existsSync(metaPath)) {
+          try {
+            const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+            downloadFilename = type === 'samal' ? meta.samalFileName : meta.ddnFileName;
+            const fullPath = path.join(dateDir, path.basename(downloadFilename));
+            if (fs.existsSync(fullPath)) {
+              targetFile = fullPath;
+            }
+          } catch (e) {}
+        }
+
+        // If meta lookup didn't find file, search files in directory
+        if (!targetFile) {
+          const files = fs.readdirSync(dateDir);
+          const match = files.find(f => {
+            const upper = f.toUpperCase();
+            return (type === 'samal' ? upper.includes('SAMAL') : upper.includes('DDN')) && upper.endsWith('.XLSX');
+          });
+          if (match) {
+            targetFile = path.join(dateDir, match);
+            downloadFilename = match;
+          }
+        }
+      }
+
+      // Fallback: check templates directory for pre-existing templates (e.g. September 3)
+      if (!targetFile) {
+        const tplDir = path.join(__dirname, 'templates');
+        if (fs.existsSync(tplDir)) {
+          const tplFiles = fs.readdirSync(tplDir);
+          const match = tplFiles.find(f => {
+            const upper = f.toUpperCase();
+            return (type === 'samal' ? upper.includes('SAMAL') : upper.includes('DDN')) && upper.endsWith('.XLSX') && upper.includes('COMPLETED');
+          });
+          if (match) {
+            targetFile = path.join(tplDir, match);
+            downloadFilename = match;
+          }
+        }
+      }
+
+      if (!targetFile || !fs.existsSync(targetFile)) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end(`Report file not found for ${dateKey} (${type.toUpperCase()}).`);
+        return;
+      }
+
+      if (!downloadFilename) {
+        downloadFilename = path.basename(targetFile);
+      }
+
+      try {
+        const stat = fs.statSync(targetFile);
+        const fileContent = fs.readFileSync(targetFile);
+
+        res.writeHead(200, {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${downloadFilename}"`,
+          'Content-Length': stat.size,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        });
+        res.end(fileContent);
+        return;
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Error reading report file: ' + err.message);
+        return;
+      }
+    }
+
+    // 3b. GET /api/templates/download?type=ddn|samal - Download permanent ERP master template
+    if (pathname === '/api/templates/download' && req.method === 'GET') {
+      const type = (parsedUrl.searchParams.get('type') || 'ddn').toLowerCase();
+      const tplDir = path.join(__dirname, 'templates');
+      let targetFile = null;
+      let downloadFilename = null;
+
+      if (type === 'samal') {
+        downloadFilename = 'SAMAL - MASTER TEMPLATE.xlsx';
+        const candidate1 = path.join(tplDir, 'SAMAL - MASTER TEMPLATE.xlsx');
+        const candidate2 = path.join(tplDir, 'samal_master.xlsx');
+        if (fs.existsSync(candidate1)) targetFile = candidate1;
+        else if (fs.existsSync(candidate2)) targetFile = candidate2;
+      } else {
+        downloadFilename = 'DDN - MASTER TEMPLATE.xlsx';
+        const candidate1 = path.join(tplDir, 'DDN - MASTER TEMPLATE.xlsx');
+        const candidate2 = path.join(tplDir, 'ddn_master.xlsx');
+        if (fs.existsSync(candidate1)) targetFile = candidate1;
+        else if (fs.existsSync(candidate2)) targetFile = candidate2;
+      }
+
+      if (!targetFile || !fs.existsSync(targetFile)) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end(`Master template file not found for ${type.toUpperCase()}.`);
+        return;
+      }
+
+      try {
+        const stat = fs.statSync(targetFile);
+        const fileContent = fs.readFileSync(targetFile);
+        res.writeHead(200, {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${downloadFilename}"`,
+          'Content-Length': stat.size,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        });
+        res.end(fileContent);
+        return;
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Error reading master template: ' + err.message);
+        return;
+      }
+    }
+
+    // 4. POST /api/reports - Save generated report files & metadata
+    if (pathname === '/api/reports' && req.method === 'POST') {
+      readJsonBody(req, res, (err, data) => {
+        if (err) return;
+        try {
+          const { dateKey, dateFormatted, sourceFile, recordsCount, ddnFileName, samalFileName, ddnBase64, samalBase64, metrics, timestamp } = data;
+
+          const dateDir = getSafeDateDir(dateKey);
+          if (!dateDir) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid or missing dateKey (expected YYYY-MM-DD)' }));
+            return;
+          }
+
+          if (!fs.existsSync(dateDir)) {
+            fs.mkdirSync(dateDir, { recursive: true });
+          }
+
+          // Write DDN Excel file
+          if (ddnBase64 && ddnFileName) {
+            const cleanDdn = path.basename(ddnFileName);
+            const ddnPath = path.join(dateDir, cleanDdn);
+            atomicWriteFileSync(ddnPath, Buffer.from(ddnBase64, 'base64'));
+          }
+
+          // Write SAMAL Excel file
+          if (samalBase64 && samalFileName) {
+            const cleanSamal = path.basename(samalFileName);
+            const samalPath = path.join(dateDir, cleanSamal);
+            atomicWriteFileSync(samalPath, Buffer.from(samalBase64, 'base64'));
+          }
+
+          // Write metadata
+          const meta = {
+            dateKey,
+            dateFormatted: dateFormatted || dateKey,
+            sourceFile: sourceFile || 'Uploaded file',
+            recordsCount: recordsCount || 0,
+            ddnFileName: ddnFileName ? path.basename(ddnFileName) : null,
+            samalFileName: samalFileName ? path.basename(samalFileName) : null,
+            metrics: metrics || null,
+            timestamp: timestamp || new Date().toISOString()
+          };
+          atomicWriteFileSync(path.join(dateDir, 'meta.json'), JSON.stringify(meta, null, 2));
+
+          // Update index
+          let index = readReportsIndex();
+          index = index.filter(item => item.dateKey !== dateKey);
+          index.push(meta);
+          index.sort((a, b) => b.dateKey.localeCompare(a.dateKey));
+          writeReportsIndex(index);
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, dateKey }));
+        } catch (err) {
+          console.error('Failed to save report:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
+    // 5. DELETE /api/reports?dateKey=... - Delete report record (Issue S2: Path Traversal Fixed)
+    if (pathname === '/api/reports' && req.method === 'DELETE') {
+      const dateKey = parsedUrl.searchParams.get('dateKey');
+      const dateDir = getSafeDateDir(dateKey);
+      if (!dateDir) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid or forbidden dateKey parameter (expected YYYY-MM-DD).' }));
+        return;
+      }
+
+      try {
+        if (fs.existsSync(dateDir)) {
+          fs.rmSync(dateDir, { recursive: true, force: true });
+        }
+
+        // Remove from index
+        let index = readReportsIndex();
+        index = index.filter(item => item.dateKey !== dateKey);
+        writeReportsIndex(index);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, message: 'Report deleted successfully.' }));
+      } catch (err) {
+        console.error('Failed to delete report:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'API route not found' }));
+    return;
+  }
+
+  // -------------------------------------------------------------
+  // STATIC ASSETS & SPA ROUTING (STRICT ALLOWLIST - Issue S1)
+  // -------------------------------------------------------------
+  const cleanPath = path.normalize(pathname).replace(/\\/g, '/').replace(/^(\.\.[\/\\])+/, '');
+  const ext = path.extname(cleanPath).toLowerCase();
+
+  // Explicitly deny dotfiles, hidden directories (/.git, /.env), and internal directories (/data, /templates)
+  if (cleanPath.startsWith('/.') || cleanPath.includes('/.') || cleanPath.startsWith('/data') || cleanPath.startsWith('/templates') || cleanPath.startsWith('/node_modules')) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('403 Forbidden: Direct access to this file or directory is prohibited.');
+    return;
+  }
+
+  // Allow explicit public files and assets
+  const ALLOWED_ROOT_FILES = new Set(['/', '/index.html', '/favicon.ico', '/manifest.json', '/sw.js', '/robots.txt']);
+  const ALLOWED_STATIC_DIRS = ['/css/', '/js/', '/assets/'];
+
+  // Prohibited files or extensions
+  const FORBIDDEN_EXTENSIONS = new Set([
+    '.json', '.xlsx', '.xls', '.sql', '.env', '.log', '.md',
+    '.yml', '.yaml', '.sh', '.bat', '.ps1', '.gitignore', '.lock'
+  ]);
+
+  // SPA Route handling: if no extension and not an API call, serve index.html (only for valid application top-level paths)
+  if (!ext && !cleanPath.startsWith('/api/')) {
+    // If the path contains slashes beyond root (e.g. /foo/bar without extension) and is not in an allowed directory, deny
+    const segments = cleanPath.split('/').filter(Boolean);
+    if (segments.length > 1 && !ALLOWED_STATIC_DIRS.some(dir => cleanPath.startsWith(dir))) {
+      res.writeHead(403, { 'Content-Type': 'text/plain' });
+      res.end('403 Forbidden: Invalid resource path.');
+      return;
+    }
+
+    const indexFilePath = path.join(__dirname, 'index.html');
+    fs.readFile(indexFilePath, (err, content) => {
+      if (err) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Server Error: ' + err.code);
+      } else {
+        res.writeHead(200, {
+          'Content-Type': 'text/html',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        });
+        res.end(content, 'utf-8');
+      }
+    });
+    return;
+  }
+
+  const isAllowedRoot = ALLOWED_ROOT_FILES.has(cleanPath);
+  const isAllowedDir = ALLOWED_STATIC_DIRS.some(dir => cleanPath.startsWith(dir));
+
+  // Deny anything not explicitly allowed
+  if (!isAllowedRoot && !isAllowedDir) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('403 Forbidden: Direct access to this file is prohibited.');
+    return;
+  }
+
+  // Block sensitive extensions even inside allowed directories (except manifest.json)
+  if (FORBIDDEN_EXTENSIONS.has(ext) && cleanPath !== '/manifest.json') {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('403 Forbidden: Direct access to this file type is prohibited.');
+    return;
+  }
+
+  const safeFilePath = path.join(__dirname, cleanPath === '/' ? 'index.html' : cleanPath);
+  const baseDir = path.resolve(__dirname);
+
+  if (!path.resolve(safeFilePath).startsWith(baseDir)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('403 Forbidden: Path traversal detected.');
+    return;
+  }
+
+  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+  fs.readFile(safeFilePath, (err, content) => {
+    if (err) {
+      if (err.code === 'ENOENT') {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('404 Not Found');
+      } else {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Server Error: ' + err.code);
+      }
+    } else {
+      res.writeHead(200, {
+        'Content-Type': contentType,
+        'Cache-Control': (ext === '.html' || ext === '.js' || ext === '.json') ? 'no-cache, must-revalidate' : 'public, max-age=3600'
+      });
+      res.end(content);
+    }
+  });
+}
+
+const server = http.createServer(requestHandler);
+
+if (require.main === module) {
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}...`);
+  });
+}
+
+module.exports = requestHandler;
