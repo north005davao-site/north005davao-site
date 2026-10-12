@@ -334,6 +334,24 @@
       }
     }
 
+    async deleteEmployeeDocuments(ids) {
+      if (!this.client || !Array.isArray(ids) || ids.length === 0) return false;
+      try {
+        const { error } = await this.client
+          .from('employee_documents')
+          .delete()
+          .in('id', ids);
+        if (error) {
+          console.warn('Supabase deleteEmployeeDocuments notice:', error.message);
+          return false;
+        }
+        return true;
+      } catch (err) {
+        console.error('Failed to batch delete employee documents from Supabase:', err);
+        return false;
+      }
+    }
+
     /* ------------------------------------------------------------------ */
     /* SYSTEM SNAPSHOTS & AUTO-REPAIR CHECKPOINTS SYNC HELPERS            */
     /* ------------------------------------------------------------------ */

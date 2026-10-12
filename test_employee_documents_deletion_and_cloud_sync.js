@@ -108,7 +108,7 @@ const sampleDocs = [
 ];
 
 // Seed initial localStorage
-localStorage.setItem('north005_employee_documents_v6', JSON.stringify(sampleDocs));
+localStorage.setItem('north005_employee_documents_v7', JSON.stringify(sampleDocs));
 
 const deletedFromSupabase = [];
 window.supabaseSync = {
@@ -168,7 +168,7 @@ async function runAcceptanceTest() {
   assert.strictEqual(serverDeletedIds.length, 3, 'Should have triggered server delete for all 3 docs');
 
   // Verify deletedDocIds in localStorage
-  const tombstoneRaw = localStorage.getItem('north005_deleted_employee_doc_ids_v2');
+  const tombstoneRaw = localStorage.getItem('north005_deleted_employee_doc_ids_v3') || localStorage.getItem('north005_deleted_employee_doc_ids_v2');
   assert.notStrictEqual(tombstoneRaw, null, 'Tombstone list must exist in localStorage');
   const tombstones = JSON.parse(tombstoneRaw);
   assert.strictEqual(tombstones.includes('DOC-DDN005-SR778-CBTA-001'), true);

@@ -125,6 +125,7 @@
         }
         const tx = db.transaction(STORE_NAME, 'readwrite');
         const store = tx.objectStore(STORE_NAME);
+        store.clear(); // Ensure deleted documents are purged from IndexedDB
         for (const doc of documents) {
           if (doc && doc.id) {
             store.put(doc);
@@ -224,37 +225,46 @@
             let sDocs = Array.isArray(sData) ? sData : ((sData && Array.isArray(sData.documents)) ? sData.documents : []);
             let sDeleted = Array.isArray(sData && sData.deletedDocIds) ? sData.deletedDocIds : [];
 
-            // If server returned 0 docs, trigger restore=true self-heal
-            if (sDocs.length === 0) {
-              try {
-                const healRes = await fetch('/api/employee-documents?restore=true');
-                if (healRes.ok) {
-                  sData = await healRes.json();
-                  sDocs = Array.isArray(sData) ? sData : ((sData && Array.isArray(sData.documents)) ? sData.documents : []);
-                  sDeleted = Array.isArray(sData && sData.deletedDocIds) ? sData.deletedDocIds : [];
-                }
-              } catch (_) {}
-            }
-
             // Authoritative server-side tombstones (strictly DOC-* IDs only)
             const cleanServerDeleted = sDeleted.filter(k => typeof k === 'string' && k.startsWith('DOC-') && !k.includes('::') && !k.includes(' '));
-            const serverDeletedSet = new Set(cleanServerDeleted);
+            
+            // Union server-side tombstones with local tombstones so user deletions are never lost or overwritten
+            const localDeleted = this.getDeletedDocIds();
+            cleanServerDeleted.forEach(k => localDeleted.add(k));
             try {
-              localStorage.setItem(DELETED_DOCS_KEY, JSON.stringify(cleanServerDeleted));
+              localStorage.setItem(DELETED_DOCS_KEY, JSON.stringify(Array.from(localDeleted)));
             } catch (e) {}
 
-            // Server is single source of truth: filter by server tombstones, not stale local cache
-            const validDocs = sDocs.filter(d => d && d.id && !serverDeletedSet.has(d.id) && !this.isUnwantedSeededDoc(d));
+            // Filter by all known tombstones (local and server)
+            const validDocs = sDocs.filter(d => d && d.id && !localDeleted.has(d.id) && !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
+            
+            // Reconcile server if it still holds records deleted locally
+            const lingeringIds = sDocs.filter(d => d && d.id && localDeleted.has(d.id)).map(d => d.id);
+            if (lingeringIds.length > 0) {
+              fetch('/api/employee-documents', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: lingeringIds })
+              }).catch(() => {});
+              if (window.supabaseSync && typeof window.supabaseSync.deleteEmployeeDocuments === 'function') {
+                window.supabaseSync.deleteEmployeeDocuments(lingeringIds).catch(() => {});
+              }
+            }
+
             if (validDocs.length > 0) {
               // Preserve genuine user uploads with active files not yet on the server
               const localPending = (this.documents || []).filter(d => 
-                d && (d.isPendingUpload || (d.isUserUploaded && (d.fileDataUrl || d.hasStoredAttachment))) && !validDocs.some(v => v.id === d.id || (v.employeeId === d.employeeId && v.documentType === d.documentType))
+                d && (d.isPendingUpload || (d.isUserUploaded && (d.fileDataUrl || d.hasStoredAttachment))) && !validDocs.some(v => v.id === d.id || (v.employeeId === d.employeeId && v.documentType === d.documentType)) && !localDeleted.has(d.id)
               );
               this.documents = this.deduplicateDocuments([...validDocs, ...localPending]);
               await this.saveDocuments();
               this.render();
-            } else if (Array.isArray(sDocs) && sDocs.length === 0 && (!this.documents || this.documents.length === 0)) {
-              this.documents = [];
+            } else {
+              // Permanent deletion confirmed: when zero valid records remain, strictly clear memory & storage
+              const localPending = (this.documents || []).filter(d => 
+                d && (d.isPendingUpload || (d.isUserUploaded && (d.fileDataUrl || d.hasStoredAttachment))) && !localDeleted.has(d.id)
+              );
+              this.documents = localPending;
               await this.saveDocuments();
               this.render();
             }
@@ -687,12 +697,22 @@
           if (res.ok) {
             const sData = await res.json();
             const sDocs = Array.isArray(sData) ? sData : ((sData && Array.isArray(sData.documents)) ? sData.documents : []);
-            const validDocs = sDocs.filter(d => d && d.id && !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
+            const sDeleted = Array.isArray(sData && sData.deletedDocIds) ? sData.deletedDocIds : [];
+            const cleanServerDeleted = sDeleted.filter(k => typeof k === 'string' && k.startsWith('DOC-') && !k.includes('::') && !k.includes(' '));
+            const localDeleted = this.getDeletedDocIds();
+            cleanServerDeleted.forEach(k => localDeleted.add(k));
+            try {
+              localStorage.setItem(DELETED_DOCS_KEY, JSON.stringify(Array.from(localDeleted)));
+            } catch (e) {}
+
+            const validDocs = sDocs.filter(d => d && d.id && !localDeleted.has(d.id) && !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
             if (validDocs.length > 0) {
               this.documents = this.deduplicateDocuments(validDocs);
-              await this.saveDocuments();
-              this.render();
+            } else {
+              this.documents = [];
             }
+            await this.saveDocuments();
+            this.render();
             cloudSucceeded = true;
             syncedCount = this.documents.length;
           }
@@ -705,9 +725,13 @@
       if (window.supabaseSync && typeof window.supabaseSync.fetchEmployeeDocuments === 'function') {
         try {
           const cloudDocs = await window.supabaseSync.fetchEmployeeDocuments();
-          if (Array.isArray(cloudDocs) && cloudDocs.length > 0) {
+          if (Array.isArray(cloudDocs)) {
             const validCloud = cloudDocs.filter(d => !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
-            this.documents = this.deduplicateDocuments([...this.documents, ...validCloud]);
+            if (validCloud.length > 0) {
+              this.documents = this.deduplicateDocuments([...this.documents, ...validCloud]);
+            } else if (this.documents.length === 0) {
+              this.documents = [];
+            }
             await this.saveDocuments();
             this.render();
             cloudSucceeded = true;
@@ -2091,18 +2115,22 @@
       }
 
       // 5. Delete from Supabase Cloud by ID and employeeId + documentType
-      if (window.supabaseSync && typeof window.supabaseSync.deleteEmployeeDocument === 'function') {
-        for (const doc of targets) {
-          await window.supabaseSync.deleteEmployeeDocument(doc.id, doc.employeeId, doc.documentType).catch(() => {});
+      if (window.supabaseSync) {
+        if (typeof window.supabaseSync.deleteEmployeeDocuments === 'function') {
+          await window.supabaseSync.deleteEmployeeDocuments(idsToDelete).catch(() => {});
+        } else if (typeof window.supabaseSync.deleteEmployeeDocument === 'function') {
+          await Promise.all(targets.map(doc => window.supabaseSync.deleteEmployeeDocument(doc.id, doc.employeeId, doc.documentType).catch(() => {})));
         }
       }
 
-      // 6. Delete from Server REST API
+      // 6. Delete from Server REST API (Atomic Bulk Deletion)
       if (typeof fetch === 'function') {
         try {
-          for (const id of idsToDelete) {
-            await fetch(`/api/employee-documents?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-          }
+          await fetch('/api/employee-documents', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: idsToDelete })
+          }).catch(() => {});
         } catch (e) {}
       }
 

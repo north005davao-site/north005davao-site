@@ -67,7 +67,7 @@ const sampleDocs = [
   { id: 'DOC-5', employeeId: 'DOC-5-ID', employeeName: 'MARY JOELINE', position: 'Sales Representative', documentType: 'CBTA', status: 'Complete' }
 ];
 
-localStorage.setItem('north005_employee_documents_v6', JSON.stringify(sampleDocs));
+localStorage.setItem('north005_employee_documents_v7', JSON.stringify(sampleDocs));
 
 const deletedFromSupabase = [];
 window.supabaseSync = {
@@ -146,7 +146,7 @@ async function runTest() {
   assert.ok(uniqueDeletedFromSupabase.includes('DOC-3'));
 
   // Verify tombstones
-  const tombstoneRaw = localStorage.getItem('north005_deleted_employee_doc_ids_v2');
+  const tombstoneRaw = localStorage.getItem('north005_deleted_employee_doc_ids_v3') || localStorage.getItem('north005_deleted_employee_doc_ids_v2');
   assert.notStrictEqual(tombstoneRaw, null);
   const tombstones = JSON.parse(tombstoneRaw);
   assert.ok(tombstones.includes('DOC-1'));

@@ -210,7 +210,8 @@ function readPersistentEmployeeDocuments() {
     });
 
     const activeList = Array.from(docMap.values());
-    if (activeList.length === 0 && baseDocs.length > 0) {
+    // Only fall back to baseDocs on initial cold startup if dynamic storage has never been initialized and no deletions were ever recorded
+    if (activeList.length === 0 && baseDocs.length > 0 && delSet.size === 0 && (!dynamic || dynamic.documents === undefined)) {
       return { documents: baseDocs, deletedDocIds: [] };
     }
 
@@ -810,7 +811,7 @@ function requestHandler(req, res) {
       let deletedSet = new Set((data.deletedDocIds || []).filter(k => typeof k === 'string' && k.startsWith('DOC-') && !k.includes('::') && !k.includes(' ')));
       let activeDocs = (data.documents || []).filter(d => d && d.id && !deletedSet.has(d.id));
 
-      if (restore || (activeDocs.length === 0 && fs.existsSync(DOCS_FILE))) {
+      if (restore) {
         try {
           const raw = JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8'));
           const baseDocs = Array.isArray(raw) ? raw : (raw.documents || []);
@@ -868,18 +869,6 @@ function requestHandler(req, res) {
 
         let mergedDocs = Array.from(docMap.values());
 
-        // Self-healing guard: if merge resulted in 0 docs but baseline has records, retain baseline
-        if (mergedDocs.length === 0 && fs.existsSync(DOCS_FILE)) {
-          try {
-            const raw = JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8'));
-            const baseDocs = Array.isArray(raw) ? raw : (raw.documents || []);
-            if (baseDocs.length > 0) {
-              mergedDocs = baseDocs;
-              deletedSet.clear();
-            }
-          } catch (_) {}
-        }
-
         const updatedData = {
           documents: mergedDocs,
           deletedDocIds: Array.from(deletedSet)
@@ -893,29 +882,66 @@ function requestHandler(req, res) {
 
     if (pathname === '/api/employee-documents' && req.method === 'DELETE') {
       const docId = parsedUrl.searchParams.get('id');
-      if (!validateSafeId(docId)) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Missing or invalid document id' }));
+      const all = parsedUrl.searchParams.get('all') === 'true';
+      const idsParam = parsedUrl.searchParams.get('ids');
+
+      const handleBatchDelete = (idsToDelete) => {
+        try {
+          let data = readPersistentEmployeeDocuments() || { documents: [], deletedDocIds: [] };
+          if (Array.isArray(data)) {
+            data = { documents: data, deletedDocIds: [] };
+          }
+          const delSet = new Set((data.deletedDocIds || []).filter(k => typeof k === 'string' && k.startsWith('DOC-') && !k.includes('::') && !k.includes(' ')));
+          idsToDelete.forEach(id => {
+            if (typeof id === 'string' && id.startsWith('DOC-')) {
+              delSet.add(id);
+            }
+          });
+          data.documents = (data.documents || []).filter(d => !delSet.has(d.id));
+          data.deletedDocIds = Array.from(delSet);
+          writePersistentEmployeeDocuments(data);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, deletedCount: idsToDelete.length, remainingCount: data.documents.length, deletedDocIds: data.deletedDocIds }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      };
+
+      if (all) {
+        let allIds = [];
+        if (fs.existsSync(DOCS_FILE)) {
+          try {
+            const raw = JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8'));
+            const bDocs = Array.isArray(raw) ? raw : (raw.documents || []);
+            bDocs.forEach(d => { if (d && d.id) allIds.push(d.id); });
+          } catch (_) {}
+        }
+        let current = readPersistentEmployeeDocuments() || { documents: [], deletedDocIds: [] };
+        (current.documents || []).forEach(d => { if (d && d.id) allIds.push(d.id); });
+        handleBatchDelete(Array.from(new Set(allIds)));
         return;
       }
-      try {
-        let data = readPersistentEmployeeDocuments() || { documents: [], deletedDocIds: [] };
-        if (Array.isArray(data)) {
-          data = { documents: data, deletedDocIds: [] };
-        }
-        data.documents = (data.documents || []).filter(d => d.id !== docId);
-        if (!data.deletedDocIds) data.deletedDocIds = [];
-        data.deletedDocIds = data.deletedDocIds.filter(k => typeof k === 'string' && k.startsWith('DOC-') && !k.includes('::') && !k.includes(' '));
-        if (!data.deletedDocIds.includes(docId)) {
-          data.deletedDocIds.push(docId);
-        }
-        writePersistentEmployeeDocuments(data);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, deletedId: docId }));
-      } catch (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
+
+      if (docId) {
+        handleBatchDelete([docId]);
+        return;
       }
+
+      if (idsParam) {
+        handleBatchDelete(idsParam.split(',').map(s => s.trim()).filter(Boolean));
+        return;
+      }
+
+      readJsonBody(req, res, (err, payload) => {
+        if (err || !payload) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing document id or ids' }));
+          return;
+        }
+        const ids = Array.isArray(payload) ? payload : (payload.ids || (payload.id ? [payload.id] : []));
+        handleBatchDelete(ids);
+      });
       return;
     }
 
