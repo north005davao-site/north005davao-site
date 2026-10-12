@@ -1385,7 +1385,7 @@ function buildDefaultStore() {
     auditLogs: [],
     eodLedger: [],
     importHistory: [],
-    deletedTransactionIds: [],
+    deletedTransactionIds: ['TXN-OCR-1790756780277-9', 'TXN-OCR-1790756780277-10'],
     deletedOutletRentalIds: [],
     outletRentals: [],
     thermalPaperDailySummary: { stocksOnHand: 0, allocations: [] },
@@ -1674,6 +1674,12 @@ class Store {
         if (parsed && parsed.employees && parsed.employees.length > 50) {
           let needsSave = false;
           if (!parsed.deletedTransactionIds) parsed.deletedTransactionIds = [];
+          ['TXN-OCR-1790756780277-9', 'TXN-OCR-1790756780277-10'].forEach(id => {
+            if (!parsed.deletedTransactionIds.includes(id)) {
+              parsed.deletedTransactionIds.push(id);
+              needsSave = true;
+            }
+          });
           if (parsed.transactions && Array.isArray(parsed.transactions)) {
             const originalCount = parsed.transactions.length;
             parsed.transactions = parsed.transactions.filter(t => t && !parsed.deletedTransactionIds.includes(t.id));

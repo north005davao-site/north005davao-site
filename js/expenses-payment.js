@@ -106,10 +106,26 @@ class ExpensesPaymentController {
     }
 
     // User Request: Delete/Reset to 0 the stored data for Expenses & Payment Management
-    // Purge any legacy sample demo transactions (TXN-TURA, TXN-MAC, TXN-EXP, TXN-2024)
+    // Purge any legacy sample demo transactions (TXN-TURA, TXN-MAC, TXN-EXP, TXN-2024, and Tura shortages)
     if (store.data.transactions && Array.isArray(store.data.transactions)) {
-      const isLegacyDemo = (id) => typeof id === 'string' && (id.startsWith('TXN-TURA-') || id.startsWith('TXN-MAC-') || id.startsWith('TXN-EXP-') || id.startsWith('TXN-2024-') || id.startsWith('TXN-SAMPLE-'));
-      store.data.transactions = store.data.transactions.filter(t => t && !isLegacyDemo(t.id));
+      const isLegacyDemo = (id) => typeof id === 'string' && (
+        id.startsWith('TXN-TURA-') || id.startsWith('TXN-MAC-') || id.startsWith('TXN-EXP-') ||
+        id.startsWith('TXN-2024-') || id.startsWith('TXN-SAMPLE-') ||
+        id === 'TXN-OCR-1790756780277-9' || id === 'TXN-OCR-1790756780277-10'
+      );
+      const isTuraShortage = (t) => t && (
+        isLegacyDemo(t.id) ||
+        ((t.name || '').toUpperCase().includes('TURA') && (t.isShortage || t.type === 'SHORT' || t.classification === 'SHORT'))
+      );
+      const toRemove = store.data.transactions.filter(isTuraShortage);
+      if (toRemove.length > 0) {
+        toRemove.forEach(t => {
+          if (!store.data.deletedTransactionIds.includes(t.id)) {
+            store.data.deletedTransactionIds.push(t.id);
+          }
+        });
+        store.data.transactions = store.data.transactions.filter(t => !isTuraShortage(t));
+      }
     }
 
     // Purge any ghost 'DDN005-TEL-TURA' employee that may have been injected by legacy code
