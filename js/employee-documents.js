@@ -15,8 +15,8 @@
 (function () {
   'use strict';
 
-  const DOCS_STORAGE_KEY = 'north005_employee_documents_v6';
-  const DELETED_DOCS_KEY = 'north005_deleted_employee_doc_ids_v2';
+  const DOCS_STORAGE_KEY = 'north005_employee_documents_v7';
+  const DELETED_DOCS_KEY = 'north005_deleted_employee_doc_ids_v3';
   const DB_NAME = 'North005ComplianceDocsDB';
   const DB_VERSION = 2; // Bump to ensure objectStore creation and upgrade safety
   const STORE_NAME = 'employee_documents';
@@ -200,6 +200,14 @@
     }
 
     async init() {
+      // Discard any browser-autofilled credentials in the search input
+      const searchEl = document.getElementById('docs-search-input');
+      if (searchEl) {
+        const u = (window.authManager && window.authManager.getCurrentUser && window.authManager.getCurrentUser()) ? (window.authManager.getCurrentUser().username || '').toLowerCase() : 'admin';
+        if (searchEl.value.toLowerCase() === 'admin' || (u && searchEl.value.toLowerCase() === u)) {
+          searchEl.value = '';
+        }
+      }
       this.populateDatalist();
       this.render();
 
@@ -228,19 +236,16 @@
               } catch (_) {}
             }
 
-            // Synchronize server-side tombstones (strictly DOC-* IDs only)
+            // Authoritative server-side tombstones (strictly DOC-* IDs only)
             const cleanServerDeleted = sDeleted.filter(k => typeof k === 'string' && k.startsWith('DOC-') && !k.includes('::') && !k.includes(' '));
-            if (cleanServerDeleted.length > 0) {
-              const currentDeleted = this.getDeletedDocIds();
-              cleanServerDeleted.forEach(id => currentDeleted.add(id));
-              try {
-                localStorage.setItem(DELETED_DOCS_KEY, JSON.stringify(Array.from(currentDeleted)));
-              } catch (e) {}
-            }
+            const serverDeletedSet = new Set(cleanServerDeleted);
+            try {
+              localStorage.setItem(DELETED_DOCS_KEY, JSON.stringify(cleanServerDeleted));
+            } catch (e) {}
 
-            const validDocs = sDocs.filter(d => d && d.id && !this.isDeletedDoc(d) && !this.isUnwantedSeededDoc(d));
+            // Server is single source of truth: filter by server tombstones, not stale local cache
+            const validDocs = sDocs.filter(d => d && d.id && !serverDeletedSet.has(d.id) && !this.isUnwantedSeededDoc(d));
             if (validDocs.length > 0) {
-              // Server is authoritative source of truth.
               // Preserve genuine user uploads with active files not yet on the server
               const localPending = (this.documents || []).filter(d => 
                 d && (d.isPendingUpload || (d.isUserUploaded && (d.fileDataUrl || d.hasStoredAttachment))) && !validDocs.some(v => v.id === d.id || (v.employeeId === d.employeeId && v.documentType === d.documentType))
@@ -489,16 +494,24 @@
 
     getDeletedDocIds() {
       try {
-        const raw = localStorage.getItem(DELETED_DOCS_KEY);
+        let raw = localStorage.getItem(DELETED_DOCS_KEY);
+        if (!raw) {
+          const legacy = localStorage.getItem('north005_deleted_employee_doc_ids_v2') || localStorage.getItem('north005_deleted_employee_doc_ids_v1');
+          if (legacy) {
+            raw = legacy;
+            try {
+              localStorage.removeItem('north005_deleted_employee_doc_ids_v2');
+              localStorage.removeItem('north005_deleted_employee_doc_ids_v1');
+            } catch (_) {}
+          }
+        }
         if (raw) {
           const arr = JSON.parse(raw);
           if (Array.isArray(arr)) {
             const clean = arr.filter(k => typeof k === 'string' && k.startsWith('DOC-') && !k.includes('::') && !k.includes(' '));
-            if (clean.length !== arr.length) {
-              try {
-                localStorage.setItem(DELETED_DOCS_KEY, JSON.stringify(clean));
-              } catch (_) {}
-            }
+            try {
+              localStorage.setItem(DELETED_DOCS_KEY, JSON.stringify(clean));
+            } catch (_) {}
             return new Set(clean);
           }
         }
@@ -611,14 +624,15 @@
 
     loadDocuments() {
       try {
-        // Purge legacy storage keys to eliminate stale synthetic caches
+        // Purge legacy storage keys to eliminate stale caches & tombstones
         const candidateKeys = [
+          'north005_employee_documents_v6',
           'north005_employee_documents_v5',
           'north005_employee_documents_v4',
           'north005_employee_documents_v3',
           'north005_employee_documents_v2',
           'north005_employee_documents_v1',
-          'north005_employee_documents'
+          'north005_deleted_docs'
         ];
         candidateKeys.forEach(k => {
           try { localStorage.removeItem(k); } catch (e) {}
@@ -847,17 +861,17 @@
       const datalist = document.getElementById('docs-search-datalist');
       if (!datalist) return;
       const emps = this.getEmployees();
-      datalist.innerHTML = emps.map(e => `
-        <option value="${e.name}">
-        <option value="${e.id}">
-        <option value="${e.role || ''}">
-      `).concat([
+      // Only include employee names and employee IDs — strictly exclude system/admin roles
+      const nameOptions = emps.filter(e => e && e.name).map(e => `<option value="${e.name}">`);
+      const idOptions = emps.filter(e => e && e.id).map(e => `<option value="${e.id}">`);
+      const docTypeOptions = [
         '<option value="RESUME">',
         '<option value="PHOTOCOPY OF VALID ID">',
         '<option value="BARANGAY CLEARANCE/POLICE CLEARANCE">',
         '<option value="CBTA">',
         '<option value="Commission Based Teller Agreement">'
-      ]).join('');
+      ];
+      datalist.innerHTML = Array.from(new Set([...nameOptions, ...idOptions, ...docTypeOptions])).join('');
     }
 
     setKpiTab(tabKey) {
@@ -891,14 +905,35 @@
       const searchEl = document.getElementById('docs-search-input');
       const typeEl = document.getElementById('docs-filter-type');
       const statusEl = document.getElementById('docs-filter-status');
+      const clearBtn = document.getElementById('docs-search-clear-btn');
 
-      if (searchEl) this.searchQuery = (searchEl.value || '').trim().toLowerCase();
+      if (searchEl) {
+        let val = (searchEl.value || '').trim();
+        // Browser autofill guard: if 'admin' or system username was inserted, ignore it
+        const currentUname = (window.authManager && window.authManager.getCurrentUser && window.authManager.getCurrentUser()) ? (window.authManager.getCurrentUser().username || '').toLowerCase() : 'admin';
+        if (val.toLowerCase() === 'admin' || (currentUname && val.toLowerCase() === currentUname)) {
+          val = '';
+          searchEl.value = '';
+        }
+        this.searchQuery = val.toLowerCase();
+        if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+      }
       if (typeEl) this.typeFilter = typeEl.value || 'all';
       if (statusEl) {
         this.statusFilter = statusEl.value || 'all';
         this.activeKpiTab = statusEl.value || 'all';
       }
 
+      this.currentPage = 1;
+      this.render();
+    }
+
+    clearSearch() {
+      const searchEl = document.getElementById('docs-search-input');
+      const clearBtn = document.getElementById('docs-search-clear-btn');
+      if (searchEl) searchEl.value = '';
+      if (clearBtn) clearBtn.style.display = 'none';
+      this.searchQuery = '';
       this.currentPage = 1;
       this.render();
     }
@@ -1604,12 +1639,16 @@
           <input type="checkbox" class="doc-row-checkbox" value="${doc.id}" ${isRowChecked ? 'checked' : ''} onchange="window.employeeDocumentsModule.toggleRowSelection('${doc.id}', this.checked)" style="cursor:pointer; transform:scale(1.15);" title="Select row">
         `;
 
+        const rowClickAttr = doc.isMissingPlaceholder
+          ? (isAdmin ? `onclick="window.employeeDocumentsModule.openUploadModalForEmp('${doc.employeeId}', '${(doc.employeeName || '').replace(/'/g, "\\'")}')" style="cursor:pointer;"` : '')
+          : `onclick="window.employeeDocumentsModule.viewDocument('${doc.id}')" style="cursor:pointer;"`;
+
         return `
-          <tr class="${isRowChecked ? 'selected-row' : ''}">
-            <td style="text-align: center;">${checkboxHtml}</td>
+          <tr class="${isRowChecked ? 'selected-row' : ''}" ${rowClickAttr}>
+            <td style="text-align: center;" onclick="event.stopPropagation();">${checkboxHtml}</td>
             <td><code style="font-size:11.5px;color:var(--accent-gold);font-weight:700;">${doc.employeeId}</code></td>
             <td>
-              <div style="font-weight: 700; color: var(--text-main); font-size: 13px;">${doc.employeeName}</div>
+              <div style="font-weight: 700; color: var(--text-main); font-size: 13px;" title="Click to view document details">${doc.employeeName}</div>
             </td>
             <td><div style="font-size: 12px;">${doc.position || 'Staff'}</div></td>
             <td><div style="font-size: 12px; font-weight: 700; color: #e2e8f0;">${doc.documentType}</div></td>
@@ -1622,7 +1661,7 @@
             <td style="font-size: 11.5px; color: var(--text-muted); max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
               ${doc.notes || '-'}
             </td>
-            <td style="text-align: center; white-space: nowrap;">
+            <td style="text-align: center; white-space: nowrap;" onclick="event.stopPropagation();">
               <div style="display:inline-flex; align-items:center; justify-content:center; gap:4px;">
                 ${actionBtns}
               </div>

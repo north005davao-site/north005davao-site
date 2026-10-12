@@ -2391,9 +2391,11 @@
             <div class="view-actions docs-toolbar-actions">
               <div class="docs-toolbar-filters">
                 <div style="position: relative; flex: 1; min-width: 180px;">
-                  <input type="text" id="docs-search-input" list="docs-search-datalist" class="form-input"
-                    placeholder="Search employee or document..." style="width: 100%;"
+                  <input type="search" id="docs-search-input" name="employee_compliance_search" list="docs-search-datalist" class="form-input"
+                    autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                    placeholder="Search employee or document..." style="width: 100%; padding-right: 28px;"
                     oninput="window.employeeDocumentsModule.filterDocuments()">
+                  <button type="button" id="docs-search-clear-btn" onclick="window.employeeDocumentsModule.clearSearch()" style="display: none; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 2px 6px; line-height: 1;" title="Clear search">✕</button>
                   <datalist id="docs-search-datalist"></datalist>
                 </div>
                 <select id="docs-filter-type" class="form-input docs-select-type"
